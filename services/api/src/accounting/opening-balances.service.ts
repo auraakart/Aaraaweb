@@ -51,8 +51,12 @@ export class OpeningBalancesService {
   }
 
   async apply(societyId: string, userId: string, input: ApplyOpeningBalanceInput) {
+    // Preserve public API validation before opening a DB transaction.
+    // The composed migration path revalidates inside the caller's transaction.
+    const normalized = this.normalize(input);
+    this.validateLines(normalized.lines);
     return this.prisma.$transaction((tx) =>
-      this.applyWithinTransaction(tx, societyId, userId, input),
+      this.applyWithinTransaction(tx, societyId, userId, normalized),
     ).catch((error) => this.rethrow(error));
   }
 
