@@ -107,7 +107,24 @@ export class MigrationOpeningBalanceCommitService {
           entryDate: reversalDate,
           reason: `Rollback opening-balance migration ${batchId}`,
         });
-      } else if (journals[0].status !== 'REVERSED') {
+      } else if (journals[0].status === 'REVERSED') {
+        // Legacy partial rollbacks may leave a reversed journal and a COMMITTED
+        // batch. Only an identifiable migration-specific reversal can be
+        // recovered; an unrelated finance reversal is not rollback evidence.
+        const reversals = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "JournalEntry"
+          WHERE "societyId"=${societyId}::uuid
+            AND "reversalOfEntryId"=${journalId}::uuid
+            AND "sourceType"='JOURNAL_REVERSAL' AND "sourceId"=${journalId}
+            AND "entryNumber"=${this.reversalEntryNumber(batchId)}
+            AND "description"=${`Reversal: Rollback opening-balance migration ${batchId}`}
+            AND "status"='POSTED'
+          LIMIT 1
+        `);
+        if (reversals.length !== 1) {
+          throw new ConflictException('Opening-balance migration reversal evidence is incomplete');
+        }
+      } else {
         throw new ConflictException('Opening-balance journal is not in a reversible state');
       }
 

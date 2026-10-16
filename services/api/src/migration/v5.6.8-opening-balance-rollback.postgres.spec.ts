@@ -89,6 +89,57 @@ const disposable = (() => {
     return result[0];
   }
 
+  it('rejects a manual finance reversal as evidence of migration rollback', async () => {
+    const unrelatedBatchId = randomUUID();
+    const draft = await accounting.createDraft(societyId, actorId, {
+      periodId,
+      entryNumber: 'MANUAL-OB-' + unrelatedBatchId.slice(0, 8),
+      entryDate: '2026-10-10',
+      description: 'Independent disposable opening-balance journal',
+      sourceType: 'OPENING_BALANCE',
+      sourceId: 'migration:' + unrelatedBatchId,
+      lines: [
+        { accountId: assetId, debitPaise: 3000, creditPaise: 0 },
+        { accountId: equityId, debitPaise: 0, creditPaise: 3000 },
+      ],
+    }) as { id: string };
+    await accounting.postJournal(societyId, actorId, draft.id);
+    await accounting.reverseJournal(societyId, actorId, draft.id, {
+      entryNumber: 'MANUAL-RV-' + unrelatedBatchId.slice(0, 8),
+      entryDate: '2026-10-10',
+      reason: 'Independent finance correction',
+    });
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatch"
+        ("id","societyId","actorUserId","entityType","status","checksum",
+         "totalRows","validRows","invalidRows","duplicateRows","committedAt","committedByUserId")
+      VALUES (${unrelatedBatchId}::uuid,${societyId}::uuid,${actorId}::uuid,'OPENING_BALANCE',
+        'COMMITTED',${randomUUID().replaceAll('-', '').repeat(2)},2,2,0,0,
+        CURRENT_TIMESTAMP,${actorId}::uuid)
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatchRow"
+        ("batchId","rowNumber","normalized","valid","targetType","targetId","committedAt")
+      VALUES (${unrelatedBatchId}::uuid,1,'{}'::jsonb,true,'JournalEntry',${draft.id}::uuid,CURRENT_TIMESTAMP),
+             (${unrelatedBatchId}::uuid,2,'{}'::jsonb,true,'JournalEntry',${draft.id}::uuid,CURRENT_TIMESTAMP)
+    `);
+
+    await expect(service.rollback(societyId, actorId, unrelatedBatchId))
+      .rejects.toThrow('Opening-balance migration reversal evidence is incomplete');
+    const state = await prisma.$queryRaw<Array<{ batchStatus: string; journalStatus: string; rolledBackRows: bigint; reversals: bigint }>>(Prisma.sql`
+      SELECT mb."status" AS "batchStatus", je."status"::text AS "journalStatus",
+        (SELECT COUNT(*) FROM "MigrationBatchRow"
+         WHERE "batchId"=${unrelatedBatchId}::uuid AND "rolledBackAt" IS NOT NULL) AS "rolledBackRows",
+        (SELECT COUNT(*) FROM "JournalEntry"
+         WHERE "societyId"=${societyId}::uuid AND "reversalOfEntryId"=${draft.id}::uuid) AS "reversals"
+      FROM "MigrationBatch" mb JOIN "JournalEntry" je ON je."id"=${draft.id}::uuid
+      WHERE mb."id"=${unrelatedBatchId}::uuid AND mb."societyId"=${societyId}::uuid
+    `);
+    expect(state).toMatchObject([{
+      batchStatus: 'COMMITTED', journalStatus: 'REVERSED', rolledBackRows: 0n, reversals: 1n,
+    }]);
+  }, 30_000);
+
   it('rejects a second migration batch that points to the first batch journal', async () => {
     const foreignBatchId = randomUUID();
     await prisma.$executeRaw(Prisma.sql`

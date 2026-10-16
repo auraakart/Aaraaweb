@@ -118,14 +118,32 @@ describe('MigrationOpeningBalanceCommitService V5.6.7 rollback atomicity', () =>
     // so a real PostgreSQL callback rejection rolls both back.
   });
 
-  it('recognizes a legacy reversed journal without attempting a second reversal', async () => {
+  it('recovers a genuine legacy migration reversal without posting another journal', async () => {
     const { service, tx, accounting } = setup([
       [batch()], [row('row-a'), row('row-b')], [{ status: 'REVERSED' }],
+      [{ id: 'existing-migration-reversal' }],
       [{ id: batchId, status: 'ROLLED_BACK' }],
     ]);
     await expect(service.rollback(societyId, actorId, batchId))
       .resolves.toMatchObject({ status: 'ROLLED_BACK' });
     expect(accounting.reverseJournalWithinTransaction).not.toHaveBeenCalled();
     expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(5);
+    const reversalLookup = tx.$queryRaw.mock.calls[3][0];
+    expect(reversalLookup.strings.join(' ')).toContain('"entryNumber"=');
+    expect(reversalLookup.values).toContain('MIG-RV-1111111111111111');
+    expect(reversalLookup.values).toContain('Reversal: Rollback opening-balance migration ' + batchId);
   });
+
+  it('rejects an already reversed journal without matching migration-specific reversal evidence', async () => {
+    const { service, tx, accounting } = setup([
+      [batch()], [row('row-a'), row('row-b')], [{ status: 'REVERSED' }], [],
+    ]);
+    await expect(service.rollback(societyId, actorId, batchId))
+      .rejects.toThrow('Opening-balance migration reversal evidence is incomplete');
+    expect(accounting.reverseJournalWithinTransaction).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1); // advisory lock only
+  });
+
 });
