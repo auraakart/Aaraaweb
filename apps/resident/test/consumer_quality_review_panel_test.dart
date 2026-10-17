@@ -125,6 +125,7 @@ void main() {
         find.byType(TextField),
         'The filter needs another inspection',
       );
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Submit for rework review'));
       await tester.tap(find.text('Submit for rework review'));
       await tester.pumpAndSettle();
@@ -143,6 +144,7 @@ void main() {
         find.byType(TextField),
         'The filter needs another inspection',
       );
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Submit for rework review'));
       await tester.tap(find.text('Submit for rework review'));
       await tester.pumpAndSettle();

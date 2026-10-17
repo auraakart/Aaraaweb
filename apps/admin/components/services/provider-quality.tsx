@@ -58,7 +58,7 @@ export function ProviderQuality({ request, offerings }: { request: ServiceReques
       <button disabled={busy || items.length >= 20} onClick={() => setItems([...items, { id: '', label: '', required: true }])}>Add checklist step</button>{' '}
       <button disabled={busy} onClick={() => void save()}>Save checklist</button>
     </div>}
-    <hr/><h3>Private quality activity</h3><p>90-day operational counts, based on current completion state and update time. These are not quality scores or public rankings.</p>
+    <hr/><h2>Private quality activity</h2><p>90-day operational counts, based on current completion state and update time. These are not quality scores or public rankings.</p>
     <button onClick={() => void loadSummary()}>Refresh quality activity</button>
     {summary && <dl>{[['completedBookings', 'Completed bookings'], ['completedWithChecklist', 'Completed with a captured checklist'], ['reworkRequests', 'Rework review requests'], ['openReworkRequests', 'Open rework reviews']].map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{String(summary[key])}</dd></div>)}</dl>}
   </section>
