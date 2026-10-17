@@ -10,6 +10,8 @@ V4.69 and V4.99.2 already improved Gate, Billing, Amenities and Notices. Their p
 
 The supplied August specification establishes scope and tenant isolation; the supplied image shows GitHub, not an application screen. Neither is treated as current visual evidence. The audit below distinguishes implementation evidence from rendered and human acceptance evidence. Competitor visual parity and measured user task efficiency have not been established.
 
+Implementation status: merged into develop at `64c2fd2116e32633281e94cf31bd7fd15fc027dc` through [PR 1435](https://github.com/auraakart/Aaraaweb/pull/1435). The final tested UI head is `5a0b3f5d6bd95f37329a6db39481fa08ad61046c`; its complete tree matches the develop integration tree. Main and staging were not promoted.
+
 ## Locked invariants
 
 | Area | Preserved contract |
@@ -76,7 +78,7 @@ Actual Home, Staff, Helpdesk, Services, Community and Profile screenshots were i
 
 Short Home gate decisions may share a row at 300px content width, matching the established Gate pattern. Staff uses equal leave/rating actions at that width; the longer attendance/payment group retains the 360px default after rendered review found an awkward split in ATTENDANCE. Large text always stacks. Other action groups retain the 360px default. This documented exception avoids unnecessarily tall phone cards while keeping long labels readable.
 
-The capture helper now supplies the SDK Roboto family to Chip styles as well as buttons. The first Staff capture exposed Ahem test-font blocks in chip labels; that image cannot establish label quality. No production font or chip style is changed. The populated Services fixture now supplies provider/category contract fields; the first capture showed the empty state because older demo offerings lacked the typed model's required provider object.
+The capture helper now supplies the SDK Roboto family to Chip styles as well as buttons. The first Staff capture exposed Ahem test-font blocks in chip labels; that image cannot establish label quality. Those capture font overrides do not change the production font. Staff status presentation is separately refined as described below. The populated Services fixture now supplies provider/category contract fields; the first capture showed the empty state because older demo offerings lacked the typed model's required provider object.
 
 Admin Helpdesk's prior rendered queue/detail layout was inspected at 1440px. Routine forms used the same tinted rounded treatment as readiness summaries. Forms now use spacing and a top divider, retaining readiness tint for its distinct purpose. Existing navigation/action/notice hover treatments stop moving controls; reduced-motion preferences cover those legacy surfaces and the management drawer. Metric, notice and action shadows are removed, and legacy amount columns use tabular numerals. No controls, forms, filters, evidence or operational destinations are removed.
 
@@ -84,13 +86,13 @@ Additional modified files: `apps/resident/lib/screens/community_screen.dart`, `a
 
 ### Validation status
 
-Protected [CI 39060102653](https://github.com/auraakart/Aaraaweb/actions/runs/39060102653) passed for code head `c98d56ccd559ae4cc15f76de58db3b3b3cc172a3`. Changed Resident tests: 56 passed; risk regression: 66 passed and coverage gate passed; full Resident: 370 passed; Flutter analysis: no issues. Admin: 167 browser tests passed, including the new legacy reduced-motion/navigation check; Admin build and applicable validation gates passed. Repository structure, preflight, dependency/security routing and required merge gates passed. API full tests and Android smoke were scope-skipped; their wrapper success is not new API or device evidence. Guard source is unchanged.
+Protected [CI 39060828264](https://github.com/auraakart/Aaraaweb/actions/runs/39060828264) passed for code head `5a0b3f5d6bd95f37329a6db39481fa08ad61046c`. Changed Resident tests: 56 passed; risk regression: 66 passed and coverage gate passed; full Resident: 370 passed; Flutter analysis: no issues. Admin: 167 browser tests passed, including the new legacy reduced-motion/navigation check; Admin build and applicable validation gates passed. Repository structure, preflight, dependency/security routing and required merge gates passed. API full tests and Android smoke were scope-skipped; their wrapper success is not new API or device evidence. Guard source is unchanged.
 
 Local stable domain invariants: 44/44 pass. Maintainability, release identity, privacy/hygiene and base-to-working-tree diff checks pass. The Insta Services source invariant now accepts the existing Text label or its shared heading title, retaining runtime entry/navigation coverage. No assertions, hit-test warnings, retries or CI controls were suppressed.
 
-The green run produced 65 Resident PNGs in [artifact 12110764279](https://github.com/auraakart/Aaraaweb/actions/runs/39060102653/artifacts/12110764279) and 25 Admin PNGs in [artifact 12110932567](https://github.com/auraakart/Aaraaweb/actions/runs/39060102653/artifacts/12110932567). Reviewed standard/compact light/dark Home, Staff, Helpdesk, populated Services, Community, Profile and Staff form examples, plus Admin Helpdesk before/after. Representative images are presentation fixtures, not live sessions.
+The green run produced 65 Resident PNGs in [artifact 12111039194](https://github.com/auraakart/Aaraaweb/actions/runs/39060828264/artifacts/12111039194) and 25 Admin PNGs in [artifact 12111213044](https://github.com/auraakart/Aaraaweb/actions/runs/39060828264/artifacts/12111213044). Reviewed standard/compact light/dark Home, Staff, Helpdesk, populated Services, Community, Profile and Staff form examples, plus Admin Helpdesk before/after. Representative images are presentation fixtures, not live sessions.
 
-Manual review after green CI found an awkward mid-word wrap in the phone attendance button. Its group now retains the existing wider stacking threshold. That follow-up is intentionally held for another protected run before merge; current exact-head checks and merge state are available in [PR 1435](https://github.com/auraakart/Aaraaweb/pull/1435). No whole-product closure is claimed from the earlier run.
+Manual review found an awkward mid-word wrap in the phone attendance button. Its group now retains the existing wider stacking threshold. That correction and the essential-status/large-type corrections below passed the final protected run and were visually reviewed before the develop merge. Whole-product 9/10 acceptance remains open.
 
 ### Quality scorecard and acceptance limits
 
@@ -123,3 +125,15 @@ Brand-token deviation, unapproved functional changes and known functional regres
 - Obtain independent task-based resident/senior/guard/operator feedback, remedy findings, then reassess the 9/10 target. No elapsed-time, tap-efficiency or commercial competitor score is invented.
 
 Further review of the complete compact contact sheet exposed pre-existing single-line Chip truncation of Staff assignment, verification and gate-access values. These essential values now use wrapping icon/text details, preserving every label and its meaning; the visual test also checks the actual RenderParagraph has no line cap. Community uses the established headline-small role and a single-column shortcut layout at large type, so words and destination labels remain whole. Optional Assistant/Insta Services lead icons yield their space to text at large sizes. These corrections are driven by actual compact light/dark renders, not a test-pass assumption.
+
+## Demo APK delivery
+
+Published [Resident UI demo preview](https://github.com/auraakart/Aaraaweb/releases/tag/resident-demo-ui-20261018), version `4.99.2+49902`, through [build 39061260371](https://github.com/auraakart/Aaraaweb/actions/runs/39061260371). The demo packaging run passed all 370 Resident tests and APK archive/manifest/bytecode/ARM64 engine inspection before publication.
+
+- Application source: develop `64c2fd2116e32633281e94cf31bd7fd15fc027dc`.
+- Build commit: `4a6583d1c1cb9ff5f452397de1e182b084411096`; application paths are verified byte-for-byte against the validated source before packaging.
+- Asset: [Aaraagate-Resident-Demo-Showcase-V2.apk](https://github.com/auraakart/Aaraaweb/releases/download/resident-demo-ui-20261018/Aaraagate-Resident-Demo-Showcase-V2.apk), 59472910 bytes.
+- Published digest: `sha256:a3725b8289d35477c7ce58dd9f5cea5c7ef8ff8d28db0db2ea99f21c316f4e2c`.
+- The dedicated preview workflow exists only on `demo/ui-refinement-20261018`. It reuses the established demo packaging, enrichment, SDK, tests and integrity checks. The main demo workflow and `resident-demo-latest` release are unchanged.
+- This is a demo-signed, release-mode preview with the existing Continue as Demo Resident login; it is not a production/store-signing or physical-device acceptance claim.
+
