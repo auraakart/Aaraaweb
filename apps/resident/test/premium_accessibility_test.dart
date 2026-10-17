@@ -10,6 +10,27 @@ double contrast(Color first, Color second) {
 }
 
 void main() {
+  testWidgets('pending feedback stops ticking behind a modal and resumes on return', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: AaraagateTheme.light(),
+      home: Builder(builder: (context) => Scaffold(body: FilledButton(
+        onPressed: () => showModalBottomSheet<void>(context: context, builder: (sheetContext) =>
+          TextButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Done'))),
+        child: const PremiumActionLabel(label: 'Preparing payment…', busy: true),
+      ))),
+    ));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.tap(find.text('Preparing payment…'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.tap(find.text('Done'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   for (final dark in [false, true]) {
     for (final reduced in [false, true]) {
       testWidgets('pending action keeps its label, 48px target and reduced motion: dark=$dark reduced=$reduced', (tester) async {
