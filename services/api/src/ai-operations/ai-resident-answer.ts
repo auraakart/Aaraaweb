@@ -19,9 +19,10 @@ export function residentAnswer(question: string, facts: ResidentRecords, mayView
   const serviceBookings=facts.serviceBookings ?? [];
   const tidy=(value:unknown,maximum=100)=>String(value ?? '').replace(/\s+/g,' ').trim().slice(0,maximum);
   const amount=(paise:unknown)=>{
+    if(typeof paise!=='number'&&(typeof paise!=='string'||!/^\d+$/.test(paise)))return 'amount unavailable';
     const numeric=Number(paise);
-    return Number.isFinite(numeric) && numeric>=0
-      ? '₹'+(numeric/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})
+    return Number.isSafeInteger(numeric) && numeric>=0
+      ? '₹'+Math.floor(numeric/100).toLocaleString('en-IN')+'.'+String(numeric%100).padStart(2,'0')
       : 'amount unavailable';
   };
   // "Maintenance payment due" is a dues request, not a request for the payer's

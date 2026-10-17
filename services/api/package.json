@@ -1,6 +1,6 @@
 {
   "name": "@aaraagate/api",
-  "version": "4.91.5",
+  "version": "4.92.0",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
