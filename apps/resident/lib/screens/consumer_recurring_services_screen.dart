@@ -3,19 +3,30 @@ import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import 'consumer_booking_screen.dart';
 
-class ConsumerRecurringServicesScreen extends StatefulWidget {
+class ConsumerRecurringServicesScreen extends StatelessWidget {
   const ConsumerRecurringServicesScreen({super.key, required this.apiClient});
   final ApiClient apiClient;
   @override
-  State<ConsumerRecurringServicesScreen> createState() =>
-      _ConsumerRecurringServicesScreenState();
+  Widget build(BuildContext context) => _RecurringPreferences(
+    key: ObjectKey(apiClient), apiClient: apiClient,
+  );
+}
+
+// A replacement authenticated client owns a fresh state and fresh routes.
+class _RecurringPreferences extends StatefulWidget {
+  const _RecurringPreferences({super.key, required this.apiClient});
+  final ApiClient apiClient;
+  @override
+  State<_RecurringPreferences> createState() => _ConsumerRecurringServicesScreenState();
 }
 
 class _ConsumerRecurringServicesScreenState
-    extends State<ConsumerRecurringServicesScreen> {
+    extends State<_RecurringPreferences> {
   List<Map<String, dynamic>> _plans = [];
   String? _error;
   bool _loading = true, _busy = false;
+  bool _refreshRequired = false;
+  final Set<Route<dynamic>> _ownedRoutes = {};
   int _generation = 0;
   @override
   void initState() {
@@ -24,21 +35,26 @@ class _ConsumerRecurringServicesScreenState
   }
 
   @override
-  void didUpdateWidget(covariant ConsumerRecurringServicesScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.apiClient != widget.apiClient) {
-      _busy = false;
-      _load();
-    }
-  }
-
-  @override
   void dispose() {
     _generation++;
+    for (final route in _ownedRoutes.toList()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navigator = route.navigator;
+        if (navigator != null && route.isActive) navigator.removeRoute(route);
+      });
+    }
+    _ownedRoutes.clear();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<T?> _pushOwned<T>(Route<T> route, {bool rootNavigator = false}) {
+    _ownedRoutes.add(route);
+    return Navigator.of(context, rootNavigator: rootNavigator).push(route)
+        .whenComplete(() => _ownedRoutes.remove(route));
+  }
+
+  Future<void> _load({bool allowBusy = false}) async {
+    if (!mounted || _busy && !allowBusy) return;
     final generation = ++_generation;
     setState(() {
       _loading = true;
@@ -61,7 +77,10 @@ class _ConsumerRecurringServicesScreenState
           ))
         throw const FormatException('Invalid recurring plans');
       if (mounted && generation == _generation)
-        setState(() => _plans = raw.cast<Map<String, dynamic>>());
+        setState(() {
+          _plans = raw.cast<Map<String, dynamic>>();
+          _refreshRequired = false;
+        });
     } catch (_) {
       if (mounted && generation == _generation)
         setState(
@@ -74,7 +93,8 @@ class _ConsumerRecurringServicesScreenState
   }
 
   Future<void> _book(Map<String, dynamic> plan) async {
-    if (_busy || plan['status'] != 'ACTIVE') return;
+    if (!mounted || _loading || _busy || _refreshRequired || plan['status'] != 'ACTIVE') return;
+    final api = widget.apiClient;
     final generation = _generation;
     setState(() {
       _busy = true;
@@ -87,7 +107,7 @@ class _ConsumerRecurringServicesScreenState
           'locationId': plan['locationId'] as String,
         },
       ).query;
-      final raw = await widget.apiClient.get(
+      final raw = await api.get(
         '/api/v1/consumer/services/offerings?$query',
       );
       if (raw is! List) throw const FormatException('Invalid offering list');
@@ -100,10 +120,10 @@ class _ConsumerRecurringServicesScreenState
           (offering['pricePaise'] as int) < 0)
         throw const FormatException('Offering no longer available');
       if (!mounted || generation != _generation) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
+      await _pushOwned<void>(
+        MaterialPageRoute<void>(
           builder: (_) => ConsumerBookingScreen(
-            apiClient: widget.apiClient,
+            apiClient: api,
             offering: offering,
             recurringPlanId: plan['id'] as String,
             initialLocation: {
@@ -113,7 +133,7 @@ class _ConsumerRecurringServicesScreenState
           ),
         ),
       );
-      if (mounted && generation == _generation) await _load();
+      if (mounted && generation == _generation) await _load(allowBusy: true);
     } catch (_) {
       if (mounted && generation == _generation)
         setState(
@@ -125,48 +145,50 @@ class _ConsumerRecurringServicesScreenState
   }
 
   Future<void> _status(Map<String, dynamic> plan, String status) async {
-    if (_busy) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          '${status == 'ACTIVE'
-              ? 'Resume'
-              : status == 'PAUSED'
-              ? 'Pause'
-              : 'Cancel'} this recurring preference?',
-        ),
-        content: const Text(
-          'This changes only the saved preference. Existing bookings stay unchanged; no visit or charge is created.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep preference'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm preference change'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted || _busy) return;
-    final generation = _generation;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    if (!mounted || _loading || _busy || _refreshRequired || plan['status'] == 'CANCELLED') return;
+    final generation = _generation, api = widget.apiClient;
+    setState(() { _busy = true; _error = null; });
     try {
-      await widget.apiClient.patch(
+      final navigator = Navigator.of(context, rootNavigator: true);
+      final confirm = await _pushOwned<bool>(DialogRoute<bool>(
+        context: context,
+        themes: InheritedTheme.capture(from: context, to: navigator.context),
+        builder: (context) => AlertDialog(
+          title: Text(
+            '${status == 'ACTIVE'
+                ? 'Resume'
+                : status == 'PAUSED'
+                ? 'Pause'
+                : 'Cancel'} this recurring preference?',
+          ),
+          content: const Text(
+            'This changes only the saved preference. Existing bookings stay unchanged; no visit or charge is created.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep preference'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm preference change'),
+            ),
+          ],
+        ),
+      ), rootNavigator: true);
+      if (confirm != true || !mounted || generation != _generation) return;
+      await api.patch(
         '/api/v1/consumer/services/recurring-plans/${plan['id']}/status',
         {'status': status},
       );
-      if (mounted && generation == _generation) await _load();
+      if (mounted && generation == _generation) await _load(allowBusy: true);
     } catch (_) {
       if (mounted && generation == _generation)
         setState(
-          () => _error = 'Preference update could not be confirmed. Refresh to check its latest state.',
+          () {
+            _refreshRequired = true;
+            _error = 'Preference update could not be confirmed. Refresh to check its latest state before changing it or planning a visit.';
+          },
         );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -174,21 +196,24 @@ class _ConsumerRecurringServicesScreenState
   }
 
   Future<void> _visits(Map<String, dynamic> plan) async {
-    if (_busy) return;
-    await showModalBottomSheet<void>(
-      context: context,
+    if (!mounted || _loading || _busy) return;
+    final api = widget.apiClient;
+    final navigator = Navigator.of(context);
+    await _pushOwned<void>(ModalBottomSheetRoute<void>(
+      capturedThemes: InheritedTheme.capture(from: context, to: navigator.context),
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.75,
           child: _RecurringVisitHistory(
-            apiClient: widget.apiClient,
+            apiClient: api,
             planId: plan['id'] as String,
           ),
         ),
       ),
-    );
+    ));
   }
 
   @override
@@ -232,7 +257,7 @@ class _ConsumerRecurringServicesScreenState
                       children: [
                         if (plan['status'] == 'ACTIVE')
                           FilledButton(
-                            onPressed: _busy ? null : () => _book(plan),
+                            onPressed: _busy || _loading || _refreshRequired ? null : () => _book(plan),
                             child: const Text('Plan one visit'),
                           ),
                         TextButton(
@@ -241,7 +266,7 @@ class _ConsumerRecurringServicesScreenState
                         ),
                         if (plan['status'] != 'CANCELLED') ...[
                           TextButton(
-                            onPressed: _busy
+                            onPressed: _busy || _loading || _refreshRequired
                                 ? null
                                 : () => _status(
                                     plan,
@@ -256,7 +281,7 @@ class _ConsumerRecurringServicesScreenState
                             ),
                           ),
                           TextButton(
-                            onPressed: _busy
+                            onPressed: _busy || _loading || _refreshRequired
                                 ? null
                                 : () => _status(plan, 'CANCELLED'),
                             child: const Text('Cancel preference'),

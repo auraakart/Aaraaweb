@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 
-class ConsumerBookingPostServicePanel extends StatefulWidget {
+class ConsumerBookingPostServicePanel extends StatelessWidget {
   const ConsumerBookingPostServicePanel({
     super.key,
     required this.apiClient,
@@ -12,10 +12,28 @@ class ConsumerBookingPostServicePanel extends StatefulWidget {
   final String bookingId;
 
   @override
-  State<ConsumerBookingPostServicePanel> createState() => _ConsumerBookingPostServicePanelState();
+  Widget build(BuildContext context) => _ConsumerBookingPostServiceContent(
+    key: ValueKey((apiClient, bookingId)),
+    apiClient: apiClient,
+    bookingId: bookingId,
+  );
 }
 
-class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostServicePanel> {
+// Replacing the authenticated client or booking disposes all old data/drafts.
+class _ConsumerBookingPostServiceContent extends StatefulWidget {
+  const _ConsumerBookingPostServiceContent({super.key, required this.apiClient, required this.bookingId});
+  final ApiClient apiClient;
+  final String bookingId;
+
+  @override
+  State<_ConsumerBookingPostServiceContent> createState() => _ConsumerBookingPostServicePanelState();
+}
+
+class _ConsumerBookingPostServicePanelState extends State<_ConsumerBookingPostServiceContent> {
+  int _loadGeneration = 0;
+  bool _quotesUnavailable = false, _billsUnavailable = false;
+  final Map<String, Map<String, dynamic>> _pendingQuoteDecisions = {};
+  final Set<DialogRoute<bool>> _commercialDialogs = {};
   bool _loading = true;
   bool _confirming = false;
   bool _submittingRating = false;
@@ -45,63 +63,59 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
 
   @override
   void dispose() {
+    _loadGeneration++;
+    for (final route in _commercialDialogs.toList()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navigator = route.navigator;
+        if (navigator != null && route.isActive) navigator.removeRoute(route);
+      });
+    }
+    _commercialDialogs.clear();
     _comment.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final generation = ++_loadGeneration;
+    final api = widget.apiClient, id = widget.bookingId;
     setState(() {
       _loading = true;
       _error = null;
+      _quotes = const [];
+      _extraWorkBillRequests = const [];
+      _quotesUnavailable = false;
+      _billsUnavailable = false;
     });
+    Future<dynamic> optional(String suffix) async {
+      try {
+        return await api.get('/api/v1/consumer/services/bookings/$id/$suffix');
+      } catch (_) { return null; }
+    }
+    bool validRows(dynamic value) => value is List && value.every((row) => row is Map<String, dynamic>);
     try {
+      // Independent reads share one request window; a slow optional endpoint
+      // must not serialize every other section behind its timeout.
       final results = await Future.wait<dynamic>([
-        widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/completion'),
-        widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/rating'),
+        api.get('/api/v1/consumer/services/bookings/$id/completion'),
+        api.get('/api/v1/consumer/services/bookings/$id/rating'),
+        optional('extra-work-quotes'), optional('extra-work-billing-requests'),
+        optional('proposals'), optional('completion-evidence'), optional('disputes'),
       ]);
-      dynamic proposalsRaw;
-      dynamic quotesRaw;
-      dynamic separateBillsRaw;
-      dynamic evidenceRaw;
-      dynamic disputesRaw;
-      try {
-        quotesRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes');
-      } catch (_) {
-        quotesRaw = const <dynamic>[];
-      }
-      try {
-        separateBillsRaw = await widget.apiClient.get(
-          '/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-billing-requests');
-      } catch (_) {
-        separateBillsRaw = const <dynamic>[];
-      }
-      try {
-        proposalsRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/proposals');
-      } catch (_) {
-        proposalsRaw = const <dynamic>[];
-      }
-      try {
-        evidenceRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/completion-evidence');
-      } catch (_) {
-        evidenceRaw = const <dynamic>[];
-      }
-      try {
-        disputesRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/disputes');
-      } catch (_) {
-        disputesRaw = const <dynamic>[];
-      }
+      if (!mounted || generation != _loadGeneration) return;
+      final quotesRaw = results[2], separateBillsRaw = results[3];
+      final proposalsRaw = results[4], evidenceRaw = results[5], disputesRaw = results[6];
       final threadRows = <String, List<Map<String, dynamic>>>{};
-      for (final d in (disputesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().take(5)) {
-        final disputeId = d['id']?.toString() ?? '';
-        if (disputeId.isEmpty) continue;
+      await Future.wait((disputesRaw is List ? disputesRaw : const [])
+          .whereType<Map<String, dynamic>>().take(5).map((dispute) async {
+        final disputeId = dispute['id']?.toString() ?? '';
+        if (disputeId.isEmpty) return;
         try {
-          final items = await widget.apiClient.get(
-            '/api/v1/consumer/services/bookings/${widget.bookingId}/disputes/$disputeId/evidence');
-          threadRows[disputeId] = (items as List<dynamic>? ?? const [])
-              .whereType<Map<String, dynamic>>().toList();
+          final items = await api.get('/api/v1/consumer/services/bookings/$id/disputes/$disputeId/evidence');
+          threadRows[disputeId] = (items as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         } catch (_) { threadRows[disputeId] = const []; }
-      }
-      if (!mounted) return;
+      }));
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _disputeEvidence = threadRows;
         _completion = results[0] is Map<String, dynamic> ? results[0] as Map<String, dynamic> : null;
@@ -109,15 +123,21 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         _stars = (_rating?['stars'] as num?)?.toInt() ?? 0;
         _comment.text = _rating?['comment']?.toString() ?? '';
         _proposals = (proposalsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
-        _quotes = (quotesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
-        _extraWorkBillRequests = (separateBillsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _quotesUnavailable = !validRows(quotesRaw);
+        _billsUnavailable = !validRows(separateBillsRaw);
+        _quotes = _quotesUnavailable ? const [] : (quotesRaw as List).cast<Map<String, dynamic>>();
+        _extraWorkBillRequests = _billsUnavailable ? const [] : (separateBillsRaw as List).cast<Map<String, dynamic>>();
         _evidence = (evidenceRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         _disputes = (disputesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        // A fresh terminal server record settles an uncertain local response.
+        for (final quote in _quotes) {
+          if (const ['APPROVED', 'DECLINED', 'WITHDRAWN'].contains(quote['status'])) _pendingQuoteDecisions.remove(quote['id']);
+        }
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted && generation == _loadGeneration) setState(() => _error = e.toString());
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _loadGeneration) setState(() => _loading = false);
     }
   }
 
@@ -205,112 +225,118 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   }
 
 
-  String _quoteRupees(String raw) {
-    final amount = BigInt.tryParse(raw) ?? BigInt.zero;
-    final rupees = amount ~/ BigInt.from(100);
-    final cents = (amount % BigInt.from(100)).toString().padLeft(2, '0');
-    return '₹$rupees.$cents';
+  BigInt? _quoteAmount(Object? raw) {
+    final text = raw?.toString() ?? '';
+    if (text.length > 9 || !RegExp(r'^\d+$').hasMatch(text)) return null;
+    final amount = BigInt.tryParse(text);
+    return amount != null && amount > BigInt.zero && amount <= BigInt.from(100000000) ? amount : null;
+  }
+
+  Future<bool?> _commercialDialog(WidgetBuilder builder) {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final route = DialogRoute<bool>(context: context, builder: builder,
+      themes: InheritedTheme.capture(from: context, to: navigator.context));
+    _commercialDialogs.add(route);
+    return navigator.push(route).whenComplete(() => _commercialDialogs.remove(route));
+  }
+
+  String _quoteRupees(Object? raw) {
+    final amount = _quoteAmount(raw);
+    if (amount == null) return 'Amount unavailable';
+    return '₹${amount ~/ BigInt.from(100)}.${(amount % BigInt.from(100)).toString().padLeft(2, '0')}';
+  }
+
+  bool _reviewableQuote(Map<String, dynamic> quote) {
+    final scope = quote['scopeDescription'];
+    return quote['id'] is String && (quote['id'] as String).isNotEmpty &&
+      scope is String && scope.trim().length >= 10 && scope.length <= 1500 &&
+      _quoteAmount(quote['amountPaise']) != null;
   }
 
   Future<void> _respondToQuote(Map<String, dynamic> quote, bool approve) async {
-    if (_respondingQuote) return;
+    if (!mounted || _respondingQuote || quote['status'] != 'PENDING' || (approve && !_reviewableQuote(quote))) return;
     final id = quote['id']?.toString();
-    if (id == null) return;
-    final reasonController = TextEditingController();
-    String? validation;
-    final agreed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, update) => AlertDialog(
-          title: Text(approve ? 'Approve extra work?' : 'Decline extra work?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(quote['scopeDescription']?.toString() ?? ''),
-              const SizedBox(height: 8),
-              Text('Additional quote: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}'),
-              const SizedBox(height: 8),
-              const Text('This records consent only. No payment is taken and your original booking charge is unchanged.'),
-              if (!approve) ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: reasonController,
-                  maxLength: 500,
-                  maxLines: 2,
-                  decoration: InputDecoration(labelText: 'Reason for declining', errorText: validation),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Keep reviewing')),
-            FilledButton(
-              onPressed: () {
-                if (!approve && reasonController.text.trim().length < 3) {
-                  update(() => validation = 'Please give a short reason.');
-                  return;
-                }
-                Navigator.pop(dialogContext, true);
-              },
-              child: Text(approve ? 'Confirm approval' : 'Confirm decline'),
-            ),
-          ],
-        ),
-      ),
-    );
-    final reason = reasonController.text.trim();
-    reasonController.dispose();
-    if (agreed != true || !mounted) return;
+    if (id == null || id.isEmpty) return;
+    // Guard before awaiting the dialog, not only before the HTTP request.
     setState(() => _respondingQuote = true);
     try {
+      var body = _pendingQuoteDecisions[id];
+      if (body == null) {
+        var reason = '';
+        String? validation;
+        final agreed = await _commercialDialog(
+          (dialogContext) => StatefulBuilder(
+            builder: (dialogContext, update) => AlertDialog(
+              title: Text(approve ? 'Approve extra work?' : 'Decline extra work?'),
+              content: SingleChildScrollView(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(quote['scopeDescription']?.toString() ?? ''),
+                  const SizedBox(height: 8),
+                  Text('Additional quote: ${_quoteRupees(quote['amountPaise'])}'),
+                  const SizedBox(height: 8),
+                  const Text('This records consent only. No payment is taken and your original booking charge is unchanged.'),
+                  if (!approve) ...[
+                    const SizedBox(height: 8),
+                    TextField(onChanged: (value) => reason = value.trim(), maxLength: 500, maxLines: 2,
+                      decoration: InputDecoration(labelText: 'Reason for declining', errorText: validation)),
+                  ],
+                ],
+              )),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep reviewing')),
+                FilledButton(onPressed: () {
+                  if (!approve && reason.length < 3) { update(() => validation = 'Please give a short reason.'); return; }
+                  Navigator.pop(dialogContext, true);
+                }, child: Text(approve ? 'Confirm approval' : 'Confirm decline')),
+              ],
+            ),
+          ),
+        );
+        if (agreed != true || !mounted) return;
+        body = {'decision': approve ? 'APPROVE' : 'DECLINE', if (!approve) 'reason': reason};
+        _pendingQuoteDecisions[id] = body;
+      }
+      if (!mounted) return;
       await widget.apiClient.post(
-        '/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes/$id/respond',
-        {'decision': approve ? 'APPROVE' : 'DECLINE', if (!approve) 'reason': reason},
-      );
+        '/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes/$id/respond', body);
+      if (!mounted) return;
+      _pendingQuoteDecisions.remove(id);
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(approve ? 'Extra work approved. No payment was taken.' : 'Extra work declined.')));
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+        body['decision'] == 'APPROVE' ? 'Extra work approved. No payment was taken.' : 'Extra work declined.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Quote decision not confirmed. Retry the saved decision or refresh its status.')));
     } finally {
       if (mounted) setState(() => _respondingQuote = false);
     }
   }
 
-
   Future<void> _requestSeparateExtraWorkBill(Map<String, dynamic> quote) async {
-    if (_requestingExtraWorkBill || quote['status'] != 'APPROVED') return;
-    final quoteId = quote['id']?.toString();
-    if (quoteId == null || quoteId.isEmpty) return;
-    final agreed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Request a separate extra-work bill?'),
-        content: Text('Extra work: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}\n'
-          'This records a billing request only. It is not an invoice or payment; no charge or provider payout occurs.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Not now')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Request separate bill')),
-        ],
-      ),
-    );
-    if (agreed != true || !mounted) return;
+    if (!mounted || _requestingExtraWorkBill || _billsUnavailable || quote['status'] != 'APPROVED' || !_reviewableQuote(quote)) return;
+    final quoteId = quote['id'] as String;
     setState(() => _requestingExtraWorkBill = true);
     try {
-      await widget.apiClient.post(
-        '/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes/$quoteId/request-separate-bill',
-        <String, dynamic>{},
+      final agreed = await _commercialDialog(
+        (dialogContext) => AlertDialog(
+          title: const Text('Request a separate extra-work bill?'),
+          content: Text('Extra work: ${_quoteRupees(quote['amountPaise'])}\n'
+            'This records a billing request only. It is not an invoice or payment; no charge or provider payout occurs.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Not now')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Request separate bill')),
+          ],
+        ),
       );
+      if (agreed != true || !mounted) return;
+      await widget.apiClient.post('/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes/$quoteId/request-separate-bill', <String, dynamic>{});
+      if (!mounted) return;
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Separate bill requested. No payment was collected.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Separate bill requested. No payment was collected.')));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Bill request not confirmed: $error. You can safely retry the same quote.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Bill request not confirmed: $error. You can safely retry the same quote.')));
     } finally {
       if (mounted) setState(() => _requestingExtraWorkBill = false);
     }
@@ -473,7 +499,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
 
     final unresolvedDispute = _disputes.any((d) => d['status'] == 'OPEN' || d['status'] == 'UNDER_REVIEW');
     if (!completionPending && !completed && pendingProposal == null &&
-        _evidence.isEmpty && _disputes.isEmpty && _quotes.isEmpty) return const SizedBox.shrink();
+        _evidence.isEmpty && _disputes.isEmpty && _quotes.isEmpty && !_quotesUnavailable && !_billsUnavailable) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     return Column(
@@ -509,6 +535,15 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
             ),
           ),
 
+        if (_quotesUnavailable || _billsUnavailable)
+          Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_quotesUnavailable) const Text('Extra-work quotes are unavailable. Their status could not be checked.'),
+              if (_billsUnavailable) const Text('Separate bill requests are unavailable. Refresh before requesting another bill.'),
+              TextButton(onPressed: _load, child: const Text('Retry quote and bill status')),
+            ],
+          ))),
         if (_quotes.isNotEmpty)
           Card(
             child: Padding(
@@ -522,14 +557,20 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                   const SizedBox(height: 10),
                   ..._quotes.take(5).map((quote) {
                     final pending = quote['status'] == 'PENDING';
+                    final savedDecision = _pendingQuoteDecisions[quote['id']];
+                    final reviewable = _reviewableQuote(quote);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(quote['scopeDescription']?.toString() ?? ''),
-                          Text('Extra work: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}'),
-                          Text('Quote status: ${quote['status'] ?? 'PENDING'}'),
+                          Text('Extra work: ${_quoteRupees(quote['amountPaise'])}'),
+                          Text('Quote status: ${quote['status'] ?? 'UNKNOWN'}'),
+                          if (!reviewable) const Text('Quote details are incomplete. Refresh before approving or requesting a bill.'),
+                          if (savedDecision != null) TextButton(
+                            onPressed: _respondingQuote || savedDecision['decision'] == 'APPROVE' && !reviewable ? null : () => _respondToQuote(quote, savedDecision['decision'] == 'APPROVE'),
+                            child: const Text('Retry saved quote decision')),
                           if (_extraWorkBillRequests.any((r) => r['quoteId'] == quote['id']))
                             Text(_extraWorkBillRequests.any((r) =>
                               r['quoteId'] == quote['id'] && r['nonPayableDraftPreparedAt'] != null)
@@ -542,13 +583,13 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                               !_extraWorkBillRequests.any((r) => r['quoteId'] == quote['id'])) ...[
                             const SizedBox(height: 8),
                             OutlinedButton(
-                              onPressed: _requestingExtraWorkBill ? null : () => _requestSeparateExtraWorkBill(quote),
+                              onPressed: _requestingExtraWorkBill || _billsUnavailable || !reviewable ? null : () => _requestSeparateExtraWorkBill(quote),
                               child: const Text('Request separate bill'),
                             ),
                           ],
                           if ((quote['responseReason']?.toString() ?? '').isNotEmpty)
                             Text('Response: ${quote['responseReason']}'),
-                          if (pending && bookingStatus == 'IN_PROGRESS') ...[
+                          if (pending && savedDecision == null && bookingStatus == 'IN_PROGRESS') ...[
                             const SizedBox(height: 8),
                             Row(
                               children: [
@@ -557,7 +598,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                                   child: const Text('Decline extra work'))),
                                 const SizedBox(width: 8),
                                 Expanded(child: FilledButton(
-                                  onPressed: _respondingQuote ? null : () => _respondToQuote(quote, true),
+                                  onPressed: _respondingQuote || !reviewable ? null : () => _respondToQuote(quote, true),
                                   child: const Text('Approve extra work'))),
                               ],
                             ),

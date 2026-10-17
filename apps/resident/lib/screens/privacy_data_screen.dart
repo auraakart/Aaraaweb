@@ -411,7 +411,7 @@ class _RequestCardState extends State<_RequestCard> {
     try{
       final payload=await widget.apiClient.get('/api/v1/privacy/self/requests/${widget.request['id']}/export');
       final formatted=const JsonEncoder.withIndent('  ').convert(payload);
-      await Share.share(formatted,subject:'Aaraagate personal data export');
+      await SharePlus.instance.share(ShareParams(text: formatted,subject:'Aaraagate personal data export'));
     }catch(error){
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not prepare data export. $error')));
     }finally{

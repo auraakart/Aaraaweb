@@ -5,6 +5,7 @@ import { parseExtraWorkRupees, preserveQuoteRetryIdentity, purgeProviderQuoteDra
 import { ProviderQuality } from '../../components/services/provider-quality'
 import { AgentQuality } from '../../components/services/agent-quality'
 import { operatorPrompt } from '../../lib/operator-dialog'
+import {useLoginAttempt} from '../../lib/use-login-attempt'
 
 type AuthSession={sessionId:string;accessToken:string;refreshToken:string}
 type Membership={societyId:string;role:string;society?:{name?:string;code?:string}}
@@ -35,12 +36,25 @@ const storageKey='aaraagate.provider.session'
 const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 async function api<T>(path:string,init:RequestInit={},session?:AuthSession):Promise<T>{
+  if(session&&!ownsProviderSession(session))throw new Error('Provider sign-in changed. Reopen the provider workspace.')
   const response=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',...(session?{Authorization:`Bearer ${session.accessToken}`}:{}) ,...init.headers}})
-  const text=await response.text();const body=text?JSON.parse(text):null
+  const text=await response.text()
+  if(session&&!ownsProviderSession(session))throw new Error('Provider sign-in changed. Reopen the provider workspace.')
+  const body=text?JSON.parse(text):null
   if(!response.ok)throw new Error(body?.message??`Request failed (${response.status})`)
   return body as T
 }
-function fromResult(value:Record<string,unknown>):AuthSession{const s=value.session as Record<string,unknown>|undefined;if(!s?.sessionId||!s.accessToken||!s.refreshToken)throw new Error('Authentication returned an incomplete session');return{sessionId:String(s.sessionId),accessToken:String(s.accessToken),refreshToken:String(s.refreshToken)}}
+function credentialsFrom(value:unknown):AuthSession{
+  const s=value as Record<string,unknown>|null
+  if(!s||['sessionId','accessToken','refreshToken'].some(key=>typeof s[key]!=='string'||!(s[key] as string).trim()))throw new Error('Authentication returned an incomplete session')
+  return{sessionId:s.sessionId as string,accessToken:s.accessToken as string,refreshToken:s.refreshToken as string}
+}
+function fromResult(value:Record<string,unknown>):AuthSession{return credentialsFrom(value.session)}
+function ownsProviderSession(session:AuthSession|null){
+  if(!session)return false
+  if(typeof sessionStorage==='undefined')return true
+  try{const stored=credentialsFrom(JSON.parse(sessionStorage.getItem(storageKey)??'null'));return stored.sessionId===session.sessionId&&stored.accessToken===session.accessToken&&stored.refreshToken===session.refreshToken}catch{return false}
+}
 function money(paise:number){return `₹${(paise/100).toLocaleString('en-IN')}`}
 function time(minute:number){const h=Math.floor(minute/60),m=minute%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`}
 function addressText(snapshot:Record<string,unknown>){return [snapshot.label,snapshot.addressLine1,snapshot.addressLine2,snapshot.locality,snapshot.city,snapshot.state,snapshot.postalCode].filter(Boolean).join(', ')}
@@ -48,9 +62,31 @@ function addressText(snapshot:Record<string,unknown>){return [snapshot.label,sna
 export default function ProviderPage(){
   const[session,setSession]=useState<AuthSession|null>(null),[restoring,setRestoring]=useState(true),[workspace,setWorkspace]=useState<'provider'|'agent'>('provider')
   const serviceRequest=useCallback((path:string,init?:RequestInit)=>api<unknown>(path,init,session??undefined),[session])
-  useEffect(()=>{const raw=sessionStorage.getItem(storageKey);if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw) as AuthSession;api<Record<string,unknown>>('/auth/refresh',{method:'POST',body:JSON.stringify({sessionId:stored.sessionId,refreshToken:stored.refreshToken})}).then(next=>{const fresh={sessionId:String(next.sessionId),accessToken:String(next.accessToken),refreshToken:String(next.refreshToken)};sessionStorage.setItem(storageKey,JSON.stringify(fresh));setSession(fresh);return Promise.resolve()}).catch(()=>sessionStorage.removeItem(storageKey)).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem(storageKey);setRestoring(false)}},[])
+  useEffect(()=>{
+    let live=true
+    const raw=sessionStorage.getItem(storageKey)
+    if(!raw){setRestoring(false);return()=>{live=false}}
+    const current=()=>live&&sessionStorage.getItem(storageKey)===raw
+    try{
+      const stored=credentialsFrom(JSON.parse(raw))
+      api<Record<string,unknown>>('/auth/refresh',{method:'POST',body:JSON.stringify({sessionId:stored.sessionId,refreshToken:stored.refreshToken})}).then(next=>{
+        if(!current())return
+        const fresh=credentialsFrom(next);sessionStorage.setItem(storageKey,JSON.stringify(fresh));setSession(fresh)
+      }).catch(()=>{if(current())sessionStorage.removeItem(storageKey)}).finally(()=>{if(live)setRestoring(false)})
+    }catch{if(current())sessionStorage.removeItem(storageKey);setRestoring(false)}
+    return()=>{live=false}
+  },[])
+  useEffect(()=>{const invalidate=()=>setSession(value=>ownsProviderSession(value)?value:null);window.addEventListener('storage',invalidate);window.addEventListener('focus',invalidate);return()=>{window.removeEventListener('storage',invalidate);window.removeEventListener('focus',invalidate)}},[])
   const accept=(next:AuthSession)=>{sessionStorage.setItem(storageKey,JSON.stringify(next));setSession(next)}
-  const logout=async()=>{if(session)await api('/auth/logout',{method:'POST',body:JSON.stringify({sessionId:session.sessionId,refreshToken:session.refreshToken})}).catch(()=>undefined);if(session)purgeProviderQuoteDraftsForSession(sessionStorage,session.sessionId);sessionStorage.removeItem(storageKey);setSession(null)}
+  const logout=async()=>{
+    if(!session)return
+    if(ownsProviderSession(session)){
+      await api('/auth/logout',{method:'POST',body:JSON.stringify({sessionId:session.sessionId,refreshToken:session.refreshToken})}).catch(()=>undefined)
+      purgeProviderQuoteDraftsForSession(sessionStorage,session.sessionId)
+      if(ownsProviderSession(session))sessionStorage.removeItem(storageKey)
+    }
+    setSession(value=>ownsProviderSession(value)?value:null)
+  }
   if(restoring)return <main style={center}>Restoring provider session…</main>
   if(!session)return <ProviderLogin onSession={accept}/>
   return <><nav aria-label="Service workspace" style={{padding:16,display:'flex',gap:12}}><button aria-pressed={workspace==='provider'} onClick={()=>setWorkspace('provider')}>Provider workspace</button><button aria-pressed={workspace==='agent'} onClick={()=>setWorkspace('agent')}>Field-agent workspace</button>{workspace==='agent'&&<button onClick={()=>void logout()}>Sign out</button>}</nav>{workspace==='agent'?<AgentQuality key={session.sessionId} request={serviceRequest}/>:<ProviderEntry key={session.sessionId} session={session} onLogout={logout}/>}</>
@@ -74,12 +110,12 @@ function ProviderOnboarding({session,onLogout}:{session:AuthSession;onLogout:()=
 }
 
 function ProviderLogin({onSession}:{onSession:(s:AuthSession)=>void}){
-  const[stage,setStage]=useState<'phone'|'otp'|'context'>('phone'),[phone,setPhone]=useState('+91'),[otp,setOtp]=useState(''),[challenge,setChallenge]=useState(''),[userId,setUserId]=useState(''),[selectionToken,setSelectionToken]=useState(''),[memberships,setMemberships]=useState<Membership[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('')
-  const run=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');try{await fn()}catch(e){setError(e instanceof Error?e.message:'Authentication failed')}finally{setBusy(false)}}
-  const send=(e:FormEvent)=>{e.preventDefault();void run(async()=>{const result=await api<{challengeId:string}>('/auth/otp/request',{method:'POST',body:JSON.stringify({phone:phone.trim()})});setChallenge(result.challengeId);setStage('otp')})}
-  const verify=(e:FormEvent)=>{e.preventDefault();void run(async()=>{const result=await api<Record<string,unknown>>('/auth/otp/verify',{method:'POST',body:JSON.stringify({challengeId:challenge,code:otp})});if(result.session){const s=fromResult(result);onSession(s);return}const options=(result.memberships as Membership[]|undefined)??[];if(!options.length)throw new Error('No provider-capable session could be created');setUserId(String(result.userId??''));setSelectionToken(String(result.selectionToken??''));setMemberships(options);setStage('context')})}
-  const choose=(membership:Membership)=>void run(async()=>{const result=await api<Record<string,unknown>>('/auth/society/select',{method:'POST',body:JSON.stringify({userId,societyId:membership.societyId,selectionToken})});const s=fromResult(result);onSession(s)})
-  return <main style={login}><section style={loginCard}><div style={brand}>aaraagate</div><h1 style={{marginBottom:8}}>Provider operations</h1><p style={muted}>Manage service coverage, availability, bookings and field dispatch with your registered mobile number.</p>{stage==='phone'&&<form onSubmit={send} style={stack}><label>Mobile number<input style={input} value={phone} onChange={e=>setPhone(e.target.value)} required/></label><button style={primary} disabled={busy}>Send OTP</button></form>}{stage==='otp'&&<form onSubmit={verify} style={stack}><label>6-digit OTP<input style={input} value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,'').slice(0,6))} minLength={6} maxLength={6} required/></label><button style={primary} disabled={busy||otp.length!==6}>Verify securely</button></form>}{stage==='context'&&<div style={stack}><p style={muted}>Choose any active property context to establish your secure session. Provider access remains separately scoped to your provider account.</p>{memberships.map(m=><button key={`${m.societyId}-${m.role}`} style={choice} onClick={()=>choose(m)}><strong>{m.society?.name??m.society?.code??'Property'}</strong><span>{m.role.replaceAll('_',' ')}</span></button>)}</div>}{error&&<div style={errorBox}>{error}</div>}<a href="/" style={{display:'inline-block',marginTop:18}}>Admin & society operations</a></section></main>
+  const[stage,setStage]=useState<'phone'|'otp'|'context'>('phone'),[phone,setPhone]=useState('+91'),[otp,setOtp]=useState(''),[challenge,setChallenge]=useState(''),[userId,setUserId]=useState(''),[selectionToken,setSelectionToken]=useState(''),[memberships,setMemberships]=useState<Membership[]>([])
+  const{busy,error,run}=useLoginAttempt(storageKey)
+  const send=(e:FormEvent)=>{e.preventDefault();void run(async current=>{const result=await api<{challengeId:string}>('/auth/otp/request',{method:'POST',body:JSON.stringify({phone:phone.trim()})});if(!current())return;if(typeof result?.challengeId!=='string'||!result.challengeId.trim())throw new Error('Unable to start verification');setChallenge(result.challengeId);setStage('otp')})}
+  const verify=(e:FormEvent)=>{e.preventDefault();void run(async current=>{const result=await api<Record<string,unknown>>('/auth/otp/verify',{method:'POST',body:JSON.stringify({challengeId:challenge,code:otp})});if(!current())return;if(result.session){const s=fromResult(result);onSession(s);return true}const options=(result.memberships as Membership[]|undefined)??[];if(!options.length)throw new Error('No provider-capable session could be created');setUserId(String(result.userId??''));setSelectionToken(String(result.selectionToken??''));setMemberships(options);setStage('context')})}
+  const choose=(membership:Membership)=>void run(async current=>{const result=await api<Record<string,unknown>>('/auth/society/select',{method:'POST',body:JSON.stringify({userId,societyId:membership.societyId,selectionToken})});if(!current())return;const s=fromResult(result);onSession(s);return true})
+  return <main style={login}><section style={loginCard}><div style={brand}>aaraagate</div><h1 style={{marginBottom:8}}>Provider operations</h1><p style={muted}>Manage service coverage, availability, bookings and field dispatch with your registered mobile number.</p>{stage==='phone'&&<form onSubmit={send} style={stack}><label>Mobile number<input disabled={busy} style={input} value={phone} onChange={e=>setPhone(e.target.value)} required/></label><button style={primary} disabled={busy}>Send OTP</button></form>}{stage==='otp'&&<form onSubmit={verify} style={stack}><label>6-digit OTP<input disabled={busy} style={input} value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,'').slice(0,6))} minLength={6} maxLength={6} required/></label><button style={primary} disabled={busy||otp.length!==6}>Verify securely</button></form>}{stage==='context'&&<div style={stack}><p style={muted}>Choose any active property context to establish your secure session. Provider access remains separately scoped to your provider account.</p>{memberships.map(m=><button disabled={busy} key={`${m.societyId}-${m.role}`} style={choice} onClick={()=>choose(m)}><strong>{m.society?.name??m.society?.code??'Property'}</strong><span>{m.role.replaceAll('_',' ')}</span></button>)}</div>}{error&&<div style={errorBox}>{error}</div>}<a href="/" style={{display:'inline-block',marginTop:18}}>Admin & society operations</a></section></main>
 }
 
 function ProviderConsole({session,onLogout}:{session:AuthSession;onLogout:()=>Promise<void>}){

@@ -3,6 +3,71 @@ import '../theme/aaraagate_theme.dart';
 
 enum AaraagateStatusTone { neutral, info, success, warning, danger }
 
+/// Retains the action's name while work is pending, including for screen readers.
+/// The button owns enablement; this content never introduces another tap target.
+class PremiumActionLabel extends StatelessWidget {
+  const PremiumActionLabel({super.key, required this.label, this.icon, this.busy = false});
+
+  final String label;
+  final IconData? icon;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    // Modal sheets can leave their parent route painted. Keep background work
+    // quiet until the route is current again instead of ticking behind a modal.
+    final animate = !reducedMotion && (ModalRoute.of(context)?.isCurrent ?? true);
+    return Semantics(
+      liveRegion: busy,
+      value: busy ? 'In progress' : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (busy || icon != null) ...[
+            ExcludeSemantics(
+              child: SizedBox.square(
+                dimension: AaraagateTokens.space5,
+                child: busy
+                    ? !animate
+                        ? const Icon(Icons.hourglass_top_rounded, size: 20)
+                        : CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: DefaultTextStyle.of(context).style.color,
+                          )
+                    : Icon(icon, size: 20),
+              ),
+            ),
+            const SizedBox(width: AaraagateTokens.space2),
+          ],
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
+        ],
+      ),
+    );
+  }
+}
+
+/// A reading action stays reachable without covering the scrollable document.
+class PremiumBottomActionBar extends StatelessWidget {
+  const PremiumBottomActionBar({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space3,
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space3,
+          ),
+          child: child,
+        ),
+      );
+}
+
 /// Shared low-chrome surface for resident journeys. Interactive surfaces add
 /// restrained press feedback while preserving a full semantic button target.
 class PremiumSurface extends StatefulWidget {
@@ -100,16 +165,18 @@ class PremiumPageIntro extends StatelessWidget {
     final copy = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: AaraagateTokens.iconContainer,
-          height: AaraagateTokens.iconContainer,
-          decoration: BoxDecoration(
-            color: scheme.primary.withValues(alpha: .10),
-            borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+        if (scale < 1.5) ...[
+          Container(
+            width: AaraagateTokens.iconContainer,
+            height: AaraagateTokens.iconContainer,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+            ),
+            child: Icon(icon, color: scheme.primary, size: 24),
           ),
-          child: Icon(icon, color: scheme.primary, size: 24),
-        ),
-        const SizedBox(width: AaraagateTokens.space3),
+          const SizedBox(width: AaraagateTokens.space3),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,18 +330,10 @@ class PremiumQuickAction extends StatelessWidget {
         vertical: AaraagateTokens.space3,
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 76),
+        constraints: const BoxConstraints(minHeight: AaraagateTokens.minTouchTarget),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-              ),
-              child: Icon(icon, color: scheme.primary, size: 24),
-            ),
+            Icon(icon, color: scheme.primary, size: 24),
             const SizedBox(width: AaraagateTokens.space3),
             Expanded(
               child: Text(
@@ -358,16 +417,18 @@ class PremiumIdentityHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: AaraagateTokens.iconContainer,
-          height: AaraagateTokens.iconContainer,
-          decoration: BoxDecoration(
-            color: scheme.primaryContainer,
-            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+        if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
+          Container(
+            width: AaraagateTokens.iconContainer,
+            height: AaraagateTokens.iconContainer,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+            ),
+            child: Icon(icon, color: scheme.onPrimaryContainer),
           ),
-          child: Icon(icon, color: scheme.onPrimaryContainer),
-        ),
-        const SizedBox(width: AaraagateTokens.space3),
+          const SizedBox(width: AaraagateTokens.space3),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,15 +454,22 @@ class PremiumIdentityHeader extends StatelessWidget {
 
 /// Keeps primary and secondary actions usable at narrow widths or large type.
 class PremiumActionGroup extends StatelessWidget {
-  const PremiumActionGroup({super.key, required this.primary, this.secondary});
+  const PremiumActionGroup({
+    super.key, required this.primary, this.secondary,
+    this.inlineMinWidth = 360, this.primaryFlex = 2,
+  });
   final Widget primary;
   final Widget? secondary;
+  // Short gate decisions and equal supporting actions can share a phone row.
+  // Large text always stacks independently of the module's inline threshold.
+  final double inlineMinWidth;
+  final int primaryFlex;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       if (secondary == null) return SizedBox(width: double.infinity, child: primary);
-      if (constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+      if (constraints.maxWidth < inlineMinWidth || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           primary,
           const SizedBox(height: AaraagateTokens.space2),
@@ -411,7 +479,7 @@ class PremiumActionGroup extends StatelessWidget {
       return Row(children: [
         Expanded(child: secondary!),
         const SizedBox(width: AaraagateTokens.space3),
-        Expanded(flex: 2, child: primary),
+        Expanded(flex: primaryFlex, child: primary),
       ]);
     },
   );

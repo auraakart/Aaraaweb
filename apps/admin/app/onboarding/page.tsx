@@ -1,59 +1,57 @@
 'use client'
 
-import {useCallback,useEffect,useState} from 'react'
+import {useCallback,useEffect,useRef,useState} from 'react'
 import {api,type Session} from '../../lib/admin-client'
+import {currentAdminSession,sameAdminContext} from '../../lib/admin-session-context'
+import {readOnboardingPlan,type OnboardingPlan} from '../../lib/adoption-response'
 
 type StepState='READY'|'IN_PROGRESS'|'REVIEW'
-type OnboardingStep={
-  id:string
-  title:string
-  description:string
-  href:string
-  state:StepState
-  evidence:string
-  blockers:string[]
-  nextActions:string[]
-}
-type OnboardingPlan={
-  status:'ACTION_REQUIRED'|'REPOSITORY_REVIEW_REQUIRED'
-  repositoryReady:boolean
-  readySteps:number
-  totalSteps:number
-  blockingStepIds:string[]
-  activation:{eligibleResidents:number;activatedResidents:number;activationPercent:number|null}
-  steps:OnboardingStep[]
-  evaluatedAt:string
-  productionizationClaim:false
-  boundary:string
-}
 
-function getSession():Session|null{
-  try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}
-}
+const allowed=(value:Session|null)=>!!value&&['SUPER_ADMIN','SOCIETY_ADMIN'].includes(value.role)
 
 export default function SocietyOnboardingPage(){
   const[session,setSession]=useState<Session|null>(null)
   const[plan,setPlan]=useState<OnboardingPlan|null>(null)
   const[loading,setLoading]=useState(true)
   const[error,setError]=useState('')
+  const epoch=useRef(0)
+  const active=useRef<Session|null>(null)
 
-  const allowed=(value:Session|null)=>!!value&&['SUPER_ADMIN','SOCIETY_ADMIN'].includes(value.role)
-
-  const load=useCallback(async(value:Session)=>{
-    setLoading(true);setError('')
-    try{setPlan(await api<OnboardingPlan>('/onboarding/readiness',{},value))}
-    catch(reason){setError(reason instanceof Error?reason.message:'Could not load onboarding readiness')}
-    finally{setLoading(false)}
+  const syncSession=useCallback(()=>{
+    const value=currentAdminSession()
+    if(sameAdminContext(active.current,value))return
+    epoch.current++
+    active.current=value
+    setPlan(null);setError('');setSession(value);setLoading(allowed(value))
   },[])
 
-  useEffect(()=>{
-    const value=getSession()
-    setSession(value)
-    if(value&&allowed(value))void load(value)
-    else setLoading(false)
-  },[load])
+  const load=useCallback(async(value:Session)=>{
+    if(!sameAdminContext(value,currentAdminSession())){syncSession();return}
+    const request=++epoch.current
+    setLoading(true);setError('');setPlan(null)
+    const current=()=>request===epoch.current&&sameAdminContext(value,currentAdminSession())
+    try{
+      const result=await api<OnboardingPlan>('/onboarding/readiness',{},value)
+      if(result&&result.productionizationClaim!==false)throw new Error('Setup checks cannot establish production acceptance. Refresh or contact support.')
+      if(current())setPlan(readOnboardingPlan(result))
+    }catch(reason){if(current())setError(reason instanceof Error?reason.message:'Could not load onboarding readiness')}
+    finally{
+      if(request===epoch.current){
+        if(current())setLoading(false)
+        else syncSession()
+      }
+    }
+  },[syncSession])
 
-  if(loading)return <main style={{padding:32}}>Loading society onboarding readiness…</main>
+  useEffect(()=>{
+    syncSession()
+    window.addEventListener('storage',syncSession)
+    window.addEventListener('focus',syncSession)
+    return()=>{epoch.current++;window.removeEventListener('storage',syncSession);window.removeEventListener('focus',syncSession)}
+  },[syncSession])
+  useEffect(()=>{if(session&&allowed(session))void load(session)},[session,load])
+
+  if(loading)return <main aria-busy="true" style={{padding:32}}><h1>Society onboarding</h1><p role="status">Loading setup checks…</p></main>
   if(!allowed(session))return <main style={{padding:32}}><h1>Society administration required</h1><a href="/">Return to Admin</a></main>
 
   const steps=plan?.steps??[]
@@ -64,7 +62,7 @@ export default function SocietyOnboardingPage(){
       <div>
         <small>{session?.societyName??'Current society'}</small>
         <h1 style={{margin:'4px 0'}}>Society onboarding</h1>
-        <p style={{margin:0}}>Server-derived readiness across existing authoritative setup modules. No duplicate configuration store is introduced.</p>
+        <p style={{margin:0}}>Review setup checks, resolve missing information and continue in the relevant workspace.</p>
       </div>
       <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
         <button disabled={loading} onClick={()=>session&&void load(session)} style={button}>Refresh</button>
@@ -72,16 +70,16 @@ export default function SocietyOnboardingPage(){
       </div>
     </header>
 
-    {error&&<div style={errorBox}>{error}</div>}
+    {error&&<div role="alert" style={errorBox}>{error}</div>}
 
-    <section style={panel}>
+    {plan&&<section style={panel}>
       <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
         <div>
-          <h2 style={{margin:'0 0 6px'}}>Readiness overview</h2>
-          <p style={{margin:0}}>{plan?.repositoryReady?'Repository blockers are closed; complete explicit review before pilot acceptance.':'Resolve repository blockers before readiness review.'}</p>
+          <h2 style={{margin:'0 0 6px'}}>Setup progress</h2>
+          <p style={{margin:0}}>{plan.repositoryReady?'Setup checks are ready for review. Pilot acceptance remains separate.':'Resolve the listed blockers before setup review.'}</p>
         </div>
         <div style={{display:'grid',gap:4,textAlign:'right'}}>
-          <strong>{plan?.readySteps??0}/{plan?.totalSteps??0} steps repository-ready</strong>
+          <strong>{plan.readySteps}/{plan.totalSteps} setup checks ready</strong>
           <small>{plan?.status.replaceAll('_',' ')??'READINESS UNAVAILABLE'}</small>
           {plan&&<small>{plan.activation.activatedResidents}/{plan.activation.eligibleResidents} resident activation{plan.activation.activationPercent===null?'':` · ${plan.activation.activationPercent}%`}</small>}
         </div>
@@ -90,7 +88,7 @@ export default function SocietyOnboardingPage(){
         <div style={{height:'100%',width:progress+'%',background:'#05879A'}}/>
       </div>
       {plan&&<small style={{display:'block',marginTop:10}}>Evaluated {new Date(plan.evaluatedAt).toLocaleString('en-IN')}</small>}
-    </section>
+    </section>}
 
     <section style={{display:'grid',gap:12,marginTop:20}}>
       {steps.map(step=><article key={step.id} style={card}>
@@ -109,9 +107,9 @@ export default function SocietyOnboardingPage(){
     </section>
 
     <section style={panel}>
-      <h2>Authority boundaries</h2>
-      <p style={{marginBottom:0}}>{plan?.boundary??'Repository readiness coordinates existing authoritative modules only. External acceptance remains separate.'}</p>
-      <small>Productionization claimed: {plan?.productionizationClaim?'Yes':'No'}</small>
+      <h2>Setup review</h2>
+      <p style={{marginBottom:0}}>Setup checks do not establish field or production acceptance. Complete the required reviews before a society pilot.</p>
+      {plan&&<details><summary>Review limitations</summary><p>{plan?.boundary}</p></details>}
     </section>
   </main>
 }

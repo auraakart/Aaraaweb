@@ -10,6 +10,55 @@ double contrast(Color first, Color second) {
 }
 
 void main() {
+  testWidgets('pending feedback stops ticking behind a modal and resumes on return', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: AaraagateTheme.light(),
+      home: Builder(builder: (context) => Scaffold(body: FilledButton(
+        onPressed: () => showModalBottomSheet<void>(context: context, builder: (sheetContext) =>
+          TextButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Done'))),
+        child: const PremiumActionLabel(label: 'Preparing payment…', busy: true),
+      ))),
+    ));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.tap(find.text('Preparing payment…'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.tap(find.text('Done'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  for (final dark in [false, true]) {
+    for (final reduced in [false, true]) {
+      testWidgets('pending action keeps its label, 48px target and reduced motion: dark=$dark reduced=$reduced', (tester) async {
+        tester.view.physicalSize = const Size(320, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(MaterialApp(
+          theme: dark ? AaraagateTheme.dark() : AaraagateTheme.light(),
+          home: MediaQuery(
+            data: MediaQueryData(disableAnimations: reduced, textScaler: const TextScaler.linear(2)),
+            child: Scaffold(body: Padding(
+              padding: const EdgeInsets.all(20),
+              child: FilledButton(onPressed: null, child: const PremiumActionLabel(label: 'Preparing payment…', busy: true)),
+            )),
+          ),
+        ));
+        await tester.pump();
+        expect(find.text('Preparing payment…'), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), reduced ? findsNothing : findsOneWidget);
+        final busy = tester.widget<Semantics>(find.byWidgetPredicate((w) => w is Semantics && w.properties.value == 'In progress'));
+        expect(busy.properties.liveRegion, isTrue);
+        expect(tester.getSize(find.byType(FilledButton)).height, greaterThanOrEqualTo(48));
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   for (final dark in [false, true]) {
     test('${dark ? 'dark' : 'light'} label pairs meet AA and control outlines meet 3:1', () {
       final theme = dark ? AaraagateTheme.dark() : AaraagateTheme.light();
