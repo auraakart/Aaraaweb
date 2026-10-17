@@ -136,4 +136,3 @@ Published [Resident UI demo preview](https://github.com/auraakart/Aaraaweb/relea
 - Published digest: `sha256:a3725b8289d35477c7ce58dd9f5cea5c7ef8ff8d28db0db2ea99f21c316f4e2c`.
 - The dedicated preview workflow exists only on `demo/ui-refinement-20261018`. It reuses the established demo packaging, enrichment, SDK, tests and integrity checks. The main demo workflow and `resident-demo-latest` release are unchanged.
 - This is a demo-signed, release-mode preview with the existing Continue as Demo Resident login; it is not a production/store-signing or physical-device acceptance claim.
-
