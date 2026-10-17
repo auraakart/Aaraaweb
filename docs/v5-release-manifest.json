@@ -1480,7 +1480,7 @@
         {
           "id": "V5.4.25",
           "name": "Browser-equivalent ingress redirect validation and exact no-store/Host response tokens",
-          "status": "PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_TLS_RESPONSE_VALIDATION",
           "evidence": [
             "scripts/v5.4.24-ingress-acceptance.mjs",
             "scripts/v5.4.24-ingress-acceptance.test.mjs",
@@ -1489,7 +1489,11 @@
           "limitations": [
             "Local TLS fixture only; no remote ingress or authenticated partner session acceptance.",
             "Independent TEST operator, Partner A/B artifacts and 15-case formal acceptance remain blocked under #1380. No build/distribution or staging/main authority."
-          ]
+          ],
+          "pullRequest": 1407,
+          "mergeSha": "08ee5ac22b5016a0a47b7ab9cd191b157d20afa5",
+          "validatedRuntimeSha": "dc2a7776f8bfd40e3a61e803f10fc6e2fc27b881",
+          "ciRun": 38990986924
         }
       ],
       "scopedAcceptance": {
