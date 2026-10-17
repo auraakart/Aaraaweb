@@ -7,7 +7,7 @@ const cancellableAggregators=[
   ['admin-validation','Admin validation','[change-scope, admin-validation-full]'],
   ['flutter-validation','Flutter validation','[change-scope, flutter-validation-full]'],
   ['dependency-security','Dependency security','[change-scope, dependency-security-full]'],
-  ['required-merge-gates','Required merge gates','[repository-structure, api-validation, admin-validation, flutter-validation, dependency-security]'],
+  ['required-merge-gates','Required merge gates','[repository-structure, api-validation, admin-validation, flutter-validation, dependency-security, change-scope, android-test-smoke]'],
 ];
 
 for(const [job,name,needs] of cancellableAggregators){
@@ -22,7 +22,7 @@ const forbidden=[
   'admin-validation:\n    name: Admin validation\n    needs: [change-scope, admin-validation-full]\n    if: always()',
   'flutter-validation:\n    name: Flutter validation\n    needs: [change-scope, flutter-validation-full]\n    if: always()',
   'dependency-security:\n    name: Dependency security\n    needs: [change-scope, dependency-security-full]\n    if: always()',
-  'required-merge-gates:\n    name: Required merge gates\n    needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security]\n    if: always()',
+  'required-merge-gates:\n    name: Required merge gates\n    needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security, change-scope, android-test-smoke]\n    if: always()',
 ];
 
 for(const token of forbidden){

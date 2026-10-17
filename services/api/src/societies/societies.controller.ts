@@ -23,6 +23,12 @@ class CreateSocietyDto {
   code!: string;
 }
 
+// Keep the pre-V5 society wire contract while ownership remains internal.
+const legacySocietySelect = {
+  id: true, name: true, code: true, status: true, productTier: true,
+  featureOverrides: true, createdAt: true, updatedAt: true,
+} as const;
+
 @Controller('societies')
 export class SocietiesController {
   constructor(private readonly prisma: PrismaService) {}
@@ -31,7 +37,7 @@ export class SocietiesController {
   @UseGuards(BearerGuard, RolesGuard)
   @Roles(AppRole.SUPER_ADMIN)
   list() {
-    return this.prisma.society.findMany({ orderBy: { name: 'asc' } });
+    return this.prisma.society.findMany({ orderBy: { name: 'asc' }, select: legacySocietySelect });
   }
 
   @Get(':id')
@@ -39,16 +45,16 @@ export class SocietiesController {
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
   get(@Param('id', ParseUUIDPipe) id: string, @CurrentTenant() societyId: string) {
     if (id !== societyId) throw new ForbiddenException('Society path does not match authenticated tenant');
-    return this.prisma.society.findUniqueOrThrow({
+    return this.prisma.withTenantContext(societyId, tx => tx.society.findUniqueOrThrow({
       where: { id: societyId },
-      include: { buildings: true, gates: true },
-    });
+      select: { ...legacySocietySelect, buildings: true, gates: true },
+    }));
   }
 
   @Post()
   @UseGuards(BearerGuard, RolesGuard)
   @Roles(AppRole.SUPER_ADMIN)
   create(@Body() dto: CreateSocietyDto) {
-    return this.prisma.society.create({ data: { name: dto.name.trim(), code: dto.code.trim().toUpperCase() } });
+    return this.prisma.society.create({ data: { name: dto.name.trim(), code: dto.code.trim().toUpperCase() }, select: legacySocietySelect });
   }
 }

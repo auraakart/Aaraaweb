@@ -179,3 +179,7 @@ V4.91.1–V4.91.4 merged on `develop` via PRs [#1198](https://github.com/auraaka
 The bounded fixes also cover stale Assistant voice/response isolation on property/login switch, cross-unit/tenant payment authorization tests on migrated PostgreSQL, and no-evidence/no-false-citation Society Copilot handling. Neither separate payable Services invoices, settlement, changes to current occupant routing nor autonomous AI actions were added.
 
 V4.91.5 consolidates debt and residual acceptance in [V4.91 closure evidence](AARAAGATE-V4.91-CLOSURE-EVIDENCE.md). Automated engineering checks are not physical-device, independent field, legal, external-provider or operational acceptance; the 8.5+ quality goal remains unverified. Services 3.1 stays closed at V4.90.18.10 and its one-off .11 handoff is read-only and consumed.
+
+## V5 multibrand foundation in development
+
+The owner-authorized [V5 program](AARAAGATE-V5-MULTIBRAND-ROADMAP.md) covers society branding and partner white labeling in the same codebase. V5.0.1 adds built-in Aaraagate bootstrap and authenticated context configuration only, preserving current society entitlements and independent-home behavior. It does not yet activate partner brands, licensing, custom domains, database RLS or branded Android distributions. These remain gated milestones in [the V5 manifest](v5-release-manifest.json). Staging/main promotion and productionization are not claimed.

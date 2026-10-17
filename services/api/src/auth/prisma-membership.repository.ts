@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppRole } from './auth.types';
 import { Membership } from './membership.service';
@@ -33,10 +33,14 @@ export class PrismaMembershipRepository {
     ];
   }
 
-  async findActiveByUserAndSociety(userId: string, societyId: string): Promise<Membership[]> {
+  async findActiveByUserAndSociety(
+    userId: string,
+    societyId: string,
+    client: Pick<Prisma.TransactionClient, 'societyMembership' | '$queryRaw'> = this.prisma,
+  ): Promise<Membership[]> {
     const [rows, auditorRows] = await Promise.all([
-      this.prisma.societyMembership.findMany({ where: { userId, societyId, active: true } }),
-      this.prisma.$queryRaw<AuditorAssignmentRow[]>`
+      client.societyMembership.findMany({ where: { userId, societyId, active: true } }),
+      client.$queryRaw<AuditorAssignmentRow[]>`
         SELECT "userId", "societyId"
         FROM "SocietyResponsibilityAssignment"
         WHERE "userId" = CAST(${userId} AS uuid)

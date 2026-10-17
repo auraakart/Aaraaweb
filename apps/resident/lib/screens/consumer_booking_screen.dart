@@ -7,11 +7,13 @@ class ConsumerBookingScreen extends StatefulWidget {
     required this.apiClient,
     required this.offering,
     this.initialLocation,
+    this.recurringPlanId,
   });
 
   final ApiClient apiClient;
   final Map<String, dynamic> offering;
   final Map<String, dynamic>? initialLocation;
+  final String? recurringPlanId;
 
   @override
   State<ConsumerBookingScreen> createState() => _ConsumerBookingScreenState();
@@ -54,7 +56,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     try {
       final raw = await widget.apiClient.get('/api/v1/consumer/services/locations');
       if (!mounted) return;
-      final locations = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+      final locations = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().where((item) => widget.recurringPlanId == null || widget.initialLocation != null && _key(item) == _key(widget.initialLocation!)).toList();
       final initial = widget.initialLocation;
       String? selected;
       if (initial != null && initial['id'] != null && initial['type'] != null) {
@@ -208,10 +210,14 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     final idempotencyKey = _bookingAttemptKey!;
     setState(() => _submitting = true);
     try {
-      await widget.apiClient.post('/api/v1/consumer/services/bookings', {
-        'locationType': location['type'],
-        'locationId': location['id'],
-        'offeringId': offeringId,
+      await widget.apiClient.post(widget.recurringPlanId == null
+          ? '/api/v1/consumer/services/bookings'
+          : '/api/v1/consumer/services/recurring-plans/${widget.recurringPlanId}/book', {
+        if (widget.recurringPlanId == null) ...{
+          'locationType': location['type'],
+          'locationId': location['id'],
+          'offeringId': offeringId,
+        },
         'scheduledFrom': from.toUtc().toIso8601String(),
         'scheduledUntil': until.toUtc().toIso8601String(),
         'idempotencyKey': idempotencyKey,
@@ -285,6 +291,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (widget.recurringPlanId != null) const Padding(padding: EdgeInsets.all(12), child: Text('Request one visit from your saved preference. Review the current price and choose an available time. No automatic visits or charges.')),
           Card(
             child: ListTile(
               contentPadding: const EdgeInsets.all(16),
@@ -331,7 +338,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
           Row(
             children: [
               Expanded(child: Text('Service location', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-              TextButton.icon(onPressed: _submitting ? null : _addHome, icon: const Icon(Icons.add_home_rounded), label: const Text('Add address')),
+              TextButton.icon(onPressed: _submitting || widget.recurringPlanId != null ? null : _addHome, icon: const Icon(Icons.add_home_rounded), label: const Text('Add address')),
             ],
           ),
           if (_loading)

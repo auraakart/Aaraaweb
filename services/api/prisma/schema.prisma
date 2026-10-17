@@ -15,7 +15,36 @@ model User {
   status                    UserStatus                 @default(ACTIVE)
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
+  distributionProposals     PartnerDistributionProposal[]
+  androidBuildRevisionsCreated PartnerAndroidBuildRevision[] @relation("AndroidBuildRevisionCreator")
+  androidBuildReservationsCreated PartnerAndroidBuildReservation[] @relation("AndroidBuildReservationCreator")
+  androidBuildWorkerClaims PartnerAndroidBuildWorkerClaim[] @relation("AndroidBuildWorkerClaimActor")
+  androidBuildWorkerConsumptions PartnerAndroidBuildWorkerConsumption[] @relation("AndroidBuildConsumptionActor")
+  androidBuildRunnerChallenges PartnerAndroidRunnerChallenge[] @relation("AndroidRunnerChallengeActor")
+  androidBuildRunnerAcceptances PartnerAndroidRunnerEvidenceAcceptance[] @relation("AndroidRunnerAcceptanceActor")
+  androidBuildRuntimeProbes PartnerAndroidRunnerRuntimeProbe[] @relation("AndroidRunnerRuntimeProbeActor")
+  androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
+  distributionApprovals     PartnerDistributionApproval[]
+  distributionRevocations   PartnerDistributionRevocation[]
+  legacySubscriptions       SocietyLegacySubscription[]
   memberships               SocietyMembership[]
+  partnerMemberships        PartnerMembership[]
+  partnerDomainClaims       PartnerDomainClaim[] @relation("DomainClaimCreator")
+  partnerDomainEvents       PartnerDomainClaimEvent[] @relation("DomainClaimEventActor")
+  partnerInvitations        PartnerInvitation[] @relation("PartnerInvitee")
+  partnerInvitationsSent    PartnerInvitation[] @relation("PartnerInviteAuthor")
+  partnerMemberEvents       PartnerMembershipEvent[] @relation("PartnerEventSubject")
+  partnerMemberEventsActor  PartnerMembershipEvent[] @relation("PartnerEventActor")
+  ownershipRequests         SocietyOwnershipTransferRequest[] @relation("OwnershipInitiator")
+  ownershipApprovals        SocietyOwnershipTransfer[] @relation("OwnershipApprover")
+  capacityReservations      PartnerLicenseCapacityReservation[] @relation("CapacityReservationActor")
+  licensesApproved          PartnerLicenseApproval[] @relation("LicenseApprover")
+  licensesRevoked           PartnerLicenseRevocation[] @relation("LicenseRevoker")
+  licenseConsents            SocietyLicenseConsent[] @relation("LicenseConsentActor")
+  licensesAllocated         SocietyLicenseAllocation[] @relation("LicenseAllocationActor")
+  partnerLicensePlansCreated PartnerLicensePlanRevision[] @relation("PartnerLicensePlanCreator")
+  partnerLicenseGrantsCreated PartnerLicenseGrant[] @relation("PartnerLicenseGrantCreator")
+  partnerLicenseEventsCreated PartnerLicenseEvent[] @relation("PartnerLicenseEventActor")
   unitOwnerships            UnitOwnership[]
   unitOccupancies           UnitOccupancy[]
   visitors                  Visitor[]
@@ -25,6 +54,8 @@ model User {
   sessions                  Session[]
   pushDeviceTokens          DevicePushToken[]
   workforceLeavesCreated    WorkforceLeave[]           @relation("WorkforceLeaveCreator")
+  societyBrandRevisionsCreated SocietyBrandRevision[] @relation("SocietyBrandRevisionCreator")
+  societyBrandLogoAssetsCreated SocietyBrandLogoAsset[] @relation("SocietyBrandLogoCreator")
   workforceRatingsGiven     WorkforceRating[]          @relation("WorkforceRatingAuthor")
   workforceSuspensionEvents WorkforceSuspensionEvent[] @relation("WorkforceSuspensionActor")
   helpdeskTicketsCreated    HelpdeskTicket[]           @relation("HelpdeskTicketCreator")
@@ -49,6 +80,19 @@ model Society {
   status               SocietyStatus              @default(ACTIVE)
   productTier          ProductTier                @default(STARTER)
   featureOverrides     Json                       @default("{}")
+  partnerId            String                     @default("00000000-0000-4000-8000-000000000001") @db.Uuid
+  ownershipVersion     Int                        @default(1)
+  partner              Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  entitlementCompatibility SocietyEntitlementCompatibility?
+  ownershipRequests    SocietyOwnershipTransferRequest[]
+  ownershipTransfers   SocietyOwnershipTransfer[]
+  capacityReservations PartnerLicenseCapacityReservation[]
+  licenseApprovals     PartnerLicenseApproval[]
+  licenseRevocations   PartnerLicenseRevocation[]
+  licenseConsents      SocietyLicenseConsent[]
+  licensedAllocations  SocietyLicenseAllocation[]
+  societyBrandRevisions SocietyBrandRevision[]
+  societyBrandLogoAssets SocietyBrandLogoAsset[]
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
   memberships          SocietyMembership[]
@@ -89,6 +133,409 @@ model Society {
   payments             Payment[]
   paymentEvents        PaymentEvent[]
   householdChanges     HouseholdChangeRequest[]
+
+  @@index([partnerId, status])
+}
+
+// Commercial ownership is separate from society operational authorization.
+model Partner {
+  id          String              @id @default(uuid()) @db.Uuid
+  slug        String              @unique
+  displayName String
+  status      PartnerStatus       @default(DRAFT)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
+  societies   Society[]
+  memberships PartnerMembership[]
+  domainClaims PartnerDomainClaim[]
+  invitations PartnerInvitation[]
+  memberEvents PartnerMembershipEvent[]
+  licenseGrants PartnerLicenseGrant[]
+  ownershipRequestsFrom SocietyOwnershipTransferRequest[] @relation("OwnershipRequestFrom")
+  ownershipRequestsTo SocietyOwnershipTransferRequest[] @relation("OwnershipRequestTo")
+}
+
+enum PartnerInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+  EXPIRED
+}
+enum PartnerMemberAction {
+  INVITED
+  ACCEPTED
+  DECLINED
+  INVITATION_REVOKED
+  ROLE_CHANGED
+  MEMBER_REVOKED
+}
+model PartnerInvitation {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  userId String @db.Uuid
+  invitedById String @db.Uuid
+  role PartnerRole
+  status PartnerInvitationStatus @default(PENDING)
+  idempotencyKey String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  respondedAt DateTime? @db.Timestamptz(6)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  invitee User @relation("PartnerInvitee", fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy User @relation("PartnerInviteAuthor", fields: [invitedById], references: [id], onDelete: Restrict)
+  @@unique([partnerId, idempotencyKey])
+  @@index([userId, status, expiresAt])
+  @@index([partnerId, userId, status])
+}
+model PartnerMembershipEvent {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  subjectUserId String @db.Uuid
+  actorId String @db.Uuid
+  action PartnerMemberAction
+  beforeRole PartnerRole?
+  afterRole PartnerRole?
+  invitationId String? @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  subject User @relation("PartnerEventSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  actor User @relation("PartnerEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([partnerId, createdAt])
+}
+// V5.4.11: registration is an inert pending claim, never route authority.
+enum PartnerDomainClaimStatus {
+  PENDING
+  VERIFIED
+  REVOKED
+}
+enum PartnerDomainClaimAction {
+  REGISTERED
+  VERIFIED
+  REVOKED
+  CHALLENGE_REISSUED
+}
+model PartnerDomainClaim {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  hostname String @unique @db.VarChar(253)
+  status PartnerDomainClaimStatus @default(PENDING)
+  challengeHash String @db.Char(64)
+  idempotencyKey String @db.Uuid
+  version Int @default(1)
+  verificationAttempts Int @default(0)
+  challengeRotationCount Int @default(0)
+  challengeIssuedAt DateTime @default(now()) @db.Timestamptz(6)
+  lastVerificationAttemptAt DateTime? @db.Timestamptz(6)
+  verifiedAt DateTime? @db.Timestamptz(6)
+  verifiedUntil DateTime? @db.Timestamptz(6)
+  createdById String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
+  createdBy User @relation("DomainClaimCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  events PartnerDomainClaimEvent[]
+  boundSessions Session[]
+  @@unique([partnerId,idempotencyKey])
+  @@index([partnerId,status])
+}
+model PartnerDomainClaimEvent {
+  id String @id @default(uuid()) @db.Uuid
+  claimId String @db.Uuid
+  actorId String @db.Uuid
+  action PartnerDomainClaimAction
+  idempotencyKey String? @db.Uuid
+  resultVersion Int?
+  reason String? @db.VarChar(500)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  claim PartnerDomainClaim @relation(fields:[claimId],references:[id],onDelete:Restrict)
+  actor User @relation("DomainClaimEventActor",fields:[actorId],references:[id],onDelete:Restrict)
+  @@index([claimId,createdAt])
+  @@unique([claimId,idempotencyKey])
+}
+
+model PartnerMembership {
+  id        String      @id @default(uuid()) @db.Uuid
+  partnerId String      @db.Uuid
+  userId    String      @db.Uuid
+  role      PartnerRole
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now()) @db.Timestamptz(6)
+  partner   Partner     @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, userId, role])
+  @@index([partnerId, userId, active])
+}
+
+// Immutable proposals and applied two-person approvals; never operational roles.
+model SocietyOwnershipTransferRequest {
+  id                     String @id @default(uuid()) @db.Uuid
+  societyId              String @db.Uuid
+  fromPartnerId          String @db.Uuid
+  toPartnerId            String @db.Uuid
+  expectedOwnershipVersion Int
+  initiatedById          String @db.Uuid
+  idempotencyKey         String @db.Uuid
+  reason                 String @db.VarChar(500)
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  society                Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  fromPartner            Partner @relation("OwnershipRequestFrom", fields: [fromPartnerId], references: [id], onDelete: Restrict)
+  toPartner              Partner @relation("OwnershipRequestTo", fields: [toPartnerId], references: [id], onDelete: Restrict)
+  initiatedBy            User @relation("OwnershipInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
+  transfer               SocietyOwnershipTransfer?
+
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, createdAt])
+}
+
+model SocietyOwnershipTransfer {
+  id                     String @id @default(uuid()) @db.Uuid
+  requestId              String @unique @db.Uuid
+  societyId              String @db.Uuid
+  ownershipVersion       Int
+  approvedById           String @db.Uuid
+  appliedAt              DateTime @default(now()) @db.Timestamptz(6)
+  request                SocietyOwnershipTransferRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  society                Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  approvedBy             User @relation("OwnershipApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, ownershipVersion])
+}
+
+// Cutover evidence, not a replacement live entitlement resolver or invoice.
+// Immutable configuration snapshots; publishing changes publishedAt only once.
+model SocietyBrandLogoAsset {
+  id                 String    @id @default(uuid()) @db.Uuid
+  societyId          String    @db.Uuid
+  createdById        String    @db.Uuid
+  storageKey         String    @unique
+  contentType        String
+  contentLengthBytes Int
+  uploadExpiresAt    DateTime  @db.Timestamptz(6)
+  status             String    @default("PENDING")
+  sha256             String?
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  verifiedAt         DateTime? @db.Timestamptz(6)
+  society            Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy          User      @relation("SocietyBrandLogoCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([societyId, status])
+}
+
+model SocietyBrandRevision {
+  id            String   @id @default(uuid()) @db.Uuid
+  societyId     String   @db.Uuid
+  version       Int
+  schemaVersion Int      @default(1)
+  config        Json
+  digest        String
+  publishedAt   DateTime? @db.Timestamptz(6)
+  createdById   String   @db.Uuid
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy     User     @relation("SocietyBrandRevisionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, version])
+  @@index([societyId, publishedAt(sort: Desc), version(sort: Desc)])
+}
+
+model SocietyEntitlementCompatibility {
+  societyId        String      @id @db.Uuid
+  sourceProductTier ProductTier
+  sourceOverrides  Json
+  enabledFeatures  Json
+  sourceMigration  String
+  capturedAt       DateTime    @default(now()) @db.Timestamptz(6)
+  society          Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  subscriptions    SocietyLegacySubscription[]
+}
+
+// Commercial-only revisions; these tables do NOT grant live society features.
+model PartnerLicensePlanRevision {
+  id                   String               @id @default(uuid()) @db.Uuid
+  code                 String
+  version              Int
+  featureAllowlist     Json
+  maximumSocieties     Int
+  maximumDomains       Int                  @default(0)
+  maximumDistributions Int                  @default(0)
+  createdById          String               @db.Uuid
+  createdAt            DateTime             @default(now()) @db.Timestamptz(6)
+  createdBy            User                 @relation("PartnerLicensePlanCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  grants               PartnerLicenseGrant[]
+  capacityReservations PartnerLicenseCapacityReservation[]
+
+  @@unique([code, version])
+}
+
+model PartnerLicenseGrant {
+  id             String                     @id @default(uuid()) @db.Uuid
+  partnerId      String                     @db.Uuid
+  planRevisionId String                     @db.Uuid
+  status         PartnerLicenseGrantStatus  @default(DRAFT)
+  startsAt       DateTime                   @db.Timestamptz(6)
+  endsAt         DateTime                   @db.Timestamptz(6)
+  graceUntil     DateTime?                  @db.Timestamptz(6)
+  idempotencyKey String                     @db.Uuid
+  version        Int                        @default(1)
+  createdById    String                     @db.Uuid
+  createdAt      DateTime                   @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                   @updatedAt @db.Timestamptz(6)
+  partner        Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  planRevision   PartnerLicensePlanRevision @relation(fields: [planRevisionId], references: [id], onDelete: Restrict)
+  createdBy      User                       @relation("PartnerLicenseGrantCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  events         PartnerLicenseEvent[]
+  capacityReservations PartnerLicenseCapacityReservation[]
+
+  @@unique([partnerId, idempotencyKey])
+  @@index([partnerId, status, endsAt])
+  approval       PartnerLicenseApproval?
+  societyConsents SocietyLicenseConsent[]
+}
+
+// Persisted development reservation, NOT a live license or operational grant.
+model PartnerLicenseCapacityReservation {
+  id               String @id @default(uuid()) @db.Uuid
+  grantId          String @db.Uuid
+  planRevisionId   String @db.Uuid
+  grantVersion     Int
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  enabledFeatures  Json
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  grant            PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  planRevision     PartnerLicensePlanRevision @relation(fields: [planRevisionId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  actor            User @relation("CapacityReservationActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([grantId, idempotencyKey])
+  @@unique([grantId, societyId, ownershipVersion])
+  @@index([societyId, ownershipVersion])
+}
+
+model PartnerLicenseEvent {
+  id             String                  @id @default(uuid()) @db.Uuid
+  grantId        String                  @db.Uuid
+  actorId        String                  @db.Uuid
+  type           PartnerLicenseEventType
+  idempotencyKey String                  @db.Uuid
+  detail         Json                    @default("{}")
+  occurredAt     DateTime                @default(now()) @db.Timestamptz(6)
+  grant          PartnerLicenseGrant     @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  actor          User                    @relation("PartnerLicenseEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([grantId, idempotencyKey])
+  @@index([grantId, occurredAt])
+}
+
+// Approved license authority is separate from its immutable DRAFT proposal.
+model PartnerLicenseApproval {
+  id               String @id @default(uuid()) @db.Uuid
+  grantId          String @unique @db.Uuid
+  grantVersion     Int
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  approvedById     String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  reason           String @db.VarChar(500)
+  essentialPolicy  String @default("PRESERVE_LEGACY")
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  grant            PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  approvedBy       User @relation("LicenseApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  revocation       PartnerLicenseRevocation?
+  allocations      SocietyLicenseAllocation[]
+
+  @@index([societyId, createdAt])
+}
+
+model PartnerLicenseRevocation {
+  id               String @id @default(uuid()) @db.Uuid
+  approvalId       String @unique @db.Uuid
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  reason           String @db.VarChar(500)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  approval         PartnerLicenseApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  actor            User @relation("LicenseRevoker", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([societyId, createdAt])
+}
+
+model SocietyLicenseConsent {
+  id                   String @id @default(uuid()) @db.Uuid
+  sequence             Int @unique @default(autoincrement())
+  societyId            String @db.Uuid
+  ownershipVersion     Int
+  grantId              String @db.Uuid
+  grantVersion         Int
+  actorId              String @db.Uuid
+  decision             String @db.VarChar(16)
+  idempotencyKey       String @db.Uuid
+  productTier          ProductTier
+  featureOverrides     Json
+  enabledFeatures      Json
+  compatibilityMigration String?
+  createdAt            DateTime @default(now()) @db.Timestamptz(6)
+  society              Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  grant                PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  actor                User @relation("LicenseConsentActor", fields: [actorId], references: [id], onDelete: Restrict)
+  allocation           SocietyLicenseAllocation?
+
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, grantId, ownershipVersion, sequence(sort: Desc)])
+}
+
+model SocietyLicenseAllocation {
+  id               String @id @default(uuid()) @db.Uuid
+  approvalId       String @db.Uuid
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  consentId        String @unique @db.Uuid
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  approval         PartnerLicenseApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  distributionProposals PartnerDistributionProposal[]
+  legacySubscription SocietyLegacySubscription?
+  consent          SocietyLicenseConsent @relation(fields: [consentId], references: [id], onDelete: Restrict)
+  actor            User @relation("LicenseAllocationActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([approvalId, idempotencyKey])
+  @@index([societyId, ownershipVersion])
+}
+
+enum PartnerLicenseGrantStatus {
+  DRAFT
+  GRANTED
+  REVOKED
+}
+
+enum PartnerLicenseEventType {
+  DRAFT_CREATED
+  GRANTED
+  REVOKED
+}
+
+enum PartnerStatus {
+  DRAFT
+  ACTIVE
+  RESTRICTED
+  TERMINATED
+}
+
+enum PartnerRole {
+  OWNER
+  BRAND_MANAGER
+  COMMERCIAL_ADMIN
+  SUPPORT
 }
 
 model SocietyMembership {
@@ -760,6 +1207,11 @@ model Session {
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @db.Uuid
   societyId        String?   @db.Uuid
+  audience         String    @default("STANDARD") @db.VarChar(16)
+  originHost       String?   @db.VarChar(253)
+  hostClaimId      String?   @db.Uuid
+  hostClaimVersion Int?
+  hostClaim        PartnerDomainClaim? @relation(fields: [hostClaimId], references: [id], onDelete: Restrict)
   accessTokenHash  String    @unique
   refreshTokenHash String    @unique
   expiresAt        DateTime
@@ -774,6 +1226,7 @@ model Session {
   @@index([societyId, revokedAt])
   @@index([expiresAt])
   @@index([refreshExpiresAt])
+  @@index([hostClaimId])
 }
 
 model HelpdeskTicket {
@@ -1355,4 +1808,214 @@ model GateNotificationAttempt {
 
   @@unique([societyId, requestId, userId, channel], map: "GateNotificationAttempt_scope_request_user_channel_key")
   @@index([societyId, requestId, createdAt(sort: Desc)], map: "GateNotificationAttempt_scope_request_time_idx")
+}
+
+// Immutable test-build identity approval; never an app/session audience or build dispatch.
+// Immutable claim is NEVER an executable build permit.
+// One append-only NON-EXECUTING consumption per TEST claim; not a process permit.
+model PartnerAndroidBuildWorkerConsumption {
+ id              String @id @default(uuid()) @db.Uuid
+ claimId         String @unique @db.Uuid
+ actorId         String @db.Uuid
+ workerId        String @db.VarChar(64)
+ manifestDigest  String @db.VarChar(64)
+ nonceDigest     String @db.VarChar(64)
+ sourceSha       String @db.VarChar(40)
+ lockDigest      String @db.VarChar(64)
+ versionCode     Int
+ issuedAt        DateTime @db.Timestamptz(6)
+ expiresAt       DateTime @db.Timestamptz(6)
+ createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ runnerChallenge PartnerAndroidRunnerChallenge?
+ claim           PartnerAndroidBuildWorkerClaim @relation(fields:[claimId], references:[id], onDelete:Restrict)
+ actor           User @relation("AndroidBuildConsumptionActor", fields:[actorId], references:[id], onDelete:Restrict)
+ @@index([workerId, createdAt])
+}
+
+
+
+model PartnerAndroidRunnerEvidenceAcceptance {
+ id                     String @id @default(uuid()) @db.Uuid
+ challengeId            String @unique @db.Uuid
+ actorId                String @db.Uuid
+ workerId               String @db.VarChar(64)
+ runId                  String @unique @db.VarChar(64)
+ nonceDigest            String @unique @db.VarChar(64)
+ imageDigest            String @db.VarChar(71)
+ manifestDigest         String @db.VarChar(64)
+ sourceSha              String @db.VarChar(40)
+ lockDigest             String @db.VarChar(64)
+ nativeInventoryDigest  String @db.VarChar(64)
+ toolchainReceiptDigest String @db.VarChar(64)
+ signatureDigest        String @unique @db.VarChar(64)
+ versionCode            Int
+ issuedAt               DateTime @db.Timestamptz(6)
+ expiresAt              DateTime @db.Timestamptz(6)
+ createdAt              DateTime @default(now()) @db.Timestamptz(6)
+ challenge              PartnerAndroidRunnerChallenge @relation(fields:[challengeId],references:[id],onDelete:Restrict)
+ actor                  User @relation("AndroidRunnerAcceptanceActor",fields:[actorId],references:[id],onDelete:Restrict)
+ runtimeProbe           PartnerAndroidRunnerRuntimeProbe?
+ @@index([workerId,createdAt])
+}
+
+model PartnerAndroidRunnerRuntimeProbe {
+ id                        String @id @default(uuid()) @db.Uuid
+ acceptanceId              String @unique @db.Uuid
+ challengeId               String @unique @db.Uuid
+ actorId                   String @db.Uuid
+ workerId                  String @db.VarChar(64)
+ runId                     String @unique @db.VarChar(64)
+ imageDigest               String @db.VarChar(71)
+ sourceSha                 String @db.VarChar(40)
+ manifestDigest            String @db.VarChar(64)
+ transportNonceDigest      String @unique @db.VarChar(64)
+ runtimeEnvelopeDigest     String @unique @db.VarChar(64)
+ transportSignatureDigest  String @unique @db.VarChar(64)
+ serverSpkiSha256          String @db.VarChar(64)
+ verifiedAt                DateTime @db.Timestamptz(6)
+ createdAt                 DateTime @default(now()) @db.Timestamptz(6)
+ acceptance                PartnerAndroidRunnerEvidenceAcceptance @relation(fields:[acceptanceId],references:[id],onDelete:Restrict)
+ actor                     User @relation("AndroidRunnerRuntimeProbeActor",fields:[actorId],references:[id],onDelete:Restrict)
+ @@index([workerId,createdAt])
+}
+
+model PartnerAndroidRunnerChallenge {
+ id              String @id @default(uuid()) @db.Uuid
+ consumptionId   String @unique @db.Uuid
+ actorId         String @db.Uuid
+ workerId        String @db.VarChar(64)
+ runId           String @unique @db.VarChar(64)
+ nonceDigest     String @unique @db.VarChar(64)
+ imageDigest     String @db.VarChar(71)
+ manifestDigest  String @db.VarChar(64)
+ versionCode     Int
+ issuedAt        DateTime @db.Timestamptz(6)
+ expiresAt       DateTime @db.Timestamptz(6)
+ createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ acceptance PartnerAndroidRunnerEvidenceAcceptance?
+ consumption     PartnerAndroidBuildWorkerConsumption @relation(fields:[consumptionId], references:[id], onDelete:Restrict)
+ actor           User @relation("AndroidRunnerChallengeActor", fields:[actorId], references:[id], onDelete:Restrict)
+ @@index([workerId, createdAt])
+}
+
+model PartnerAndroidBuildWorkerClaim {
+  id              String @id @default(uuid()) @db.Uuid
+  reservationId   String @unique @db.Uuid
+  actorId         String @db.Uuid
+  workerId        String @db.VarChar(64)
+  assertionDigest String @db.VarChar(64)
+  nonceDigest     String @db.VarChar(64)
+  manifestDigest  String @db.VarChar(64)
+  versionCode     Int
+  issuedAt        DateTime @db.Timestamptz(6)
+  expiresAt       DateTime @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  consumption     PartnerAndroidBuildWorkerConsumption?
+  reservation     PartnerAndroidBuildReservation @relation(fields:[reservationId], references:[id], onDelete:Restrict)
+  actor           User @relation("AndroidBuildWorkerClaimActor", fields:[actorId], references:[id], onDelete:Restrict)
+  @@index([workerId, createdAt])
+}
+
+model PartnerAndroidBuildReservation {
+  id             String @id @default(uuid()) @db.Uuid
+  proposalId     String @db.Uuid
+  revisionId     String @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  versionCode    Int
+  digest         String @db.VarChar(64)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields:[proposalId], references:[id], onDelete:Restrict)
+  revision       PartnerAndroidBuildRevision @relation(fields:[revisionId], references:[id], onDelete:Restrict)
+  actor          User @relation("AndroidBuildReservationCreator", fields:[actorId], references:[id], onDelete:Restrict)
+  workerClaim    PartnerAndroidBuildWorkerClaim?
+  @@unique([proposalId, versionCode])
+  @@unique([proposalId, idempotencyKey])
+  @@index([revisionId, createdAt])
+}
+
+model PartnerAndroidBuildRevision {
+  id             String   @id @default(uuid()) @db.Uuid
+  proposalId     String   @db.Uuid
+  version        Int
+  manifest       Json
+  digest         String   @db.VarChar(64)
+  actorId        String   @db.Uuid
+  idempotencyKey String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  actor          User @relation("AndroidBuildRevisionCreator", fields: [actorId], references: [id], onDelete: Restrict)
+  approval       PartnerAndroidBuildRevisionApproval?
+  reservations   PartnerAndroidBuildReservation[]
+
+  @@unique([proposalId, version])
+  @@unique([proposalId, idempotencyKey])
+}
+
+model PartnerAndroidBuildRevisionApproval {
+  id             String   @id @default(uuid()) @db.Uuid
+  revisionId     String   @unique @db.Uuid
+  actorId        String   @db.Uuid
+  idempotencyKey String   @db.Uuid
+  reason         String   @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  revision       PartnerAndroidBuildRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  actor          User @relation("AndroidBuildRevisionReviewer", fields: [actorId], references: [id], onDelete: Restrict)
+}
+
+model PartnerDistributionProposal {
+  id             String @id @default(uuid()) @db.Uuid
+  allocationId   String @db.Uuid
+  applicationId  String @unique @db.VarChar(150)
+  manifest       Json
+  digest         String @db.VarChar(64)
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  allocation     SocietyLicenseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  approval       PartnerDistributionApproval?
+  androidBuildRevisions PartnerAndroidBuildRevision[]
+  androidBuildReservations PartnerAndroidBuildReservation[]
+  @@unique([allocationId, idempotencyKey])
+}
+model PartnerDistributionApproval {
+  id             String @id @default(uuid()) @db.Uuid
+  proposalId     String @unique @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  reason         String @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  revocation     PartnerDistributionRevocation?
+}
+model PartnerDistributionRevocation {
+  id             String @id @default(uuid()) @db.Uuid
+  approvalId     String @unique @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  reason         String @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  approval       PartnerDistributionApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+}
+// Explicit grandfathered commercial representation of immutable historical rights.
+// Live operational features still use Society.productTier/featureOverrides.
+model SocietyLegacySubscription {
+  id                 String @id @default(uuid()) @db.Uuid
+  societyId          String @db.Uuid
+  allocationId       String @unique @db.Uuid
+  actorId            String @db.Uuid
+  idempotencyKey     String @db.Uuid
+  sourceMigration    String
+  productTier        ProductTier
+  featureOverrides   Json
+  enabledFeatures    Json
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+  compatibility      SocietyEntitlementCompatibility @relation(fields: [societyId], references: [societyId], onDelete: Restrict)
+  allocation         SocietyLicenseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  actor              User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, createdAt])
 }

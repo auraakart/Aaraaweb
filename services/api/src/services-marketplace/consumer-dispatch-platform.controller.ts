@@ -73,10 +73,26 @@ export class ConsumerDispatchPlatformController {
     return this.dispatch.setAgentActive(providerId, agentId, dto.active);
   }
 
+  @Get('consumer-bookings/:bookingId/dispatch-candidates')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_DISPATCH_READ)
+  dispatchCandidates(@Param('bookingId', ParseUUIDPipe) bookingId: string) {
+    return this.dispatch.listDispatchCandidates(bookingId);
+  }
+
   @Get('consumer-bookings/:bookingId/assignments')
   @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_DISPATCH_READ)
   listAssignments(@Param('bookingId', ParseUUIDPipe) bookingId: string) {
     return this.dispatch.listAssignments(bookingId);
+  }
+
+  @Post('consumer-bookings/:bookingId/quick-dispatch')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_DISPATCH_MANAGE)
+  quickDispatch(
+    @CurrentDispatchPlatformUser() actorUserId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ) {
+    if (!actorUserId) throw new UnauthorizedException('Authentication required');
+    return this.dispatch.quickDispatch(actorUserId, bookingId);
   }
 
   @Post('consumer-bookings/:bookingId/assignments')

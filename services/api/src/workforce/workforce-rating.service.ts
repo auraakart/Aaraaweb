@@ -34,7 +34,7 @@ export class WorkforceRatingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listMine(societyId: string, userId: string) {
-    return this.prisma.$queryRaw<WorkforceRatingRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<WorkforceRatingRow[]>(Prisma.sql`
       SELECT wr.*
       FROM "WorkforceRating" wr
       JOIN "WorkforceAssignment" wa ON wa."id" = wr."assignmentId"
@@ -51,7 +51,7 @@ export class WorkforceRatingService {
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         )
       ORDER BY wr."updatedAt" DESC
-    `);
+    `));
   }
 
   async rateMine(
@@ -66,7 +66,8 @@ export class WorkforceRatingService {
     const comment = input.comment?.trim() || null;
     if (comment && comment.length > 300) throw new BadRequestException('Rating comment must be 300 characters or fewer');
 
-    const ownership = await this.prisma.$queryRaw<AssignmentOwnershipRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const ownership = await tx.$queryRaw<AssignmentOwnershipRow[]>(Prisma.sql`
       SELECT wa."id" AS "assignmentId", wa."workerId", wa."status"
       FROM "WorkforceAssignment" wa
       JOIN "Household" h ON h."id" = wa."householdId"
@@ -82,6 +83,7 @@ export class WorkforceRatingService {
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         )
       LIMIT 1
+      FOR UPDATE OF wa
     `);
     const assignment = ownership[0];
     if (!assignment) throw new NotFoundException('Workforce assignment not found');
@@ -89,7 +91,7 @@ export class WorkforceRatingService {
       throw new BadRequestException('Only approved or suspended workforce assignments can be rated');
     }
 
-    const rows = await this.prisma.$queryRaw<WorkforceRatingRow[]>(Prisma.sql`
+    const rows = await tx.$queryRaw<WorkforceRatingRow[]>(Prisma.sql`
       INSERT INTO "WorkforceRating" (
         "societyId", "assignmentId", "workerId", "ratedById", "score", "comment"
       ) VALUES (
@@ -110,10 +112,12 @@ export class WorkforceRatingService {
     `);
     if (!rows[0]) throw new NotFoundException('Workforce assignment not found');
     return rows[0];
+    });
   }
 
   async societySummary(societyId: string) {
-    const rows = await this.prisma.$queryRaw<WorkforceRatingSummaryRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const rows = await tx.$queryRaw<WorkforceRatingSummaryRow[]>(Prisma.sql`
       SELECT
         dw."id" AS "workerId",
         dw."name" AS "workerName",
@@ -131,6 +135,7 @@ export class WorkforceRatingService {
       ORDER BY "averageScore" DESC NULLS LAST, "ratingCount" DESC, dw."name" ASC
     `);
 
-    return rows.map((row) => ({ ...row, ratingCount: Number(row.ratingCount) }));
+      return rows.map((row) => ({ ...row, ratingCount: Number(row.ratingCount) }));
+    });
   }
 }

@@ -21,7 +21,7 @@ export class CommunityEventsService{
   constructor(private readonly prisma:PrismaService){}
 
   listVisible(societyId:string,userId:string){
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx=>tx.$queryRaw(Prisma.sql`
       SELECT e."id",e."title",e."description",e."audienceScope",e."status",
              e."startsAt",e."endsAt",e."location",e."capacity",
              COALESCE(s."goingCount",0)::int AS "goingCount",
@@ -68,11 +68,11 @@ export class CommunityEventsService{
         )
       ORDER BY e."startsAt",e."createdAt"
       LIMIT 100
-    `);
+    `));
   }
 
   listManage(societyId:string){
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx=>tx.$queryRaw(Prisma.sql`
       SELECT e."id",e."title",e."description",e."audienceScope",e."status",
              e."startsAt",e."endsAt",e."location",e."capacity",e."createdAt",e."updatedAt",
              COALESCE(s."goingCount",0)::int AS "goingCount",
@@ -88,7 +88,7 @@ export class CommunityEventsService{
       WHERE e."societyId"=${societyId}::uuid
       ORDER BY e."startsAt" DESC,e."createdAt" DESC
       LIMIT 250
-    `);
+    `));
   }
 
   async create(societyId:string,actorUserId:string,input:CreateCommunityEventInput){
@@ -100,20 +100,22 @@ export class CommunityEventsService{
     if(input.endsAt<=input.startsAt)throw new BadRequestException('Community event end must be after start');
     // Optional DTO fields accept null; both null and omission mean unlimited.
     if(input.capacity!=null&&(!Number.isInteger(input.capacity)||input.capacity<1||input.capacity>10000))throw new BadRequestException('Community event capacity must be between 1 and 10000');
-    const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      INSERT INTO "CommunityEvent" (
-        "societyId","title","description","audienceScope","startsAt","endsAt","location","capacity","createdByUserId"
-      ) VALUES (
-        ${societyId}::uuid,${title},${description},${input.audienceScope},
-        ${input.startsAt},${input.endsAt},${location},${input.capacity??null},${actorUserId}::uuid
-      )
-      RETURNING *
-    `);
-    return rows[0];
+    return this.prisma.withTenantContext(societyId, async tx=>{
+      const rows=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        INSERT INTO "CommunityEvent" (
+          "societyId","title","description","audienceScope","startsAt","endsAt","location","capacity","createdByUserId"
+        ) VALUES (
+          ${societyId}::uuid,${title},${description},${input.audienceScope},
+          ${input.startsAt},${input.endsAt},${location},${input.capacity??null},${actorUserId}::uuid
+        )
+        RETURNING *
+      `);
+      return rows[0];
+    });
   }
 
   async setStatus(societyId:string,eventId:string,next:'PUBLISHED'|'CANCELLED'){
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       const rows=await tx.$queryRaw<Array<{id:string;status:CommunityEventLifecycle;publishable:boolean}>>(Prisma.sql`
         SELECT "id","status",("endsAt">CURRENT_TIMESTAMP) AS "publishable"
         FROM "CommunityEvent"
@@ -136,7 +138,7 @@ export class CommunityEventsService{
   }
 
   async rsvp(societyId:string,userId:string,eventId:string,status:CommunityEventRsvp){
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       const rows=await tx.$queryRaw<Array<{
         id:string;status:CommunityEventLifecycle;audienceScope:CommunityEventAudience;capacity:number|null;
         rsvpOpen:boolean;isOwner:boolean;isOccupant:boolean;

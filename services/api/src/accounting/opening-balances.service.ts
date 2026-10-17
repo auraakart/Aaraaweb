@@ -51,12 +51,25 @@ export class OpeningBalancesService {
   }
 
   async apply(societyId: string, userId: string, input: ApplyOpeningBalanceInput) {
+    // Preserve public API validation before opening a DB transaction.
+    // The composed migration path revalidates inside the caller's transaction.
+    const normalized = this.normalize(input);
+    this.validateLines(normalized.lines);
+    return this.prisma.$transaction((tx) =>
+      this.applyWithinTransaction(tx, societyId, userId, normalized),
+    ).catch((error) => this.rethrow(error));
+  }
+
+  /** Compose a migration commit with accounting journal creation inside one
+   * caller-owned DB transaction. The ordinary API retains its own wrapper. */
+  async applyWithinTransaction(
+    tx: Prisma.TransactionClient, societyId: string, userId: string, input: ApplyOpeningBalanceInput,
+  ) {
     const normalized = this.normalize(input);
     const totals = this.validateLines(normalized.lines);
     const contentHash = this.contentHash(normalized);
     const storedReference = this.storedReference(normalized.externalReference, contentHash);
 
-    return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:opening-balances`}))`);
 
       const existing = await tx.$queryRaw<ExistingOpeningBalance[]>(Prisma.sql`
@@ -150,7 +163,6 @@ export class OpeningBalancesService {
         idempotent: false,
         status: 'POSTED',
       };
-    }).catch((error) => this.rethrow(error));
   }
 
   private normalize(input: ApplyOpeningBalanceInput): ApplyOpeningBalanceInput {

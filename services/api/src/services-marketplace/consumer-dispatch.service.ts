@@ -28,6 +28,8 @@ type BookingRow = {
   userId: string;
   providerId: string;
   status: ServiceBookingStatus;
+  scheduledFrom: Date;
+  scheduledUntil: Date;
 };
 
 type AssignmentRow = {
@@ -45,6 +47,15 @@ type AssignmentRow = {
   releasedAt: Date | null;
 };
 
+type OperationalDispatchRow = {
+  assignmentId: string;
+  providerId: string;
+  status: ConsumerDispatchStatus;
+  enRouteAt: Date | null;
+  arrivedAt: Date | null;
+};
+type ProviderJourneyCohort = { sampleSize: number; medianMinutes: number | string | null };
+
 type DispatchNotificationRow = {
   bookingId: string;
   userId: string;
@@ -52,6 +63,13 @@ type DispatchNotificationRow = {
   providerName: string;
   agentDisplayName: string;
 };
+
+// Historical baseline is never claimed as a live location or guaranteed arrival.
+const ETA_FRESHNESS_MINUTES = 15;
+const ETA_MIN_SAMPLE = 5;
+const ETA_HISTORY_DAYS = 90;
+const ETA_MIN_TRAVEL_MINUTES = 5;
+const ETA_MAX_TRAVEL_MINUTES = 180;
 
 const ACTIVE_STATUSES: readonly ConsumerDispatchStatus[] = ['ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED'];
 
@@ -161,9 +179,10 @@ export class ConsumerDispatchService {
     `);
     if (!bookings[0]) throw new NotFoundException('Booking not found');
 
-    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<OperationalDispatchRow[]>(Prisma.sql`
       SELECT
         a."id" AS "assignmentId",
+        a."providerId",
         a."status",
         a."assignedAt",
         a."acceptedAt",
@@ -182,10 +201,189 @@ export class ConsumerDispatchService {
     return rows[0] ?? null;
   }
 
+
+  /**
+   * Services 4.1.3: a conservative, explicitly non-live resident ETA.
+   * No GPS, agent location, individual historical journeys or provider-private
+   * identifiers are exposed. Owner authorization happens first.
+   */
+  async getConsumerOperationalEta(userId: string, bookingId: string) {
+    const assignment = await this.getConsumerDispatch(userId, bookingId);
+    const asOf = new Date();
+    const base = {
+      bookingId,
+      assignmentStatus: assignment?.status ?? null,
+      asOf,
+      liveTracking: false,
+      guaranteedArrival: false,
+      etaMinutes: null as number | null,
+      estimatedArrivalAt: null as Date | null,
+      confidence: 'UNAVAILABLE' as 'UNAVAILABLE' | 'LOW',
+      source: 'NONE' as 'NONE' | 'PROVIDER_HISTORICAL_EN_ROUTE_TO_ARRIVED',
+      sampleSize: 0,
+      reason: 'NO_ACTIVE_DISPATCH',
+      lastMilestoneAt: null as Date | null,
+      milestoneFresh: false,
+    };
+
+    if (!assignment) return base;
+    if (assignment.status === 'ARRIVED') {
+      return {
+        ...base, assignmentStatus: 'ARRIVED' as ConsumerDispatchStatus,
+        lastMilestoneAt: assignment.arrivedAt,
+        milestoneFresh: assignment.arrivedAt !== null,
+        reason: 'ARRIVAL_CONFIRMED',
+      };
+    }
+    if (assignment.status !== 'EN_ROUTE' || !assignment.enRouteAt) {
+      return { ...base, reason: 'WAITING_FOR_EN_ROUTE_MILESTONE' };
+    }
+
+    const departedAt = new Date(assignment.enRouteAt);
+    const elapsed = (asOf.getTime() - departedAt.getTime()) / 60_000;
+    if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > ETA_FRESHNESS_MINUTES) {
+      return { ...base, lastMilestoneAt: departedAt, reason: 'EN_ROUTE_MILESTONE_STALE' };
+    }
+
+    const cohorts = await this.prisma.$queryRaw<ProviderJourneyCohort[]>(Prisma.sql`
+      SELECT COUNT(*)::int AS "sampleSize",
+        percentile_cont(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (a."arrivedAt" - a."enRouteAt")) / 60.0
+        ) AS "medianMinutes"
+      FROM "ConsumerServiceAssignment" a
+      WHERE a."providerId" = ${assignment.providerId}::uuid
+        AND a."id" <> ${assignment.assignmentId}::uuid
+        AND a."enRouteAt" >= ${new Date(asOf.getTime() - ETA_HISTORY_DAYS * 86_400_000)}
+        AND a."arrivedAt" IS NOT NULL
+        AND a."enRouteAt" IS NOT NULL
+        AND a."arrivedAt" > a."enRouteAt"
+        AND EXTRACT(EPOCH FROM (a."arrivedAt" - a."enRouteAt")) / 60.0
+          BETWEEN ${ETA_MIN_TRAVEL_MINUTES} AND ${ETA_MAX_TRAVEL_MINUTES}
+    `);
+    const count = Number(cohorts[0]?.sampleSize ?? 0);
+    const median = Number(cohorts[0]?.medianMinutes);
+    if (count < ETA_MIN_SAMPLE || !Number.isFinite(median) ||
+        median < ETA_MIN_TRAVEL_MINUTES || median > ETA_MAX_TRAVEL_MINUTES) {
+      return {
+        ...base, lastMilestoneAt: departedAt, milestoneFresh: true,
+        reason: 'INSUFFICIENT_PROVIDER_HISTORY',
+      };
+    }
+
+    const remaining = median - elapsed;
+    if (remaining <= 0) {
+      return {
+        ...base, lastMilestoneAt: departedAt, milestoneFresh: true,
+        reason: 'HISTORICAL_WINDOW_ELAPSED',
+      };
+    }
+    const roundedMinutes = Math.max(5, Math.ceil(remaining / 5) * 5);
+    return {
+      ...base,
+      lastMilestoneAt: departedAt,
+      milestoneFresh: true,
+      reason: 'HISTORICAL_ESTIMATE_ONLY',
+      etaMinutes: roundedMinutes,
+      estimatedArrivalAt: new Date(asOf.getTime() + roundedMinutes * 60_000),
+      confidence: 'LOW' as const,
+      source: 'PROVIDER_HISTORICAL_EN_ROUTE_TO_ARRIVED' as const,
+      sampleSize: count,
+    };
+  }
+
+
+  /**
+   * Services 4.1.1: provisional platform dispatch suggestions only.
+   * Not actual availability, verified skills, an assignment, or live GPS ETA.
+   */
+  async listDispatchCandidates(bookingId: string) {
+    const bookings = await this.prisma.$queryRaw<Array<{
+      id: string; providerId: string; status: ServiceBookingStatus;
+      scheduledFrom: Date; scheduledUntil: Date; hasActiveAssignment: boolean;
+      preferredAgentId: string | null;
+    }>>(Prisma.sql`
+      SELECT b."id", b."providerId", b."status", b."scheduledFrom", b."scheduledUntil",
+        pref."agentId" AS "preferredAgentId",
+        EXISTS (
+          SELECT 1 FROM "ConsumerServiceAssignment" active
+          WHERE active."bookingId" = b."id"
+            AND active."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
+        ) AS "hasActiveAssignment"
+      FROM "ConsumerServiceBooking" b
+      LEFT JOIN "ConsumerServiceTechnicianPreference" pref
+        ON pref."bookingId" = b."id" AND pref."userId" = b."userId"
+        AND pref."providerId" = b."providerId"
+      JOIN "ServiceProvider" p ON p."id" = b."providerId"
+        AND p."active" = true
+        AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      WHERE b."id" = ${bookingId}::uuid LIMIT 1
+    `);
+    const booking = bookings[0];
+    if (!booking) throw new NotFoundException('Verified provider booking not found');
+    if (booking.status !== ServiceBookingStatus.CONFIRMED || booking.hasActiveAssignment) {
+      throw new BadRequestException('Dispatch candidates require an unassigned confirmed booking');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<{
+      agentId: string; displayName: string;
+      activeAssignmentCount: number; hasScheduleConflict: boolean;
+    }>>(Prisma.sql`
+      SELECT ag."id" AS "agentId", ag."displayName",
+        load."activeAssignmentCount",
+        (load."overlapCount" > 0) AS "hasScheduleConflict"
+      FROM "ConsumerProviderAgent" ag
+      JOIN "ServiceProvider" p ON p."id" = ag."providerId"
+        AND p."active" = true AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      CROSS JOIN LATERAL (
+        SELECT COUNT(*)::int AS "activeAssignmentCount",
+          COUNT(*) FILTER (
+            WHERE assignedBooking."scheduledFrom" < ${booking.scheduledUntil}
+              AND assignedBooking."scheduledUntil" > ${booking.scheduledFrom}
+          )::int AS "overlapCount"
+        FROM "ConsumerServiceAssignment" a
+        JOIN "ConsumerServiceBooking" assignedBooking ON assignedBooking."id" = a."bookingId"
+        WHERE a."agentId" = ag."id" AND a."providerId" = ag."providerId"
+          AND a."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
+      ) load
+      WHERE ag."providerId" = ${booking.providerId}::uuid AND ag."active" = true
+      ORDER BY "hasScheduleConflict" ASC,
+        (ag."id" IS DISTINCT FROM ${booking.preferredAgentId ?? null}::uuid) ASC,
+        load."activeAssignmentCount" ASC, ag."displayName" ASC, ag."id" ASC
+      LIMIT 25
+    `);
+    return {
+      bookingId: booking.id, providerId: booking.providerId,
+      candidates: rows.map(row => ({
+        ...row,
+        residentRequested: !!booking.preferredAgentId && row.agentId === booking.preferredAgentId,
+        provisionallyAvailable: !row.hasScheduleConflict,
+        availabilityConfirmed: false,
+        skillsVerifiedForOffering: false,
+        etaMinutes: null as number | null,
+      })),
+      provisional: true,
+      residentPreferencePresent: !!booking.preferredAgentId,
+      residentPreferenceGuaranteed: false,
+      matchingBasis: 'PROVIDER_OWNERSHIP_SCHEDULE_CONFLICT_REQUESTED_AGENT_ACTIVE_LOAD',
+      assignmentRequired: true,
+    };
+  }
+
+  /**
+   * One-action dispatch reuses the existing platform-authorized assignment path.
+   * Candidate reads are stale by definition; assign() rechecks with row locks.
+   */
+  async quickDispatch(actorUserId: string, bookingId: string) {
+    const shortlist = await this.listDispatchCandidates(bookingId);
+    const candidate = shortlist.candidates.find((item) => item.provisionallyAvailable);
+    if (!candidate) throw new BadRequestException('No conflict-free provider agent currently available');
+    return this.assign(actorUserId, bookingId, candidate.agentId);
+  }
+
   async assign(actorUserId: string, bookingId: string, agentId: string) {
     const assignment = await this.prisma.$transaction(async (tx) => {
       const bookingRows = await tx.$queryRaw<BookingRow[]>(Prisma.sql`
-        SELECT "id", "userId", "providerId", "status"
+        SELECT "id", "userId", "providerId", "status", "scheduledFrom", "scheduledUntil"
         FROM "ConsumerServiceBooking"
         WHERE "id" = ${bookingId}::uuid
         FOR UPDATE
@@ -219,6 +417,24 @@ export class ConsumerDispatchService {
       `);
       const agent = agents[0];
       if (!agent) throw new BadRequestException('Selected agent is not active for the booking provider');
+
+      // This agent row is already FOR UPDATE locked. Other direct/quick
+      // assignments for this technician serialize here, preventing two
+      // concurrent bookings from committing overlapping active work.
+      const conflicting = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT a."id"
+        FROM "ConsumerServiceAssignment" a
+        JOIN "ConsumerServiceBooking" other ON other."id" = a."bookingId"
+        WHERE a."agentId" = ${agentId}::uuid
+          AND a."providerId" = ${booking.providerId}::uuid
+          AND a."status" IN ('ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED')
+          AND other."scheduledFrom" < ${booking.scheduledUntil}
+          AND other."scheduledUntil" > ${booking.scheduledFrom}
+        LIMIT 1
+      `);
+      if (conflicting[0]) {
+        throw new BadRequestException('Agent has an overlapping active service assignment; refresh candidates');
+      }
 
       const assignmentId = randomUUID();
       const rows = await tx.$queryRaw<AssignmentRow[]>(Prisma.sql`

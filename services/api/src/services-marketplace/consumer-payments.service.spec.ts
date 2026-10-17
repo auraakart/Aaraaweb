@@ -36,6 +36,93 @@ const payment = {
 };
 
 describe('ConsumerPaymentsService', () => {
+
+  it('never queries quotes or payments for a different booking owner', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getCheckoutBreakdown(userId, bookingId)).rejects.toThrow('Booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const sql = prisma.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(sql.strings.join(' ')).toContain('b."userId"');
+    expect(sql.values).toEqual([bookingId, userId]);
+  });
+
+  it('rejects invalid saved booking amounts instead of displaying misleading financial totals', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: bookingId, offeringName: 'AC service', status: 'CONFIRMED', servicePricePaise: -5,
+    }]);
+    await expect(service.getCheckoutBreakdown(userId, bookingId)).rejects.toThrow('invalid saved service amount');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows base price and quote approvals separately without forming a charge or GST estimate', async () => {
+    const { prisma, service, tx } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{
+        id: bookingId, offeringName: 'AC service', status: 'IN_PROGRESS', servicePricePaise: 75000,
+      }])
+      .mockResolvedValueOnce([{
+        id: 'quote-1', scopeDescription: 'Replacement filter', amountPaise: '15000',
+        status: 'APPROVED', createdAt: new Date(),
+      }])
+      .mockResolvedValueOnce([{
+        id: 'payment-1', status: 'CAPTURED', currency: 'INR',
+        grossAmountPaise: '75000', createdAt: new Date(),
+      }]);
+    const summary = await service.getCheckoutBreakdown(userId, bookingId);
+    expect(summary).toEqual(expect.objectContaining({
+      readOnly: true, checkoutReady: false, amountPayablePaise: null,
+      currency: 'INR', taxBreakdown: null, taxAssessmentStatus: 'NOT_DETERMINED',
+      baseService: { description: 'AC service', source: 'SAVED_BOOKING_PRICE', amountPaise: 75000 },
+    }));
+    expect(summary.readiness).toEqual(expect.objectContaining({
+      evaluationScope: 'THIS_BOOKING_PREVIEW_ONLY',
+      status: 'NOT_READY', chargeAuthorized: false,
+      blockers: expect.arrayContaining([
+        expect.objectContaining({ code: 'SELLER_OF_RECORD_UNVERIFIED' }),
+        expect.objectContaining({ code: 'GST_TREATMENT_UNDETERMINED' }),
+        expect.objectContaining({ code: 'PARTS_LINE_ITEMS_UNAVAILABLE' }),
+        expect.objectContaining({ code: 'EXTRA_WORK_NOT_BILLABLE' }),
+        expect.objectContaining({ code: 'SETTLEMENT_REFUND_RULES_UNVERIFIED' }),
+      ]),
+    }));
+    expect(summary.extraWorkQuotes).toEqual([expect.objectContaining({
+      status: 'APPROVED', quotedAmountPaise: '15000',
+      includedInBasePayment: false, createsInvoice: false,
+    })]);
+    expect(summary.baseBookingPayments).toEqual([expect.objectContaining({
+      status: 'CAPTURED', grossAmountPaise: '75000',
+    })]);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    const quoteQuery = prisma.$queryRaw.mock.calls[1][0] as { strings: string[]; values: unknown[] };
+    const paymentQuery = prisma.$queryRaw.mock.calls[2][0] as { strings: string[]; values: unknown[] };
+    for (const q of [quoteQuery, paymentQuery]) {
+      expect(q.strings.join(' ')).toContain('b."userId"');
+      expect(q.values).toEqual([bookingId, userId]);
+    }
+  });
+
+  it('returns empty nonpayable lists for an existing booking without extra work or payments', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{
+        id: bookingId, offeringName: 'Cleaning', status: 'REQUESTED', servicePricePaise: 0,
+      }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const summary = await service.getCheckoutBreakdown(userId, bookingId);
+    expect(summary.extraWorkQuotes).toEqual([]);
+    expect(summary.baseBookingPayments).toEqual([]);
+    expect(summary.baseService.amountPaise).toBe(0);
+    expect(summary.amountPayablePaise).toBeNull();
+    // No quotes or payments must not be misread as finance readiness.
+    expect(summary.readiness.status).toBe('NOT_READY');
+    expect(summary.readiness.chargeAuthorized).toBe(false);
+    expect(summary.readiness.blockers).toHaveLength(5);
+  });
+
   it('scopes payment listing to the authenticated user', async () => {
     const { prisma, service } = setup();
     prisma.$queryRaw.mockResolvedValue([]);
