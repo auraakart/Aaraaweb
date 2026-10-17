@@ -100,7 +100,12 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: PrivacyDataScreen(apiClient: _ResilientPrivacyApi(exportReady: true))));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Share my data export'), 250);
-    await tester.tap(find.text('Share my data export'));
+    await tester.pumpAndSettle();
+    final exportButton = find.widgetWithText(OutlinedButton, 'Share my data export');
+    await tester.ensureVisible(exportButton);
+    await tester.pumpAndSettle();
+    expect(exportButton.hitTestable(), findsOneWidget);
+    await tester.tap(exportButton.hitTestable());
     await tester.pumpAndSettle();
     expect(shares, hasLength(1));
     expect(shares.single.method, 'share');
