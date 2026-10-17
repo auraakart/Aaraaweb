@@ -26,6 +26,12 @@ test('failed onboarding refresh clears previous progress and supports recovery',
   await page.getByRole('button',{name:'Refresh',exact:true}).click();await count(page,3);await plan(page,2,'Recovered')
   await expect(page.getByRole('heading',{name:'Recovered setup'})).toBeVisible()
 })
+test('onboarding refuses a response that claims production acceptance',async({page})=>{
+  await page.goto('/adoption.html?mode=onboarding');await count(page,1)
+  await page.evaluate(()=>window.adoption.reply(0,{...window.adoption.plan('Invalid'),productionizationClaim:true}))
+  await expect(page.getByRole('alert')).toContainText('cannot establish production acceptance')
+  await expect(page.getByRole('heading',{name:'Invalid setup'})).toHaveCount(0)
+})
 test('import freezes source during preview and drops results after society switch',async({page})=>{
   await page.goto('/adoption.html');await page.getByLabel('CSV data',{exact:true}).fill('name\nAlpha')
   await page.getByRole('button',{name:'Preview validation'}).click();await count(page,1)

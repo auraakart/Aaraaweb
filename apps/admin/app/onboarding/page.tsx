@@ -53,6 +53,7 @@ export default function SocietyOnboardingPage(){
     const current=()=>request===epoch.current&&sameAdminContext(value,currentAdminSession())
     try{
       const result=await api<OnboardingPlan>('/onboarding/readiness',{},value)
+      if(result.productionizationClaim!==false)throw new Error('Setup checks cannot establish production acceptance. Refresh or contact support.')
       if(current())setPlan(result)
     }catch(reason){if(current())setError(reason instanceof Error?reason.message:'Could not load onboarding readiness')}
     finally{
@@ -129,6 +130,7 @@ export default function SocietyOnboardingPage(){
     <section style={panel}>
       <h2>Setup review</h2>
       <p style={{marginBottom:0}}>Setup checks do not establish field or production acceptance. Complete the required reviews before a society pilot.</p>
+      {plan&&<details><summary>Review limitations</summary><p>{plan?.boundary}</p></details>}
     </section>
   </main>
 }
