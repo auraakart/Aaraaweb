@@ -5,6 +5,26 @@ import { MigrationPreviewService } from './migration-preview.service';
 describe('MigrationPreviewService', () => {
   const service = new MigrationPreviewService();
 
+  it.each([
+    ['Code', 'code'], [' code ', 'CODE'], ['Amount (Paise)', 'amount_paise'],
+    ['unit-ref', 'unit_ref'], ['__source_row', 'source row'],
+  ])('rejects columns %s and %s that normalize to one field', (first, second) => {
+    expect(() => service.preview('BUILDING', [{ name: 'Alpha', [first]: 'first', [second]: 'second' }]))
+      .toThrow(/Migration row 1 contains columns that normalize to the same field/);
+  });
+
+  it('identifies the ambiguous record without exposing its values', () => {
+    expect(() => service.preview('BUILDING', [
+      { name: 'Alpha', code: 'A' }, { name: 'Beta', code: 'private-first', CODE: 'private-second' },
+    ])).toThrow('Migration row 2 contains columns that normalize to the same field: code');
+  });
+
+  it('preserves legacy unique aliases and generated source provenance', () => {
+    const result = service.preview('UNIT', [{ 'Building Code': ' A ', 'Flat Number': ' 101 ', __source_row: '7' }]);
+    expect(result.validRows).toBe(1);
+    expect(result.normalizedRows).toEqual([{ building_code: 'A', flat_number: '101', source_row: '7' }]);
+  });
+
   it('normalizes common unit columns and detects duplicate units', () => {
     const result = service.preview('UNIT', [
       { 'Building Code': ' A ', 'Flat Number': ' 101 ' },

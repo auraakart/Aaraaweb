@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { api, logoutAdminSession, refreshAdminSession, sessionFrom, type Session } from '../../lib/admin-client'
+import { api, clearAdminSessionIfCurrent, isAdminSessionCurrent, logoutAdminSession, refreshAdminSession, sessionFrom, type Session } from '../../lib/admin-client'
 
 type Membership={societyId:string;role:string;society?:{name?:string;code?:string}}
 type Summary={range:{from:string;to:string};access:{visitorRequests:number;visitorEntries:number;workforceEntries:number};maintenance:{billedCount:number;billedPaise:number|null;collectedCount:number;collectedPaise:number|null;outstandingCount:number;outstandingPaise:number|null};helpdesk:{open:number;inProgress:number;resolved:number;closed:number};audit:{eventCount:number}}
@@ -15,9 +15,10 @@ const money=(paise:number|null)=>paise===null?'Restricted':new Intl.NumberFormat
 
 export default function AuditorWorkspace(){
   const[session,setSession]=useState<Session|null>(null),[restoring,setRestoring]=useState(true)
-  useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw) as Session;if(stored.role!=='AUDITOR'){setRestoring(false);return}refreshAdminSession(stored).then(setSession).catch(()=>sessionStorage.removeItem('aaraagate.admin.session')).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
+  useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw) as Session;if(stored.role!=='AUDITOR'){setRestoring(false);return}refreshAdminSession(stored).then(fresh=>{if(isAdminSessionCurrent(fresh))setSession(fresh)}).catch(()=>clearAdminSessionIfCurrent(stored)).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
+  useEffect(()=>{const invalidate=()=>setSession(value=>value&&!isAdminSessionCurrent(value)?null:value);window.addEventListener('storage',invalidate);window.addEventListener('focus',invalidate);return()=>{window.removeEventListener('storage',invalidate);window.removeEventListener('focus',invalidate)}},[])
   const accept=(next:Session)=>{sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(next));setSession(next)}
-  const logout=async()=>{if(session)await logoutAdminSession(session).catch(()=>undefined);sessionStorage.removeItem('aaraagate.admin.session');setSession(null)}
+  const logout=async()=>{if(!session)return;await logoutAdminSession(session).catch(()=>undefined);clearAdminSessionIfCurrent(session);setSession(value=>value&&!isAdminSessionCurrent(value)?null:value)}
   if(restoring)return <main style={shell}><p>Restoring secure Auditor session…</p></main>
   if(!session)return <AuditorLogin onSession={accept}/>
   return <AuditDashboard session={session} onLogout={()=>void logout()}/>
