@@ -41,8 +41,23 @@ function safeRedirect(location,hostname){
   return target.origin===origin&&!target.username&&!target.password;
  }catch{return false;}
 }
-const hasHeaderToken=(value,token)=>typeof value==='string'&&
- value.split(',').some(part=>part.trim().toLowerCase()===token);
+function hasHeaderToken(value,token){
+ if(typeof value!=='string')return false;
+ // Cache-Control values may contain quoted comma lists. A token inside a
+ // quoted directive value is not an independent response directive.
+ const parts=[];
+ let part='',quoted=false,escaped=false;
+ for(const char of value){
+  if(escaped)escaped=false;
+  else if(quoted&&char==='\\')escaped=true;
+  else if(char==='"')quoted=!quoted;
+  else if(char===','&&!quoted){parts.push(part);part='';continue;}
+  part+=char;
+ }
+ if(quoted||escaped)return false;
+ parts.push(part);
+ return parts.some(item=>item.trim().toLowerCase()===token);
+}
 // Injectable loopback fixture is only for deterministic tests, never CLI input.
 export async function probeTestIngress(input,{testTransport}={}){
  const plan=validateTestIngressPlan(input);

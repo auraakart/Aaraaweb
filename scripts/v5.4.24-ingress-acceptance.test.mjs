@@ -100,13 +100,16 @@ test('reject browser-normalized foreign redirects and misleading cache/Vary toke
  }
  for(const headers of [
   {vary:'X-Host, Origin'},{vary:'Host-Override, Cookie'},
-  {'cache-control':'x-no-store, private'},{'cache-control':'no-store="ignored"'}
+  {'cache-control':'x-no-store, private'},{'cache-control':'no-store="ignored"'},
+  {'cache-control':'private="x,no-store,y"'},
+  {'cache-control':'private="x,\\"no-store,y"'},
+  {'cache-control':'private="unterminated, no-store'}
  ]){
   responseHeaders=headers;
   await assert.rejects(probeTestIngress(plan,options),/Missing (Host Vary|no-store)/);
  }
  for(const location of ['/partner-host/sign-in?return=%2Fhome','https://'+plan.hostname+'/partner-host/sign-in']){
-  responseHeaders={location};
+  responseHeaders={location,'cache-control':'private="Set-Cookie, Authorization", NO-STORE'};
   const result=await probeTestIngress(plan,options);
   assert.equal(result.probePassed,true);
   assert.equal(result.results.length,3);
