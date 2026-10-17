@@ -151,10 +151,14 @@ void main() {
             await _capture(tester, boundary, '$name-invoice');
             await tester.scrollUntilVisible(find.text('Receipt'), 240, scrollable: find.byType(Scrollable).first);
             await tester.pumpAndSettle();
-            await _capture(tester, boundary, name);
-            // Any point on the receipt record can open it, including its title.
+            // Bring the record itself into view: scrolling to its bottom label
+            // alone can leave the card's center above the viewport at 200% type.
             final card = find.ancestor(of: find.text('Receipt'), matching: find.byType(InkWell)).first;
+            await tester.ensureVisible(card);
+            await tester.pumpAndSettle();
+            expect(card.hitTestable(), findsOneWidget);
             expect(tester.getSize(card).height, greaterThanOrEqualTo(48));
+            await _capture(tester, boundary, name);
             await tester.tap(card);
             await tester.pumpAndSettle();
             expect(api.receiptReads, 1);
