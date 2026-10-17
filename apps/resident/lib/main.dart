@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:aaraagate_branding_runtime/society_logo_fetcher.dart';
 import 'auth/auth_repository.dart';
 import 'auth/auth_screen.dart';
 import 'auth/resident_auth_controller.dart';
@@ -23,6 +25,7 @@ import 'screens/updates_screen.dart';
 import 'screens/workforce_screen.dart';
 import 'preferences/resident_experience_preferences.dart';
 import 'theme/aaraagate_theme.dart';
+import 'theme/resident_branding_controller.dart';
 
 const _demoFeatures = <String>{
   'VISITOR_MANAGEMENT',
@@ -49,23 +52,80 @@ Future<void> main() async {
   authController.bootstrap();
 }
 
-class AaraagateResidentApp extends StatelessWidget {
-  AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController, ResidentExperiencePreferences? experiencePreferences})
-      : experiencePreferences = experiencePreferences ?? ResidentExperiencePreferences();
+class AaraagateResidentApp extends StatefulWidget {
+  AaraagateResidentApp({
+    super.key,
+    required this.apiBaseUrl,
+    required this.authController,
+    ResidentExperiencePreferences? experiencePreferences,
+  }) : experiencePreferences = experiencePreferences ?? ResidentExperiencePreferences();
+
   final String apiBaseUrl;
   final ResidentAuthController authController;
   final ResidentExperiencePreferences experiencePreferences;
 
   @override
+  State<AaraagateResidentApp> createState() => _AaraagateResidentAppState();
+}
+
+class _AaraagateResidentAppState extends State<AaraagateResidentApp> with WidgetsBindingObserver {
+  late final ResidentBrandingController _branding;
+
+  @override
+  void initState() {
+    super.initState();
+    _branding = ResidentBrandingController(
+      scopeChanges: widget.authController,
+      currentSession: () {
+        final auth = widget.authController;
+        final session = auth.session;
+        if (auth.step != ResidentAuthStep.signedIn || session == null ||
+            session.isIndependentHome || auth.isDemoSession || session.societyId == null) {
+          return null;
+        }
+        return ResidentBrandSession(
+          sessionId: session.sessionId,
+          societyId: session.societyId!,
+          accessToken: session.accessToken,
+        );
+      },
+      fetchLogo: (session) => fetchPublishedSocietyLogo(
+        baseUrl: widget.apiBaseUrl, accessToken: session.accessToken),
+      fetchContext: (session) async {
+        final api = ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken);
+        try {
+          return await api.get('/api/v1/context/config');
+        } finally {
+          api.close();
+        }
+      },
+    );
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _branding.refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _branding.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: experiencePreferences,
+        animation: Listenable.merge([widget.experiencePreferences, _branding]),
         builder: (context, _) {
-          final easyMode = experiencePreferences.easyMode;
+          final easyMode = widget.experiencePreferences.easyMode;
+          final societyBrand = _branding.current;
           return MaterialApp(
-            title: 'Aaraagate',
+            title: societyBrand?.displayName ?? 'Aaraagate',
             debugShowCheckedModeBanner: false,
-            theme: AaraagateTheme.light(),
-            darkTheme: AaraagateTheme.dark(),
+            theme: AaraagateTheme.light(societyBrand: societyBrand),
+            darkTheme: AaraagateTheme.dark(societyBrand: societyBrand),
             themeMode: ThemeMode.system,
             builder: (context, child) {
               final media = MediaQuery.of(context);
@@ -74,17 +134,25 @@ class AaraagateResidentApp extends StatelessWidget {
                 child: child ?? const SizedBox.shrink(),
               );
             },
-            home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController, experiencePreferences: experiencePreferences),
+            home: _ResidentSessionGate(
+              apiBaseUrl: widget.apiBaseUrl,
+              authController: widget.authController,
+              experiencePreferences: widget.experiencePreferences,
+              societyLogoBytes: _branding.logoBytes,
+              societyDisplayName: societyBrand?.displayName,
+            ),
           );
         },
       );
 }
 
 class _ResidentSessionGate extends StatefulWidget {
-  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences});
+  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences, this.societyLogoBytes, this.societyDisplayName});
   final String apiBaseUrl;
   final ResidentAuthController authController;
   final ResidentExperiencePreferences experiencePreferences;
+  final Uint8List? societyLogoBytes;
+  final String? societyDisplayName;
   @override
   State<_ResidentSessionGate> createState() => _ResidentSessionGateState();
 }
@@ -149,6 +217,8 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
         return ResidentHomeShell(
           key: ValueKey('${session.sessionId}:${session.activeUnitId ?? ''}'),
           controller: _dataController!,
+          societyLogoBytes: widget.societyLogoBytes,
+          societyDisplayName: widget.societyDisplayName,
           consumerApiClient: consumerApiClient,
           onSignOut: _signOut,
           canManageFamilyMembers: widget.authController.isActivePropertyOwner,
@@ -166,8 +236,10 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged});
+  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged, this.societyLogoBytes, this.societyDisplayName});
   final ResidentDataController controller;
+  final Uint8List? societyLogoBytes;
+  final String? societyDisplayName;
   final ApiClient consumerApiClient;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
@@ -265,6 +337,8 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         final pages = <Widget>[
           HomeScreen(
             controller: controller,
+            societyLogoBytes: widget.societyLogoBytes,
+          societyDisplayName: widget.societyDisplayName,
             showGate: showGate,
             showStaff: showStaff,
             showServices: showServices,

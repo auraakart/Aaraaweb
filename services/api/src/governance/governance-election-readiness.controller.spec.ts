@@ -16,11 +16,12 @@ describe('GovernanceElectionReadinessController boundaries',()=>{
   });
 
   it('fails readiness closed when privacy architecture evidence is missing',async()=>{
-    const prisma={$queryRaw:vi.fn().mockResolvedValue([{
+    const tx={$queryRaw:vi.fn().mockResolvedValue([{
       ballotDraftId:'ballot',snapshotId:'snapshot',policyRevisionId:'policy',policyVersion:1,policyEnabled:true,policyCurrent:true,
       procedureRevisionId:'procedure',procedureVersion:1,privacyArchitectureRevisionId:null,privacyArchitectureVersion:null,
       reviewOutcome:'REVIEWED',reviewSequence:1,decisionOutcome:'APPROVED',decisionSequence:1,holdAction:null,holdSequence:null,holdCategory:null,
     }])};
+    const prisma={withTenantContext:vi.fn((_id:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const controller=new GovernanceElectionReadinessController(prisma as never);
     const result=await controller.assess('society','ballot');
     expect(result.configurationReady).toBe(false);
@@ -31,12 +32,13 @@ describe('GovernanceElectionReadinessController boundaries',()=>{
   });
 
   it('fails readiness closed while an election hold is active',async()=>{
-    const prisma={$queryRaw:vi.fn().mockResolvedValue([{
+    const tx={$queryRaw:vi.fn().mockResolvedValue([{
       ballotDraftId:'ballot',snapshotId:'snapshot',policyRevisionId:'policy',policyVersion:1,policyEnabled:true,policyCurrent:true,
       procedureRevisionId:'procedure',procedureVersion:1,privacyArchitectureRevisionId:'privacy',privacyArchitectureVersion:1,
       reviewOutcome:'REVIEWED',reviewSequence:1,decisionOutcome:'APPROVED',decisionSequence:1,
       holdAction:'OPEN_HOLD',holdSequence:2,holdCategory:'PRIVACY_SECURITY',
     }])};
+    const prisma={withTenantContext:vi.fn((_id:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const controller=new GovernanceElectionReadinessController(prisma as never);
     const result=await controller.assess('society','ballot');
     expect(result.configurationReady).toBe(false);

@@ -59,4 +59,40 @@ describeWithDatabase('PrismaService tenant context PostgreSQL integration', () =
     ).rejects.toThrow('A valid society UUID is required for tenant database context');
     expect(invoked).toBe(false);
   });
+
+  it('keeps interleaved societies isolated under concurrent tenant transactions', async () => {
+    // Concurrent promises exercise multiple pooled connections when the pool permits,
+    // while remaining valid when CI uses a single connection.
+    const societyIds = [
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+    ];
+    const expected = Array.from({ length: 12 }, (_, index) => societyIds[index % societyIds.length]);
+    const observed = await Promise.all(expected.map(societyId =>
+      prisma.withTenantContext(societyId, async tx => {
+        expect(await readContext(tx)).toBe(societyId);
+        await tx.$queryRaw(Prisma.sql`SELECT 1::int AS "ok" FROM pg_sleep(0.003)`);
+        return readContext(tx);
+      }),
+    ));
+
+    expect(observed).toEqual(expected);
+    expect(societyIds).not.toContain(await readContext(prisma));
+  });
+
+  it('clears transaction-local context after a PostgreSQL statement failure', async () => {
+    const failedSociety = '11111111-1111-4111-8111-111111111111';
+    const nextSociety = '22222222-2222-4222-8222-222222222222';
+
+    await expect(prisma.withTenantContext(failedSociety, async tx => {
+      expect(await readContext(tx)).toBe(failedSociety);
+      await tx.$queryRaw(Prisma.sql`SELECT 1 / 0 AS "failure"`);
+      return 'unexpected-success';
+    })).rejects.toThrow();
+
+    expect(await readContext(prisma)).not.toBe(failedSociety);
+    expect(await prisma.withTenantContext(nextSociety, tx => readContext(tx))).toBe(nextSociety);
+    expect(await readContext(prisma)).not.toBe(nextSociety);
+  });
 });

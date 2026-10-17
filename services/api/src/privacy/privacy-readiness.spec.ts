@@ -4,7 +4,7 @@ import { PrivacyService } from './privacy.service';
 describe('PrivacyService case readiness', () => {
   it('summarizes operational blockers and privacy-program context', async () => {
     const dueAt=new Date(Date.now()-60_000);
-    const prisma={
+    const tx={
       $queryRaw:vi.fn()
         .mockResolvedValueOnce([{
           id:'case-1',societyId:'society-1',subjectUserId:'user-1',requestType:'ERASURE',status:'IN_REVIEW',
@@ -18,6 +18,7 @@ describe('PrivacyService case readiness', () => {
         .mockResolvedValueOnce([{count:1}])
         .mockResolvedValueOnce([{active:true}])
     };
+    const prisma={ $queryRaw:vi.fn(), withTenantContext:vi.fn(async (_id:string,cb:(client:typeof tx)=>Promise<unknown>)=>cb(tx)) };
     const service=new PrivacyService(prisma as never);
     const result=await service.caseReadiness('society-1','case-1');
 
@@ -36,10 +37,13 @@ describe('PrivacyService case readiness', () => {
       },
     }));
     expect(result.nextActions.length).toBeGreaterThan(0);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(5);
   });
 
   it('does not report active-case blockers for a completed request', async () => {
-    const prisma={
+    const tx={
       $queryRaw:vi.fn()
         .mockResolvedValueOnce([{
           id:'case-1',societyId:'society-1',subjectUserId:'user-1',requestType:'ACCESS',status:'COMPLETED',
@@ -53,9 +57,28 @@ describe('PrivacyService case readiness', () => {
         .mockResolvedValueOnce([{count:0}])
         .mockResolvedValueOnce([])
     };
+    const prisma={ $queryRaw:vi.fn(), withTenantContext:vi.fn(async (_id:string,cb:(client:typeof tx)=>Promise<unknown>)=>cb(tx)) };
     const service=new PrivacyService(prisma as never);
     const result=await service.caseReadiness('society-1','case-1');
     expect(result.blockers).toEqual([]);
     expect(result.overdue).toBe(false);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('denies a foreign society case before querying readiness statistics', async () => {
+    const tx = { $queryRaw: vi.fn().mockResolvedValueOnce([]) };
+    const prisma = {
+      $queryRaw: vi.fn(),
+      withTenantContext: vi.fn(async (_societyId: string, cb: (client: typeof tx) => Promise<unknown>) => cb(tx)),
+    };
+    const service = new PrivacyService(prisma as never);
+    await expect(service.caseReadiness('society-a', 'case-from-society-b'))
+      .rejects.toThrow('Privacy request case not found');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-a', expect.any(Function));
+    const parentLookup = tx.$queryRaw.mock.calls[0][0] as {values: unknown[]};
+    expect(parentLookup.values).toContain('society-a');
+    expect(parentLookup.values).toContain('case-from-society-b');
   });
 });

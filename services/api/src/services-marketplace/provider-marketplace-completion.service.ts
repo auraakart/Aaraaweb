@@ -769,6 +769,53 @@ export class ProviderMarketplaceCompletionService {
     }catch{throw new BadRequestException('An open dispute already exists for this booking');}
   }
 
+
+  /**
+   * Services 4.0.5 — rework is a consumer-initiated review using the existing
+   * dispute evidence and platform review path, NOT an automatic guarantee.
+   * An expired or absent warranty snapshot must never be represented as cover.
+   */
+  async getConsumerReworkTerms(userId:string, bookingId:string) {
+    const booking = await this.assertConsumerBooking(userId, bookingId);
+    if (booking.status !== ServiceBookingStatus.COMPLETED) {
+      throw new BadRequestException('Rework review is available only for completed services');
+    }
+    const rows = await this.prisma.$queryRaw<Array<{
+      warrantyDays:number|null; revisitPolicy:string|null;
+      warrantyUntil:Date|null; warrantyStartedAt:Date|null;
+    }>>(Prisma.sql`
+      SELECT ws."warrantyDays", ws."revisitPolicy", ws."warrantyUntil", ws."warrantyStartedAt"
+      FROM "ConsumerServiceWarrantySnapshot" ws
+      JOIN "ConsumerServiceBooking" b ON b."id"=ws."bookingId"
+      WHERE b."id"=${bookingId}::uuid AND b."userId"=${userId}::uuid LIMIT 1
+    `);
+    const terms = rows[0] ?? null;
+    const expiry = terms?.warrantyUntil ? new Date(terms.warrantyUntil) : null;
+    const status = !terms ? 'NO_CAPTURED_TERMS'
+      : expiry && expiry.getTime() <= Date.now() ? 'PERIOD_EXPIRED'
+      : expiry ? 'WITHIN_CAPTURED_PERIOD' : 'TERMS_WITHOUT_EXPIRY';
+    return {
+      bookingId, capturedTerms: terms, status,
+      reviewRequired: true, guaranteedRework: false,
+      chargeAuthorized: false, refundAuthorized: false,
+    };
+  }
+
+  async requestConsumerRework(userId:string, bookingId:string, detail:string) {
+    const normalized=detail?.trim()??'';
+    if(normalized.length<10||normalized.length>2000) {
+      throw new BadRequestException('Rework description must be 10–2000 characters');
+    }
+    const terms = await this.getConsumerReworkTerms(userId,bookingId);
+    // Reuse the existing dispute case, owner authorization, one-open-case
+    // constraint, evidence conversation, and independent review permissions.
+    const dispute = await this.openDispute(userId,bookingId,'REWORK_REQUEST',normalized);
+    return { ...dispute, reworkReview: {
+      status: terms.status, reviewRequired:true, guaranteedRework:false,
+      chargeAuthorized:false, refundAuthorized:false,
+    } };
+  }
+
   async listConsumerDisputes(userId:string,bookingId:string){
     // Check consumer ownership before returning any case history or notes.
     await this.assertConsumerBooking(userId,bookingId);
@@ -917,6 +964,55 @@ export class ProviderMarketplaceCompletionService {
       {key:'AGENTS',ready:(r.activeAgents??0)>0,count:r.activeAgents??0},
     ];
     return {...p,checks,ready:checks.every(x=>x.ready),pendingProposals:r.pendingProposals??0,openDisputes:r.openDisputes??0};
+  }
+
+
+  /**
+   * Services 4.0.6: private, provider-scoped 90-day operational evidence.
+   * These are observations, not a quality score, certification or public
+   * ranking. Do not use for automatic sanctions or guaranteed rework.
+   */
+  async getProviderQualitySummary(userId:string){
+    const provider = await this.operators.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{
+      completedBookings:number;
+      completedWithChecklist:number;
+      reworkRequests:number;
+      openReworkRequests:number;
+    }>>(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "ConsumerServiceBooking" b
+          WHERE b."providerId"=${provider.providerId}::uuid
+            AND b."status"='COMPLETED'::"ServiceBookingStatus"
+            AND b."updatedAt" >= CURRENT_TIMESTAMP - INTERVAL '90 days') AS "completedBookings",
+        (SELECT COUNT(*)::int FROM "ConsumerServiceBooking" b
+          JOIN "ConsumerServiceQualityChecklistSnapshot" s ON s."bookingId"=b."id"
+          WHERE b."providerId"=${provider.providerId}::uuid
+            AND b."status"='COMPLETED'::"ServiceBookingStatus"
+            AND b."updatedAt" >= CURRENT_TIMESTAMP - INTERVAL '90 days') AS "completedWithChecklist",
+        (SELECT COUNT(*)::int FROM "ConsumerServiceDispute" d
+          WHERE d."providerId"=${provider.providerId}::uuid
+            AND d."reasonCode"='REWORK_REQUEST'
+            AND d."createdAt" >= CURRENT_TIMESTAMP - INTERVAL '90 days') AS "reworkRequests",
+        (SELECT COUNT(*)::int FROM "ConsumerServiceDispute" d
+          WHERE d."providerId"=${provider.providerId}::uuid
+            AND d."reasonCode"='REWORK_REQUEST'
+            AND d."status" IN ('OPEN','UNDER_REVIEW')
+            AND d."createdAt" >= CURRENT_TIMESTAMP - INTERVAL '90 days') AS "openReworkRequests"
+    `);
+    const sample=rows[0]??{completedBookings:0,completedWithChecklist:0,reworkRequests:0,openReworkRequests:0};
+    return {
+      periodDays:90,
+      completedBookings:sample.completedBookings,
+      completedWithChecklist:sample.completedWithChecklist,
+      reworkRequests:sample.reworkRequests,
+      openReworkRequests:sample.openReworkRequests,
+      sufficientCompletedSample:sample.completedBookings>=5,
+      reviewOnly:true,
+      qualityScore:null,
+      publicRankingEnabled:false,
+      automaticPenaltyEnabled:false,
+    };
   }
 
   private async appendOfferingEvent(offeringId:string,providerId:string,userId:string,action:string,snapshot:unknown){

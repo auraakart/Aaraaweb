@@ -5,6 +5,7 @@ import { PushNotificationService } from '../notifications/push-notification.serv
 import { PrismaService } from '../prisma/prisma.service';
 import { safeOperationalError } from '../observability/safe-operational-error';
 import { ConsumerProviderAgentService } from './consumer-provider-agent.service';
+import type { ChecklistItem } from './service-quality-checklist.service';
 
 type AssignmentRow = {
   id: string;
@@ -74,6 +75,9 @@ export class ConsumerServiceCompletionService {
         WHERE "assignmentId" = ${assignment.id}::uuid AND "type" = 'COMPLETION_REQUESTED'
         ORDER BY "occurredAt" DESC LIMIT 1
       `);
+      // Evaluate on first submission AND lost-response retries under the booking lock.
+      // The latest failed assessment must invalidate an earlier passing one.
+      await this.assertRequiredChecklistPassing(tx, booking.id, assignment.id);
       if (existing[0]) {
         return { assignmentId: assignment.id, bookingId: booking.id, status: 'PENDING' as const, requestedAt: existing[0].occurredAt, created: false };
       }
@@ -137,6 +141,9 @@ export class ConsumerServiceCompletionService {
         ORDER BY "occurredAt" DESC LIMIT 1
       `);
       if (!requests[0]) throw new BadRequestException('Provider agent has not requested completion');
+      // Recheck at resident confirmation: technician assessments may have changed
+      // since the completion request. The booking lock prevents a concurrent write.
+      await this.assertRequiredChecklistPassing(tx, booking.id, assignment.id);
       const completedRows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
         UPDATE "ConsumerServiceBooking" SET "status" = ${ServiceBookingStatus.COMPLETED}::"ServiceBookingStatus", "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${booking.id}::uuid AND "status" = ${ServiceBookingStatus.IN_PROGRESS}::"ServiceBookingStatus" RETURNING *
@@ -160,6 +167,43 @@ export class ConsumerServiceCompletionService {
       await this.captureWarrantySnapshot(tx, booking.id, booking.offeringId, occurredAt);
       return completedRows[0];
     });
+  }
+
+
+  /**
+   * Required evidence is compared ONLY with the immutable booking-time
+   * checklist; legacy bookings without a snapshot retain existing behaviour.
+   * Callers must hold FOR UPDATE on ConsumerServiceBooking before this read.
+   * Agent evidence writes acquire the same lock.
+   */
+  private async assertRequiredChecklistPassing(
+    tx: Prisma.TransactionClient,
+    bookingId: string,
+    assignmentId: string,
+  ) {
+    const snapshots = await tx.$queryRaw<Array<{ items: ChecklistItem[] }>>(Prisma.sql`
+      SELECT "items" FROM "ConsumerServiceQualityChecklistSnapshot"
+      WHERE "bookingId" = ${bookingId}::uuid LIMIT 1
+    `);
+    if (!snapshots[0]) return;
+    if (!Array.isArray(snapshots[0].items)) {
+      throw new BadRequestException('Booking quality checklist is invalid');
+    }
+    const requiredIds = snapshots[0].items
+      .filter((item) => item?.required === true)
+      .map((item) => item.id);
+    if (!requiredIds.length) return;
+    const latest = await tx.$queryRaw<Array<{ itemId: string; passed: boolean }>>(Prisma.sql`
+      SELECT DISTINCT ON ("itemId") "itemId", "passed"
+      FROM "ConsumerServiceQualityEvidence"
+      WHERE "bookingId" = ${bookingId}::uuid
+        AND "assignmentId" = ${assignmentId}::uuid
+      ORDER BY "itemId", "recordedAt" DESC, "id" DESC
+    `);
+    const current = new Map(latest.map((event) => [event.itemId, event.passed]));
+    if (requiredIds.some((id) => current.get(id) !== true)) {
+      throw new BadRequestException('All required quality checklist checks must pass before completion');
+    }
   }
 
   private async captureWarrantySnapshot(tx: Prisma.TransactionClient, bookingId: string, offeringId: string, completedAt: Date) {

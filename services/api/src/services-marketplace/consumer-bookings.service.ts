@@ -289,6 +289,19 @@ export class ConsumerBookingsService {
           ${input.scheduledUntil}, ${offering.pricePaise}, ${notes}, ${idempotencyKey}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         ) RETURNING *
       `);
+      // Capture the exact offering checklist at booking creation. A later
+      // provider template edit must never rewrite this booking's quality scope.
+      // Idempotent lost-response retries return above without resnapshotting.
+      if (rows[0]) {
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "ConsumerServiceQualityChecklistSnapshot"
+            ("bookingId", "offeringId", "templateVersion", "items")
+          SELECT ${rows[0].id}::uuid, t."offeringId", t."version", t."items"
+          FROM "ServiceOfferingQualityChecklist" t
+          WHERE t."offeringId" = ${offering.id}::uuid
+          ON CONFLICT ("bookingId") DO NOTHING
+        `);
+      }
       return rows[0];
     }).catch((error) => {
       if (error instanceof ConflictException || error instanceof BadRequestException || error instanceof NotFoundException) throw error;

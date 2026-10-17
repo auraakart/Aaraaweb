@@ -35,4 +35,18 @@ describe('SocietiesController authorization', () => {
     expect(() => controller.get('society-a', 'society-b')).toThrow('Society path does not match authenticated tenant');
     expect(prisma.society.findUniqueOrThrow).not.toHaveBeenCalled();
   });
+
+  it('loads society detail using only the tenant transaction client', async () => {
+    const societyId = '11111111-1111-4111-8111-111111111111';
+    const tx = { society: { findUniqueOrThrow: vi.fn().mockResolvedValue({ id: societyId, buildings: [], gates: [] }) } };
+    const prisma = {
+      society: { findUniqueOrThrow: vi.fn() },
+      withTenantContext: vi.fn(async (_id, callback) => callback(tx)),
+    };
+    const controller = new SocietiesController(prisma as unknown as ConstructorParameters<typeof SocietiesController>[0]);
+    await expect(controller.get(societyId, societyId)).resolves.toHaveProperty('id', societyId);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
+    expect(prisma.society.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(tx.society.findUniqueOrThrow).toHaveBeenCalledWith(expect.objectContaining({ where: { id: societyId } }));
+  });
 });

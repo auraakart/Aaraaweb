@@ -12,7 +12,12 @@ export class AuthContextService {
       : await this.memberships.findActiveByUser(userId);
     if (!rows.length) throw new UnauthorizedException('No active society membership');
     const selectedSociety = societyId ?? rows[0].societyId;
-    const roles = rows.filter((row) => row.societyId === selectedSociety).map((row) => row.role as AppRole);
+    // Repository filters are defense-in-depth, not a substitute for binding
+    // every authority row to the authenticated user and chosen society.
+    const roles = [...new Set(rows
+      .filter((row) => row.active && row.userId === userId && row.societyId === selectedSociety)
+      .map((row) => row.role as AppRole))];
+    if (!roles.length) throw new UnauthorizedException('No active society membership');
     return { userId, societyId: selectedSociety, roles };
   }
 }

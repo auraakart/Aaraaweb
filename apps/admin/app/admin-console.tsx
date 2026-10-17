@@ -1,9 +1,11 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { operatorConfirm, operatorPrompt } from '../lib/operator-dialog'
 import { api, logoutAdminSession, refreshAdminSession, type Session } from '../lib/admin-client'
+import { parseAdminSocietyBrand, type AdminSocietyBrand } from '../lib/admin-society-brand'
 import { AdminLogin } from './admin-login'
+import { AdminSocietyBrandEditor } from './admin-society-brand-editor'
 import { AdminGlobalSearch } from './admin-global-search'
 import { AdminOverview } from './admin-overview'
 import { Billing, Marketplace } from './admin-commerce-panels'
@@ -13,13 +15,39 @@ import type { Activity, Building, Gate, GateAudit, Notice, Occupancy, Ownership,
 
 export function AdminConsole(){
   const[session,setSession]=useState<Session|null>(null),[restoring,setRestoring]=useState(true),[view,setView]=useState<View>('overview')
+  const [brandReload,setBrandReload]=useState(0)
+  const [brandSnapshot,setBrandSnapshot]=useState<{identity:string;brand:AdminSocietyBrand|null}|null>(null)
+  const brandIdentity=session?`${session.sessionId}:${session.societyId}:${session.accessToken}`:null
+  const activeBrand=brandSnapshot?.identity===brandIdentity?brandSnapshot.brand:null
+  // Authenticated context is the only source of society presentation. The
+  // identity key prevents late responses from repainting a switched society.
+  useEffect(()=>{
+    if(!session||!brandIdentity)return
+    let live=true
+    void api<unknown>('/context/config',{},session)
+      .then(response=>{
+        if(live)setBrandSnapshot({identity:brandIdentity,brand:parseAdminSocietyBrand(response,session.societyId)})
+      })
+      .catch(()=>{if(live)setBrandSnapshot({identity:brandIdentity,brand:null})})
+    return()=>{live=false}
+  },[session,brandIdentity,brandReload])
+  useEffect(()=>{
+    document.title=activeBrand?`${activeBrand.displayName} · Aaraagate Admin`:'Aaraagate Admin'
+    return()=>{document.title='Aaraagate Admin'}
+  },[activeBrand])
+  const brandStyle:CSSProperties|undefined=activeBrand?{
+    '--brand':activeBrand.primaryDeep,
+    '--brand-bright':activeBrand.primary,
+    '--brand-on':activeBrand.onPrimaryDeep,
+    '--brand-ink':activeBrand.navigationInk,
+  } as CSSProperties:undefined
   useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw)as Session;refreshAdminSession(stored).then(fresh=>{if(!adminRoles.has(fresh.role)||viewsForRole(fresh.role).length===0)throw new Error('Stored role no longer has console access');setSession(fresh)}).catch(()=>sessionStorage.removeItem('aaraagate.admin.session')).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
   const accept=(next:Session)=>{const allowed=viewsForRole(next.role);if(!adminRoles.has(next.role)||allowed.length===0)throw new Error('This role does not have Admin or operations-console access');sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(next));setView(allowed[0]);setSession(next)}
   const logout=async()=>{if(session)await logoutAdminSession(session).catch(()=>undefined);sessionStorage.removeItem('aaraagate.admin.session');setSession(null)}
   if(restoring)return <div className="center">Restoring secure session…</div>;if(!session)return <AdminLogin onSession={accept}/>
   const allowedViews=viewsForRole(session.role)
   const activeView=allowedViews.includes(view)?view:allowedViews[0]
-  return <main className="shell"><aside className="sidebar"><div className="brand">aaraagate</div><div className="society"><small>Current society</small><strong>{session.societyName}</strong><span>{session.role.replaceAll('_',' ')}</span></div><nav className="nav">{allowedViews.map(item=><button key={item} className={activeView===item?'active':''} onClick={()=>setView(item)}>{item==='sos'?'SOS':item[0].toUpperCase()+item.slice(1)}</button>)}</nav><button className="signOut" onClick={()=>void logout()}>Sign out</button></aside><section className="content"><AdminGlobalSearch session={session} allowedViews={allowedViews} open={setView}/>{activeView==='overview'&&<AdminOverview session={session} open={setView} allowedViews={allowedViews}/>} {activeView==='residents'&&<Residents session={session}/>} {activeView==='gates'&&<Gates session={session}/>} {activeView==='workforce'&&<Workforce session={session}/>} {activeView==='marketplace'&&<Marketplace session={session}/>} {activeView==='sos'&&<SosOperations session={session}/>} {activeView==='helpdesk'&&<Helpdesk session={session}/>} {activeView==='notices'&&<Notices session={session}/>} {activeView==='billing'&&<Billing session={session}/>}</section></main>
+  return <main className="shell" style={brandStyle}><aside className="sidebar"><div className="brand">{activeBrand?.displayName??'aaraagate'}</div><div className="society"><small>Current society</small><strong>{session.societyName}</strong><span>{session.role.replaceAll('_',' ')}</span></div><nav className="nav">{allowedViews.map(item=><button key={item} className={activeView===item?'active':''} onClick={()=>setView(item)}>{item==='sos'?'SOS':item==='branding'?'Society branding':item[0].toUpperCase()+item.slice(1)}</button>)}</nav><button className="signOut" onClick={()=>void logout()}>Sign out</button></aside><section className="content"><AdminGlobalSearch session={session} allowedViews={allowedViews} open={setView}/>{activeView==='overview'&&<AdminOverview session={session} open={setView} allowedViews={allowedViews}/>} {activeView==='residents'&&<Residents session={session}/>} {activeView==='gates'&&<Gates session={session}/>} {activeView==='workforce'&&<Workforce session={session}/>} {activeView==='marketplace'&&<Marketplace session={session}/>} {activeView==='sos'&&<SosOperations session={session}/>} {activeView==='helpdesk'&&<Helpdesk session={session}/>} {activeView==='notices'&&<Notices session={session}/>} {activeView==='billing'&&<Billing session={session}/>}{activeView==='branding'&&<AdminSocietyBrandEditor key={brandIdentity} session={session} onPublished={()=>setBrandReload(value=>value+1)}/>}</section></main>
 }
 
 function Gates({session}:{session:Session}){

@@ -4,13 +4,14 @@ import { AccountingService } from '../accounting/accounting.service';
 import { OpeningBalancesService, OpeningBalanceLineInput } from '../accounting/opening-balances.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-type FinanceBatch = { id: string; status: string; totalRows: number };
+type FinanceBatch = { id: string; status: string; totalRows: number; actorUserId: string };
 type FinanceRow = {
   id: string;
   rowNumber: number;
   normalized: Record<string, string>;
   valid: boolean;
   targetId: string | null;
+  targetType: string | null;
 };
 
 @Injectable()
@@ -26,83 +27,165 @@ export class MigrationOpeningBalanceCommitService {
   }
 
   async commit(societyId: string, actorUserId: string, batchId: string) {
-    const batch = await this.loadBatch(societyId, batchId);
-    if (batch.status !== 'READY') throw new ConflictException('Only a READY opening-balance migration batch can be committed');
-
-    const rows = await this.loadRows(batchId);
-    if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || row.targetId)) {
-      throw new ConflictException('Opening-balance migration rows are not in a clean commit-ready state');
-    }
-
-    const input = await this.buildOpeningBalanceInput(societyId, batchId, rows);
-    const applied = await this.openingBalances.apply(societyId, actorUserId, input);
-
+    // Journal posting and migration evidence commit must be one transaction.
+    // Lock batch first; both a failed batch status update and a failed journal
+    // post then roll back all financial and onboarding writes together.
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${batchId}))`);
-      const locked = await this.loadBatchForUpdate(tx, societyId, batchId);
-      if (locked.status === 'COMMITTED') {
-        const committedRows = await this.loadRowsTx(tx, batchId);
-        const ids = [...new Set(committedRows.map((row) => row.targetId).filter((id): id is string => !!id))];
-        if (ids.length === 1 && ids[0] === applied.journalId) return locked;
-        throw new ConflictException('Opening-balance migration batch is already committed with different evidence');
+      const batch = await this.loadBatchForUpdate(tx, societyId, batchId);
+      const rows = await this.loadRowsTx(tx, batchId);
+      if (batch.status === 'COMMITTED') {
+        const ids = [...new Set(rows.map((row) => row.targetId).filter((id): id is string => !!id))];
+        if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || !row.targetId || row.targetType !== 'JournalEntry') || ids.length !== 1) {
+          throw new ConflictException('Opening-balance migration committed journal evidence is incomplete');
+        }
+        const recorded = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "JournalEntry"
+          WHERE "id"=${ids[0]}::uuid AND "societyId"=${societyId}::uuid
+            AND "sourceType"='OPENING_BALANCE' AND "sourceId"=${`migration:${batchId}`}
+            AND "status"='POSTED'
+          LIMIT 1
+        `);
+        if (recorded.length !== 1) throw new ConflictException('Opening-balance migration committed journal evidence is incomplete');
+        return { ...batch, journalId: ids[0] };
       }
-      if (locked.status !== 'READY') throw new ConflictException('Opening-balance migration batch state changed before commit');
+      if (batch.status !== 'READY') {
+        throw new ConflictException('Only a READY opening-balance migration batch can be committed');
+      }
+      if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || row.targetId)) {
+        throw new ConflictException('Opening-balance migration rows are not in a clean commit-ready state');
+      }
+      const input = await this.buildOpeningBalanceInput(societyId, batchId, rows, tx);
+      const applied = await this.openingBalances.applyWithinTransaction(tx, societyId, actorUserId, input);
 
-      await tx.$executeRaw(Prisma.sql`
+      // The former two-phase migration path could leave a matching, POSTED
+      // journal while this batch remained READY. Only adopt that historical
+      // evidence when its original creator, poster, accounting period, header
+      // and *actual immutable ledger lines* agree with the batch. A matching
+      // external-reference digest alone is not sufficient proof.
+      if (applied.idempotent) {
+        const expectedLines = JSON.stringify(input.lines.map((line) => ({
+          accountId: line.accountId,
+          fundId: line.fundId ?? null,
+          unitId: line.unitId ?? null,
+          description: line.description ?? null,
+          debitPaise: String(line.debitPaise),
+          creditPaise: String(line.creditPaise),
+        })));
+        const trusted = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT j."id"
+          FROM "JournalEntry" j
+          WHERE j."id"=${applied.journalId}::uuid AND j."societyId"=${societyId}::uuid
+            AND j."sourceType"='OPENING_BALANCE' AND j."sourceId"=${`migration:${batchId}`}
+            AND j."status"='POSTED' AND j."postedAt" IS NOT NULL
+            AND j."createdByUserId"=${batch.actorUserId}::uuid
+            AND j."postedByUserId"=${batch.actorUserId}::uuid
+            AND j."periodId"=${input.periodId}::uuid
+            AND j."entryNumber"=${input.entryNumber}
+            AND j."entryDate"=${input.entryDate}::date
+            AND j."description"=${input.description}
+            AND j."currency"='INR'
+            AND j."reversedAt" IS NULL
+            AND (SELECT COUNT(*) FROM "JournalLine" l
+                 WHERE l."entryId"=j."id" AND l."societyId"=j."societyId")=${batch.totalRows}::bigint
+            AND NOT EXISTS (
+              SELECT l."accountId"::text, l."fundId"::text, l."unitId"::text,
+                     l."description", l."debitPaise"::text, l."creditPaise"::text
+              FROM "JournalLine" l
+              WHERE l."entryId"=j."id" AND l."societyId"=j."societyId"
+              EXCEPT ALL
+              SELECT e."accountId", e."fundId", e."unitId", e."description",
+                     e."debitPaise", e."creditPaise"
+              FROM jsonb_to_recordset(${expectedLines}::jsonb) AS e(
+                "accountId" text, "fundId" text, "unitId" text,
+                "description" text, "debitPaise" text, "creditPaise" text
+              )
+            )
+          FOR UPDATE OF j
+        `);
+        if (trusted.length !== 1) {
+          throw new ConflictException('Historical opening-balance migration journal provenance is incomplete');
+        }
+      }
+
+      const count = await tx.$executeRaw(Prisma.sql`
         UPDATE "MigrationBatchRow"
         SET "targetType"='JournalEntry',"targetId"=${applied.journalId}::uuid,"committedAt"=CURRENT_TIMESTAMP
         WHERE "batchId"=${batchId}::uuid
       `);
+      if (count !== batch.totalRows) throw new ConflictException('Opening-balance migration row state changed during commit');
       const updated = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
         UPDATE "MigrationBatch"
         SET "status"='COMMITTED',"committedAt"=CURRENT_TIMESTAMP,
             "committedByUserId"=${actorUserId}::uuid,"updatedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${batchId}::uuid AND "societyId"=${societyId}::uuid AND "entityType"='OPENING_BALANCE'
+        WHERE "id"=${batchId}::uuid AND "societyId"=${societyId}::uuid
+          AND "entityType"='OPENING_BALANCE' AND "status"='READY'
         RETURNING *
       `);
+      if (!updated[0]) throw new ConflictException('Opening-balance migration status update failed');
       return { ...updated[0], journalId: applied.journalId, openingBalance: applied };
     });
   }
 
   async rollback(societyId: string, actorUserId: string, batchId: string) {
-    const batch = await this.loadBatch(societyId, batchId);
-    if (batch.status !== 'COMMITTED') {
-      throw new ConflictException('Only a COMMITTED opening-balance migration batch can be rolled back');
-    }
-    const rows = await this.loadRows(batchId);
-    const journalIds = [...new Set(rows.map((row) => row.targetId).filter((id): id is string => !!id))];
-    if (!rows.length || rows.some((row) => !row.targetId) || journalIds.length !== 1) {
-      throw new ConflictException('Opening-balance migration journal evidence is incomplete');
-    }
-    const journalId = journalIds[0];
-
-    const journals = await this.prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
-      SELECT "status"::text AS "status" FROM "JournalEntry"
-      WHERE "id"=${journalId}::uuid AND "societyId"=${societyId}::uuid AND "sourceType"='OPENING_BALANCE'
-      LIMIT 1
-    `);
-    if (!journals[0]) throw new NotFoundException('Opening-balance journal not found');
-
-    if (journals[0].status === 'POSTED') {
-      const reversalDate = await this.reversalDate(societyId);
-      await this.accounting.reverseJournal(societyId, actorUserId, journalId, {
-        entryNumber: this.reversalEntryNumber(batchId),
-        entryDate: reversalDate,
-        reason: `Rollback opening-balance migration ${batchId}`,
-      });
-    } else if (journals[0].status !== 'REVERSED') {
-      throw new ConflictException('Opening-balance journal is not in a reversible state');
-    }
-
+    // Lock the batch before reading its evidence, then reverse the journal
+    // and record the batch transition in the SAME transaction. A failure
+    // in either half rolls both back.
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${batchId}))`);
-      const locked = await this.loadBatchForUpdate(tx, societyId, batchId);
-      if (locked.status === 'ROLLED_BACK') return locked;
-      if (locked.status !== 'COMMITTED') throw new ConflictException('Opening-balance migration batch state changed before rollback');
-      await tx.$executeRaw(Prisma.sql`
+      const batch = await this.loadBatchForUpdate(tx, societyId, batchId);
+      if (batch.status === 'ROLLED_BACK') return batch;
+      if (batch.status !== 'COMMITTED') {
+        throw new ConflictException('Only a COMMITTED opening-balance migration batch can be rolled back');
+      }
+      const rows = await this.loadRowsTx(tx, batchId);
+      const journalIds = [...new Set(rows.map((row) => row.targetId).filter((id): id is string => !!id))];
+      if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || !row.targetId || row.targetType !== 'JournalEntry') || journalIds.length !== 1) {
+        throw new ConflictException('Opening-balance migration journal evidence is incomplete');
+      }
+      const journalId = journalIds[0];
+      const journals = await tx.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+        SELECT "status"::text AS "status" FROM "JournalEntry"
+        WHERE "id"=${journalId}::uuid AND "societyId"=${societyId}::uuid AND "sourceType"='OPENING_BALANCE' AND "sourceId"=${`migration:${batchId}`}
+        LIMIT 1 FOR UPDATE
+      `);
+      if (!journals[0]) throw new NotFoundException('Opening-balance journal not found');
+
+      if (journals[0].status === 'POSTED') {
+        const reversalDate = await this.reversalDate(societyId, tx);
+        await this.accounting.reverseJournalWithinTransaction(tx, societyId, actorUserId, journalId, {
+          entryNumber: this.reversalEntryNumber(batchId),
+          entryDate: reversalDate,
+          reason: `Rollback opening-balance migration ${batchId}`,
+        });
+      } else if (journals[0].status === 'REVERSED') {
+        // Legacy partial rollbacks may leave a reversed journal and a COMMITTED
+        // batch. Only an identifiable migration-specific reversal can be
+        // recovered; an unrelated finance reversal is not rollback evidence.
+        const reversals = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "JournalEntry"
+          WHERE "societyId"=${societyId}::uuid
+            AND "reversalOfEntryId"=${journalId}::uuid
+            AND "sourceType"='JOURNAL_REVERSAL' AND "sourceId"=${journalId}
+            AND "entryNumber"=${this.reversalEntryNumber(batchId)}
+            AND "description"=${`Reversal: Rollback opening-balance migration ${batchId}`}
+            AND "status"='POSTED'
+          LIMIT 1
+        `);
+        if (reversals.length !== 1) {
+          throw new ConflictException('Opening-balance migration reversal evidence is incomplete');
+        }
+      } else {
+        throw new ConflictException('Opening-balance journal is not in a reversible state');
+      }
+
+      const updatedRows = await tx.$executeRaw(Prisma.sql`
         UPDATE "MigrationBatchRow" SET "rolledBackAt"=CURRENT_TIMESTAMP
         WHERE "batchId"=${batchId}::uuid
       `);
+      if (updatedRows !== batch.totalRows) {
+        throw new ConflictException('Opening-balance migration row state changed during rollback');
+      }
       const updated = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
         UPDATE "MigrationBatch"
         SET "status"='ROLLED_BACK',"rolledBackAt"=CURRENT_TIMESTAMP,
@@ -110,16 +193,17 @@ export class MigrationOpeningBalanceCommitService {
         WHERE "id"=${batchId}::uuid AND "societyId"=${societyId}::uuid AND "entityType"='OPENING_BALANCE'
         RETURNING *
       `);
+      if (!updated[0]) throw new ConflictException('Opening-balance rollback state update failed');
       return updated[0];
     });
   }
 
-  private async buildOpeningBalanceInput(societyId: string, batchId: string, rows: FinanceRow[]) {
+  private async buildOpeningBalanceInput(societyId: string, batchId: string, rows: FinanceRow[], tx: Prisma.TransactionClient) {
     const dates = [...new Set(rows.map((row) => this.value(row.normalized, 'entry_date', 'cutover_date')).filter(Boolean))];
     if (dates.length !== 1) throw new BadRequestException('Opening-balance migration requires one shared entry_date');
     const entryDate = dates[0];
 
-    const periods = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    const periods = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id" FROM "AccountingPeriod"
       WHERE "societyId"=${societyId}::uuid AND "status"='OPEN'
         AND ${entryDate}::date BETWEEN "startsOn" AND "endsOn"
@@ -130,15 +214,15 @@ export class MigrationOpeningBalanceCommitService {
     const lines: OpeningBalanceLineInput[] = [];
     for (const row of rows) {
       const accountCode = this.value(row.normalized, 'account_code', 'ledger_code', 'account').toUpperCase();
-      const accounts = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      const accounts = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "LedgerAccount"
         WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND UPPER("code")=${accountCode}
         LIMIT 2
       `);
       if (accounts.length !== 1) throw new BadRequestException(`Opening-balance row ${row.rowNumber} account is unavailable`);
 
-      const unitId = await this.resolveOptionalUnit(societyId, this.optional(row.normalized, 'unit_ref', 'unit', 'flat_number'));
-      const fundId = await this.resolveOptionalFund(societyId, this.optional(row.normalized, 'fund_ref', 'fund'));
+      const unitId = await this.resolveOptionalUnit(societyId, this.optional(row.normalized, 'unit_ref', 'unit', 'flat_number'), tx);
+      const fundId = await this.resolveOptionalFund(societyId, this.optional(row.normalized, 'fund_ref', 'fund'), tx);
       const amount = Number(this.value(row.normalized, 'amount_paise', 'amount'));
       const side = this.value(row.normalized, 'side', 'debit_credit').toUpperCase();
       if (!Number.isSafeInteger(amount) || amount <= 0) throw new BadRequestException('Opening-balance amounts must be positive integer paise values');
@@ -165,9 +249,9 @@ export class MigrationOpeningBalanceCommitService {
     };
   }
 
-  private async resolveOptionalFund(societyId: string, rawRef: string | null) {
+  private async resolveOptionalFund(societyId: string, rawRef: string | null, tx: Prisma.TransactionClient) {
     if (!rawRef) return null;
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id" FROM "AccountingFund"
       WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
         AND (LOWER("code")=LOWER(${rawRef}) OR LOWER("name")=LOWER(${rawRef}))
@@ -177,11 +261,11 @@ export class MigrationOpeningBalanceCommitService {
     return rows[0].id;
   }
 
-  private async resolveOptionalUnit(societyId: string, rawRef: string | null) {
+  private async resolveOptionalUnit(societyId: string, rawRef: string | null, tx: Prisma.TransactionClient) {
     if (!rawRef) return null;
     const split = rawRef.trim().split(/[|/:]/).map((item) => item.trim()).filter(Boolean);
     const rows = split.length >= 2
-      ? await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      ? await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           SELECT u."id" FROM "Unit" u
           JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
           WHERE u."societyId"=${societyId}::uuid
@@ -189,7 +273,7 @@ export class MigrationOpeningBalanceCommitService {
             AND (LOWER(b."code")=LOWER(${split[0]}) OR LOWER(b."name")=LOWER(${split[0]}))
           LIMIT 2
         `)
-      : await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      : await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           SELECT "id" FROM "Unit"
           WHERE "societyId"=${societyId}::uuid AND LOWER("number")=LOWER(${rawRef})
           LIMIT 2
@@ -198,8 +282,8 @@ export class MigrationOpeningBalanceCommitService {
     return rows[0].id;
   }
 
-  private async reversalDate(societyId: string) {
-    const periods = await this.prisma.$queryRaw<Array<{ startsOn: Date; endsOn: Date }>>(Prisma.sql`
+  private async reversalDate(societyId: string, tx: Prisma.TransactionClient) {
+    const periods = await tx.$queryRaw<Array<{ startsOn: Date; endsOn: Date }>>(Prisma.sql`
       SELECT "startsOn","endsOn" FROM "AccountingPeriod"
       WHERE "societyId"=${societyId}::uuid AND "status"='OPEN'
       ORDER BY "startsOn" DESC LIMIT 1
@@ -213,7 +297,7 @@ export class MigrationOpeningBalanceCommitService {
 
   private async loadBatch(societyId: string, batchId: string) {
     const rows = await this.prisma.$queryRaw<FinanceBatch[]>(Prisma.sql`
-      SELECT "id","status","totalRows" FROM "MigrationBatch"
+      SELECT "id","status","totalRows","actorUserId" FROM "MigrationBatch"
       WHERE "id"=${batchId}::uuid AND "societyId"=${societyId}::uuid AND "entityType"='OPENING_BALANCE'
       LIMIT 1
     `);
@@ -223,7 +307,7 @@ export class MigrationOpeningBalanceCommitService {
 
   private async loadBatchForUpdate(tx: Prisma.TransactionClient, societyId: string, batchId: string) {
     const rows = await tx.$queryRaw<FinanceBatch[]>(Prisma.sql`
-      SELECT "id","status","totalRows" FROM "MigrationBatch"
+      SELECT "id","status","totalRows","actorUserId" FROM "MigrationBatch"
       WHERE "id"=${batchId}::uuid AND "societyId"=${societyId}::uuid AND "entityType"='OPENING_BALANCE'
       FOR UPDATE
     `);
@@ -233,14 +317,14 @@ export class MigrationOpeningBalanceCommitService {
 
   private loadRows(batchId: string) {
     return this.prisma.$queryRaw<FinanceRow[]>(Prisma.sql`
-      SELECT "id","rowNumber","normalized","valid","targetId"
+      SELECT "id","rowNumber","normalized","valid","targetId","targetType"
       FROM "MigrationBatchRow" WHERE "batchId"=${batchId}::uuid ORDER BY "rowNumber"
     `);
   }
 
   private loadRowsTx(tx: Prisma.TransactionClient, batchId: string) {
     return tx.$queryRaw<FinanceRow[]>(Prisma.sql`
-      SELECT "id","rowNumber","normalized","valid","targetId"
+      SELECT "id","rowNumber","normalized","valid","targetId","targetType"
       FROM "MigrationBatchRow" WHERE "batchId"=${batchId}::uuid ORDER BY "rowNumber"
     `);
   }

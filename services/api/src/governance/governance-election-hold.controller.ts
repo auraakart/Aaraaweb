@@ -34,10 +34,10 @@ export class GovernanceElectionHoldController{
   @Get()
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   list(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) ballotDraftId:string){
-    return this.prisma.$queryRaw<HoldRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx=>tx.$queryRaw<HoldRow[]>(Prisma.sql`
       SELECT "id","ballotDraftId","sequence","action","category","reason","createdByUserId","createdAt"
       FROM "GovernanceElectionHoldEvent" WHERE "societyId"=${societyId}::uuid AND "ballotDraftId"=${ballotDraftId}::uuid ORDER BY "sequence" DESC
-    `);
+    `));
   }
 
   @Post()
@@ -59,7 +59,7 @@ export class GovernanceElectionHoldController{
   }
 
   private async close(societyId:string,ballotDraftId:string,actor:string,action:'RESOLVE_HOLD'|'CANCEL_HOLD',reason:string){
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
       await this.ballot(tx,societyId,ballotDraftId);
       const latest=await this.latest(tx,societyId,ballotDraftId);
@@ -70,7 +70,7 @@ export class GovernanceElectionHoldController{
   }
 
   private async record(societyId:string,ballotDraftId:string,actor:string,action:'OPEN_HOLD',category:HoldCategory,reason:string){
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
       await this.ballot(tx,societyId,ballotDraftId);
       const latest=await this.latest(tx,societyId,ballotDraftId);

@@ -19,10 +19,12 @@ describe('WorkforceService tenant isolation', () => {
   });
 
   it('does not reveal a household outside the authenticated society', async () => {
-    const prisma = {
-      household: { findFirst: vi.fn().mockResolvedValue(null) },
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      household: { findFirst: vi.fn() },
       unitOccupancy: { findFirst: vi.fn() },
     };
+    const prisma = {withTenantContext: vi.fn(async (_id: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx))};
     const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
 
     await expect(
@@ -33,23 +35,27 @@ describe('WorkforceService tenant isolation', () => {
         role: 'MAID',
       }),
     ).rejects.toThrow('Household not found');
-    expect(prisma.household.findFirst).toHaveBeenCalledWith({ where: { id: 'household-b', societyId: 'society-a' } });
-    expect(prisma.unitOccupancy.findFirst).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(tx.household.findFirst).not.toHaveBeenCalled();
+    expect(tx.unitOccupancy.findFirst).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-a',expect.any(Function));
   });
 
-  it('scopes society review lookup by assignment id and tenant society', async () => {
-    const prisma = {
-      workforceAssignment: { findFirst: vi.fn().mockResolvedValue(null) },
+  it('rejects foreign society assignment before reviewer read or update', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      workforceAssignment: { findFirst: vi.fn(), update: vi.fn() },
     };
+    const prisma = { withTenantContext: vi.fn(async (_id: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
     const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
-
     await expect(service.review('society-a', 'assignment-b', 'APPROVED')).rejects.toThrow(
       'Active workforce assignment not found',
     );
-    expect(prisma.workforceAssignment.findFirst).toHaveBeenCalledWith({
-      where: { id: 'assignment-b', societyId: 'society-a', active: true },
-      include: { worker: true },
-    });
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-a', expect.any(Function));
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect((tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ')).toContain('FOR UPDATE');
+    expect(tx.workforceAssignment.findFirst).not.toHaveBeenCalled();
+    expect(tx.workforceAssignment.update).not.toHaveBeenCalled();
   });
 });
 
@@ -131,6 +137,11 @@ describe('WorkforceService gate attendance', () => {
   it('checks active attendance inside a serializable transaction', async () => {
     const created = { id: 'request-a', societyId: 'society-a', unitId: 'unit-a', metadata: { workforceAssignmentId: 'assignment-a' } };
     const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{id:'gate-a'}])
+        .mockResolvedValueOnce([{id:'assignment-a',workerId:'worker-a',startDate:null,endDate:null,schedule:{}}])
+        .mockResolvedValueOnce([{id:'worker-a'}]),
+      unitOccupancy: {findMany:vi.fn().mockResolvedValue([{userId:'resident-a'}])},
       workforceLeave: { findFirst: vi.fn().mockResolvedValue(null) },
       accessRequest: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue(created) },
       gateMutationReceipt: { create: vi.fn() },
@@ -162,6 +173,11 @@ describe('WorkforceService gate attendance', () => {
 
   it('rejects approved leave again inside the check-in transaction', async () => {
     const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{id:'gate-a'}])
+        .mockResolvedValueOnce([{id:'assignment-a',workerId:'worker-a',startDate:null,endDate:null,schedule:{}}])
+        .mockResolvedValueOnce([{id:'worker-a'}]),
+      unitOccupancy: {findMany:vi.fn().mockResolvedValue([{userId:'resident-a'}])},
       workforceLeave: { findFirst: vi.fn().mockResolvedValue({ id: 'leave-a' }) },
       accessRequest: { findFirst: vi.fn(), create: vi.fn() },
       gateMutationReceipt: { create: vi.fn() },
@@ -196,5 +212,106 @@ describe('WorkforceService gate attendance', () => {
     await expect(service.gateCheckIn('society-a', 'gate-a', 'assignment-a', 'guard-b', 'idem-2')).rejects.toThrow(
       'Worker is already checked in for this assignment',
     );
+  });
+});
+
+
+describe('V5.2.26 core workforce tenant lock and gate reads', () => {
+  const scoped = (tx: Record<string, unknown>) => ({
+    withTenantContext: vi.fn(async (_id:string, op:(client:typeof tx)=>Promise<unknown>)=>op(tx)),
+  });
+
+  it('serializes reviewer status and writes through the scoped client', async () => {
+    const assignment = { id:'assignment-a', societyId:'society-a', status:'PENDING', workerId:'worker-a',
+      worker:{verification:'VERIFIED'} };
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{id:'assignment-a'}]),
+      workforceAssignment: {
+        findFirst: vi.fn().mockResolvedValue(assignment),
+        update: vi.fn().mockResolvedValue({...assignment,status:'APPROVED'}),
+      },
+      domesticWorker: {update:vi.fn()},
+    };
+    const prisma=scoped(tx);
+    const service=new WorkforceService(prisma as unknown as PrismaService,accessStub);
+    await expect(service.review('society-a','assignment-a','APPROVED')).resolves.toMatchObject({status:'APPROVED'});
+    expect(tx.workforceAssignment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where:{id:'assignment-a',societyId:'society-a'},
+      data:{status:'APPROVED'},
+    }));
+    expect(tx.domesticWorker.update).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('denies reviewer action when the assignment is already reviewed', async () => {
+    const tx = {$queryRaw:vi.fn().mockResolvedValue([{id:'assignment-a'}]),
+      workforceAssignment:{findFirst:vi.fn().mockResolvedValue({id:'assignment-a',status:'APPROVED'}),update:vi.fn()}};
+    await expect(new WorkforceService(scoped(tx) as unknown as PrismaService,accessStub)
+      .review('society-a','assignment-a','REJECTED'))
+      .rejects.toThrow('Only pending workforce assignments can be reviewed');
+    expect(tx.workforceAssignment.update).not.toHaveBeenCalled();
+  });
+
+  it('checks resident household ownership in transaction before deactivation', async () => {
+    const assignment={id:'assignment-a',societyId:'society-a',householdId:'household-a'};
+    const tx={
+      $queryRaw:vi.fn().mockResolvedValue([{id:'assignment-a'}]),
+      workforceAssignment:{findFirst:vi.fn().mockResolvedValue(assignment),
+        update:vi.fn().mockResolvedValue({...assignment,active:false})},
+      household:{findFirst:vi.fn().mockResolvedValue({id:'household-a',unitId:'unit-a'})},
+      unitOccupancy:{findFirst:vi.fn().mockResolvedValue({id:'occupancy-a'})},
+    };
+    const prisma=scoped(tx);
+    await expect(new WorkforceService(prisma as unknown as PrismaService,accessStub)
+      .deactivateMine('society-a','resident-a','assignment-a'))
+      .resolves.toMatchObject({active:false});
+    expect(tx.unitOccupancy.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where:expect.objectContaining({societyId:'society-a',userId:'resident-a',unitId:'unit-a',active:true}),
+    }));
+    expect(tx.workforceAssignment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where:{id:'assignment-a',societyId:'society-a'},
+    }));
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses deactivation if current occupancy is lost', async () => {
+    const tx={
+      $queryRaw:vi.fn().mockResolvedValue([{id:'assignment-a'}]),
+      workforceAssignment:{findFirst:vi.fn().mockResolvedValue({id:'assignment-a',householdId:'household-a'}),update:vi.fn()},
+      household:{findFirst:vi.fn().mockResolvedValue({id:'household-a',unitId:'unit-a'})},
+      unitOccupancy:{findFirst:vi.fn().mockResolvedValue(null)},
+    };
+    await expect(new WorkforceService(scoped(tx) as unknown as PrismaService,accessStub)
+      .deactivateMine('society-a','former-tenant','assignment-a'))
+      .rejects.toThrow('Household not found');
+    expect(tx.workforceAssignment.update).not.toHaveBeenCalled();
+  });
+
+  it('scopes resident status occupancy and workforce/attendance query together', async () => {
+    const tx={
+      unitOccupancy:{findFirst:vi.fn().mockResolvedValue({id:'current'})},
+      $queryRaw:vi.fn().mockResolvedValue([{id:'assignment-a',checkedInNow:true,onLeaveToday:false}]),
+    };
+    const prisma=scoped(tx);
+    await expect(new WorkforceService(prisma as unknown as PrismaService,accessStub)
+      .residentStatusMine('society-a','resident-a','unit-a'))
+      .resolves.toMatchObject({activeAssignmentCount:1,checkedInCount:1,onLeaveCount:0});
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads gate eligible staff from one tenant client while retaining schedules and verification filter', async()=>{
+    const tx={workforceAssignment:{findMany:vi.fn().mockResolvedValue([
+      {worker:{active:true,verification:'VERIFIED',name:'Maya',phone:'123'},schedule:{}},
+      {worker:{active:false,verification:'VERIFIED',name:'Other',phone:'456'},schedule:{}},
+    ])}};
+    const prisma=scoped(tx);
+    await expect(new WorkforceService(prisma as unknown as PrismaService,accessStub)
+      .listGateEligible('society-a'))
+      .resolves.toHaveLength(1);
+    expect(tx.workforceAssignment.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where:expect.objectContaining({societyId:'society-a',status:'APPROVED',active:true}),
+    }));
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
   });
 });

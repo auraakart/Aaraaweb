@@ -130,3 +130,22 @@ Preventive controls:
 
 These controls eliminate the observed bot-generated CI deadlock, but they do
 not guarantee zero waiting for external runners or future independent reviews.
+
+## Local publish and SSR delay controls (V5.4.18)
+
+- Verify local Node/pnpm versions and the publish capability once before editing.
+  Missing shell credentials must not trigger repeated Git push attempts. Use the
+  connected GitHub object API for one complete feature tree/commit when needed;
+  transfer generated files programmatically without exposing their contents in
+  the conversation. Verify the remote tree equals the validated local tree.
+- Run focused Vitest files through `pnpm --filter @aaraagate/api exec vitest run
+  <files>`; `pnpm test -- <files>` may forward an option separator that leaves
+  the full suite unfiltered. Required protected CI still runs its normal gates.
+- Diagnose a failing real SSR request at the transport/middleware boundary before
+  weakening host checks. Next development URLs may use an internal localhost
+  origin. An absolute rewrite to that origin changes Host on the internal hop;
+  canonical same-host navigation avoids that change. Never replace raw Host with
+  a forwarded claim to make an integration test pass.
+- Preserve checkpoint logs in the current workspace, not only transient `/tmp`.
+  Publish one coherent PR and record its pending gates; retain the no-repoll
+  policy above rather than waiting through repeated job status reads.

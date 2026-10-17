@@ -26,20 +26,27 @@ describe('PrivacySubjectDataService erasure execution race safety',()=>{
         .mockResolvedValueOnce([{count:1}]),
       $executeRaw:vi.fn(),
     };
+    const preflight={$queryRaw:vi.fn()
+      .mockResolvedValueOnce([executableCase])
+      .mockResolvedValueOnce([{count:0}])};
     const prisma={
-      $queryRaw:vi.fn()
-        .mockResolvedValueOnce([executableCase])
-        .mockResolvedValueOnce([{count:0}]),
-      $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
+      $queryRaw:vi.fn(),
+      $transaction:vi.fn(),
+      withTenantContext:vi.fn()
+        .mockImplementationOnce(async (_id:string,run:(client:typeof preflight)=>Promise<unknown>)=>run(preflight))
+        .mockImplementationOnce(async (_id:string,run:(client:typeof tx)=>Promise<unknown>)=>run(tx)),
     };
     const service=new PrivacySubjectDataService(prisma as unknown as PrismaService);
 
     await expect(service.executeErasure(societyId,actorUserId,caseId))
       .rejects.toThrow('Erasure cannot execute: ACTIVE_SOCIETY_RELATIONSHIP');
 
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(2);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(2);
     const userLockSql=(tx.$queryRaw.mock.calls[1][0] as {strings:readonly string[]}).strings.join(' ');
     expect(userLockSql).toContain('FROM "User"');
     expect(userLockSql).toContain('FOR UPDATE');
@@ -51,11 +58,15 @@ describe('PrivacySubjectDataService erasure execution race safety',()=>{
       $queryRaw:vi.fn().mockResolvedValueOnce([changedCase]),
       $executeRaw:vi.fn(),
     };
+    const preflight={$queryRaw:vi.fn()
+      .mockResolvedValueOnce([executableCase])
+      .mockResolvedValueOnce([{count:0}])};
     const prisma={
-      $queryRaw:vi.fn()
-        .mockResolvedValueOnce([executableCase])
-        .mockResolvedValueOnce([{count:0}]),
-      $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
+      $queryRaw:vi.fn(),
+      $transaction:vi.fn(),
+      withTenantContext:vi.fn()
+        .mockImplementationOnce(async (_id:string,run:(client:typeof preflight)=>Promise<unknown>)=>run(preflight))
+        .mockImplementationOnce(async (_id:string,run:(client:typeof tx)=>Promise<unknown>)=>run(tx)),
     };
     const service=new PrivacySubjectDataService(prisma as unknown as PrismaService);
 

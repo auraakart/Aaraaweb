@@ -4,6 +4,8 @@ import { SessionService } from './session.service';
 
 export type AuthenticatedRequest = {
   auth?: AuthPrincipal;
+  method?: string;
+  params?: Record<string, string>;
   header(name: string): string | undefined;
 };
 
@@ -15,7 +17,9 @@ export class BearerGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const header = request.header('authorization');
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedException('Authentication required');
-    request.auth = await this.sessions.getPrincipal(header.slice(7));
+    const principal = await this.sessions.getPrincipal(header.slice(7));
+    if (principal.audience === 'PARTNER') throw new UnauthorizedException('Partner session cannot access this resource');
+    request.auth = principal;
     return true;
   }
 }

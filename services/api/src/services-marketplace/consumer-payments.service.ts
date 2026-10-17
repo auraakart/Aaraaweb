@@ -33,6 +33,27 @@ type ConsumerPaymentRow = {
   refundedAt: Date | null;
 };
 
+type CheckoutBookingRow = {
+  id: string;
+  offeringName: string;
+  status: ServiceBookingStatus;
+  servicePricePaise: number;
+};
+type CheckoutQuoteRow = {
+  id: string;
+  scopeDescription: string;
+  amountPaise: string;
+  status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'WITHDRAWN';
+  createdAt: Date;
+};
+type CheckoutPaymentRow = {
+  id: string;
+  status: ConsumerPaymentStatus;
+  currency: string;
+  grossAmountPaise: string;
+  createdAt: Date;
+};
+
 type BookingPaymentSourceRow = {
   id: string;
   userId: string;
@@ -52,6 +73,99 @@ const ALLOWED_TRANSITIONS: Readonly<Record<ConsumerPaymentStatus, readonly Consu
 @Injectable()
 export class ConsumerPaymentsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Services 4.3.1: an informational booking breakdown, not a payment quote.
+   * Original payment intents charge the immutable booking price only;
+   * approved extra-work scope never silently increases that price.
+   */
+  async getCheckoutBreakdown(userId: string, bookingId: string) {
+    const bookingRows = await this.prisma.$queryRaw<CheckoutBookingRow[]>(Prisma.sql`
+      SELECT b."id", b."offeringName", b."status", b."servicePricePaise"
+      FROM "ConsumerServiceBooking" b
+      WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
+      LIMIT 1
+    `);
+    const booking = bookingRows[0];
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (!Number.isSafeInteger(booking.servicePricePaise) || booking.servicePricePaise < 0) {
+      throw new BadRequestException('Booking contains an invalid saved service amount');
+    }
+
+    const [quotes, payments] = await Promise.all([
+      this.prisma.$queryRaw<CheckoutQuoteRow[]>(Prisma.sql`
+        SELECT q."id", q."scopeDescription", q."amountPaise"::text AS "amountPaise",
+               q."status", q."createdAt"
+        FROM "ConsumerServiceExtraWorkQuote" q
+        JOIN "ConsumerServiceBooking" b ON b."id" = q."bookingId"
+        WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
+        ORDER BY q."createdAt" DESC, q."id" DESC
+        LIMIT 20
+      `),
+      this.prisma.$queryRaw<CheckoutPaymentRow[]>(Prisma.sql`
+        SELECT pay."id", pay."status", pay."currency",
+               pay."grossAmountPaise"::text AS "grossAmountPaise", pay."createdAt"
+        FROM "ConsumerServicePayment" pay
+        JOIN "ConsumerServiceBooking" b ON b."id" = pay."bookingId"
+          AND b."userId" = pay."userId"
+        WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
+        ORDER BY pay."createdAt" DESC, pay."id" DESC
+        LIMIT 20
+      `),
+    ]);
+
+    return {
+      bookingId: booking.id,
+      bookingStatus: booking.status,
+      currency: 'INR' as const,
+      readOnly: true,
+      checkoutReady: false,
+      amountPayablePaise: null,
+      taxBreakdown: null,
+      taxAssessmentStatus: 'NOT_DETERMINED' as const,
+      // Services 4.3.3 — explain precisely which missing contract evidence
+      // prevents any consolidated payable amount. These are not claims
+      // about external finance/legal approvals or tax liability.
+      readiness: {
+        evaluationScope: 'THIS_BOOKING_PREVIEW_ONLY' as const,
+        status: 'NOT_READY' as const,
+        chargeAuthorized: false,
+        blockers: [
+          { code: 'SELLER_OF_RECORD_UNVERIFIED', label: 'Seller and invoice issuer not verified for this checkout' },
+          { code: 'GST_TREATMENT_UNDETERMINED', label: 'Tax/GST treatment not established for this checkout' },
+          { code: 'PARTS_LINE_ITEMS_UNAVAILABLE', label: 'Verified individual parts and labour line items not available' },
+          { code: 'EXTRA_WORK_NOT_BILLABLE', label: 'Approved extra work has no consolidated charge authorization' },
+          { code: 'SETTLEMENT_REFUND_RULES_UNVERIFIED', label: 'Settlement and refund rules not verified for consolidated checkout' },
+        ],
+      },
+      baseService: {
+        description: booking.offeringName,
+        source: 'SAVED_BOOKING_PRICE' as const,
+        amountPaise: booking.servicePricePaise,
+      },
+      extraWorkQuotes: quotes.map((q) => ({
+        id: q.id,
+        description: q.scopeDescription,
+        quotedAmountPaise: q.amountPaise,
+        status: q.status,
+        includedInBasePayment: false,
+        createsInvoice: false,
+      })),
+      quoteListLimitedTo: 20,
+      baseBookingPayments: payments.map((p) => ({
+        id: p.id,
+        status: p.status,
+        currency: p.currency,
+        grossAmountPaise: p.grossAmountPaise,
+      })),
+      paymentListLimitedTo: 20,
+      notes: [
+        'Original booking payment and extra-work quote approval are separate.',
+        'Approved extra-work is not included in the original payment intent.',
+        'Tax, final invoice and consolidated checkout require separate verified finance rules.',
+      ],
+    };
+  }
 
   listMine(userId: string) {
     return this.prisma.$queryRaw(Prisma.sql`

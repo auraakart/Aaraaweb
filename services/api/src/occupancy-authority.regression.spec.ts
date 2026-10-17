@@ -1,9 +1,11 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { AccessRequestStatus, AccessSubjectType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { AccessService } from './access/access.service';
 import { AuthStateStore } from './auth/auth-state.store';
 import { SessionService } from './auth/session.service';
+import { AuthContextService } from './auth/auth-context.service';
+import { PrismaMembershipRepository } from './auth/prisma-membership.repository';
 import { HouseholdService } from './households/household.service';
 import { PrismaService } from './prisma/prisma.service';
 
@@ -13,7 +15,7 @@ describe('V2.1B post-move-out authority regressions', () => {
     delete process.env.REDIS_URL;
     const state = new AuthStateStore();
     const memberships = vi.fn()
-      .mockResolvedValueOnce([{ role: 'RESIDENT' }])
+      .mockResolvedValueOnce([{ userId: '11111111-1111-4111-8111-111111111111', societyId: '22222222-2222-4222-8222-222222222222', role: 'TENANT', active: true }])
       .mockResolvedValueOnce([]);
     const prisma = {
       session: {
@@ -28,11 +30,13 @@ describe('V2.1B post-move-out authority regressions', () => {
         }),
       },
       societyMembership: { findMany: memberships },
+      $queryRaw: vi.fn().mockResolvedValue([]),
     };
-    const service = new SessionService(prisma as unknown as PrismaService, state);
+    const persistence = prisma as unknown as PrismaService;
+    const service = new SessionService(persistence, state, new AuthContextService(new PrismaMembershipRepository(persistence)));
     try {
-      await expect(service.getPrincipal('same-live-token')).resolves.toMatchObject({ roles: ['RESIDENT'] });
-      await expect(service.getPrincipal('same-live-token')).resolves.toMatchObject({ roles: [] });
+      await expect(service.getPrincipal('same-live-token')).resolves.toMatchObject({ roles: ['TENANT'] });
+      await expect(service.getPrincipal('same-live-token')).rejects.toBeInstanceOf(UnauthorizedException);
       expect(memberships).toHaveBeenCalledTimes(2);
       expect(memberships).toHaveBeenLastCalledWith({
         where: {
@@ -40,7 +44,6 @@ describe('V2.1B post-move-out authority regressions', () => {
           societyId: '22222222-2222-4222-8222-222222222222',
           active: true,
         },
-        select: { role: true },
       });
     } finally {
       await state.onModuleDestroy();

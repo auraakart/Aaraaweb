@@ -16,18 +16,20 @@ describe('V3.8 governance community audience boundary',()=>{
   });
 
   it('fails closed before loading meeting detail when relationship/audience lookup returns nothing',async()=>{
-    const prisma={$queryRaw:vi.fn().mockResolvedValue([])};
-    const governance={getMeeting:vi.fn()};
+    const tx={$queryRaw:vi.fn().mockResolvedValue([])};
+    const prisma={withTenantContext:vi.fn((_society:string,run:(client:typeof tx)=>unknown)=>run(tx))};
+    const governance={getMeetingInContext:vi.fn()};
     const controller=new GovernanceCommunityController(prisma as never,governance as never);
     await expect(controller.getMeeting('society-1','user-1','11111111-1111-4111-8111-111111111111')).rejects.toBeInstanceOf(BadRequestException);
-    expect(governance.getMeeting).not.toHaveBeenCalled();
+    expect(governance.getMeetingInContext).not.toHaveBeenCalled();
   });
 
   it('delegates to the authoritative governance service only after visibility is proven',async()=>{
-    const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'meeting-1'}])};
-    const governance={getMeeting:vi.fn().mockResolvedValue({id:'meeting-1',title:'AGM'})};
+    const tx={$queryRaw:vi.fn().mockResolvedValue([{id:'meeting-1'}])};
+    const prisma={withTenantContext:vi.fn((_society:string,run:(client:typeof tx)=>unknown)=>run(tx))};
+    const governance={getMeetingInContext:vi.fn().mockResolvedValue({id:'meeting-1',title:'AGM'})};
     const controller=new GovernanceCommunityController(prisma as never,governance as never);
     await expect(controller.getMeeting('society-1','user-1','11111111-1111-4111-8111-111111111111')).resolves.toEqual({id:'meeting-1',title:'AGM'});
-    expect(governance.getMeeting).toHaveBeenCalledWith('society-1','11111111-1111-4111-8111-111111111111');
+    expect(governance.getMeetingInContext).toHaveBeenCalledWith(tx,'society-1','11111111-1111-4111-8111-111111111111');
   });
 });

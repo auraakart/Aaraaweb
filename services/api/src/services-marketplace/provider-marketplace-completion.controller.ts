@@ -50,6 +50,7 @@ class ExtraWorkQuoteWithdrawalDto{
 }
 class EvidenceDto{@IsIn(['NOTE','REFERENCE']) evidenceType!:'NOTE'|'REFERENCE';@IsOptional() @IsString() @MaxLength(1000) reference?:string;@IsOptional() @IsString() @MaxLength(2000) note?:string;}
 class DisputeDto{@IsString() @MinLength(2) @MaxLength(80) reasonCode!:string;@IsString() @MinLength(5) @MaxLength(2000) detail!:string;}
+class ReworkReviewDto{@IsString() @MinLength(10) @MaxLength(2000) detail!:string;}
 class DisputeEvidenceDto {
  @IsString() @MinLength(5) @MaxLength(2000) note!:string;
  @IsOptional() @IsString() @MaxLength(400) reference?:string;
@@ -126,6 +127,9 @@ export class ProviderMarketplaceCompletionController{
  @Get('offerings/:id/availability-exceptions') exceptions(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listAvailabilityExceptions(requireUser(u),id);}
  @Post('offerings/:id/availability-exceptions') setException(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:ExceptionDto){return this.svc.setAvailabilityException(requireUser(u),id,d);}
  @Get('readiness') readiness(@CurrentUser() u:string|undefined){return this.svc.getProviderReadiness(requireUser(u));}
+ @Get('quality-summary') qualitySummary(@CurrentUser() u:string|undefined){
+  return this.svc.getProviderQualitySummary(requireUser(u));
+ }
 }
 
 @Controller('consumer/services')
@@ -153,6 +157,12 @@ export class ConsumerMarketplaceCompletionController{
  @Get('bookings/:id/completion-evidence') evidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listConsumerEvidence(requireUser(u),id);}
  @Post('bookings/:id/disputes') dispute(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:DisputeDto){return this.svc.openDispute(requireUser(u),id,d.reasonCode,d.detail);}
  @Get('bookings/:id/disputes') consumerDisputes(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listConsumerDisputes(requireUser(u),id);}
+ @Get('bookings/:id/rework-terms') reworkTerms(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){
+  return this.svc.getConsumerReworkTerms(requireUser(u),id);
+ }
+ @Post('bookings/:id/request-rework') requestRework(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:ReworkReviewDto){
+  return this.svc.requestConsumerRework(requireUser(u),id,d.detail);
+ }
  @Get('bookings/:bookingId/disputes/:disputeId/evidence') disputeEvidence(
    @CurrentUser() u:string|undefined,@Param('bookingId',ParseUUIDPipe) bookingId:string,
    @Param('disputeId',ParseUUIDPipe) disputeId:string){
