@@ -288,9 +288,10 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       useSafeArea: true,
+      isScrollControlled: true,
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
-        return Padding(
+        return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space2, AaraagateTokens.pageGutter, AaraagateTokens.space6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -300,22 +301,19 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
               const SizedBox(height: AaraagateTokens.space2),
               Text('${booking['amenityName'] ?? 'Amenity'} · ${_formatApiDate(booking['startsAt'])}'),
               const SizedBox(height: AaraagateTokens.space5),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(sheetContext, false),
-                      child: const Text('Keep booking'),
-                    ),
+              PremiumActionGroup(
+                primary: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
                   ),
-                  const SizedBox(width: AaraagateTokens.space3),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(sheetContext, true),
-                      child: const Text('Cancel booking'),
-                    ),
-                  ),
-                ],
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  child: const Text('Cancel booking'),
+                ),
+                secondary: OutlinedButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  child: const Text('Keep booking'),
+                ),
               ),
             ],
           ),
@@ -452,7 +450,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), showCloseIcon: true));
   }
 
   static bool _isCapacityConflict(Object error) =>
@@ -794,7 +792,6 @@ class _WaitlistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context){
-    final theme=Theme.of(context),scheme=theme.colorScheme;
     final status=entry['status']?.toString()??'WAITING';
     final position=_asInt(entry['position'],fallback:0);
     final guests=_asInt(entry['guestCount'],fallback:0);
@@ -803,20 +800,18 @@ class _WaitlistCard extends StatelessWidget {
       ? 'Position $position · ${_formatApiDate(entry['startsAt'])}$guestLabel'
       : '${_titleCase(status.toLowerCase())} · ${_formatApiDate(entry['startsAt'])}$guestLabel';
     return PremiumSurface(
-      padding:const EdgeInsets.fromLTRB(AaraagateTokens.space4,AaraagateTokens.space3,AaraagateTokens.space3,AaraagateTokens.space3),
-      child:Row(children:[
-        Container(
-          width:44,height:44,
-          decoration:BoxDecoration(color:scheme.surfaceContainer,borderRadius:BorderRadius.circular(AaraagateTokens.radiusSmall)),
-          child:Icon(status=='PROMOTED'?Icons.event_available_rounded:Icons.hourglass_top_rounded,color:scheme.primary),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        PremiumIdentityHeader(
+          icon: status == 'PROMOTED' ? Icons.event_available_rounded : Icons.hourglass_top_rounded,
+          title: entry['amenityName']?.toString() ?? 'Amenity',
+          supportingText: detail,
         ),
-        const SizedBox(width:AaraagateTokens.space3),
-        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text(entry['amenityName']?.toString()??'Amenity',style:theme.textTheme.titleMedium),
-          const SizedBox(height:AaraagateTokens.space1),
-          Text(detail,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
-        ])),
-        if(onCancel!=null)TextButton(onPressed:busy?null:onCancel,child:const Text('Leave')),
+        if (onCancel != null) ...[
+          const SizedBox(height: AaraagateTokens.space2),
+          SizedBox(width: double.infinity, child: TextButton(
+            onPressed: busy ? null : onCancel, child: const Text('Leave'),
+          )),
+        ],
       ]),
     );
   }
@@ -840,45 +835,30 @@ class _BookingCard extends StatelessWidget {
     final depositStatus=booking['depositStatus']?.toString()??'NOT_REQUIRED';
 
     return PremiumSurface(
-      padding: const EdgeInsets.fromLTRB(AaraagateTokens.space4, AaraagateTokens.space3, AaraagateTokens.space3, AaraagateTokens.space3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-            ),
-            child: Icon(Icons.calendar_today_outlined, color: scheme.primary),
-          ),
-          const SizedBox(width: AaraagateTokens.space3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(booking['amenityName']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
-                const SizedBox(height: AaraagateTokens.space1),
-                Text(_formatApiDate(booking['startsAt']), style: theme.textTheme.bodyMedium),
-                const SizedBox(height: AaraagateTokens.space1),
-                Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}${guests>0?' · $guests guest${guests==1?'':'s'}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-                if(depositPaise>0) ...[
-                  const SizedBox(height:AaraagateTokens.space1),
-                  Text('Refundable deposit ${_feeLabel(depositPaise)} · ${_titleCase(depositStatus.replaceAll('_',' ').toLowerCase())}${booking['depositDueAt']!=null?' · due ${_formatApiDate(booking['depositDueAt'])}':''}',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
-                ],
-              ],
-            ),
-          ),
-          Column(
-            mainAxisSize:MainAxisSize.min,
-            children:[
-              if(onPayDeposit!=null) TextButton(onPressed:busy?null:onPayDeposit,child:const Text('Pay deposit')),
-              if(onCancel!=null) TextButton(onPressed:busy?null:onCancel,child:const Text('Cancel')),
-            ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        PremiumIdentityHeader(
+          icon: Icons.calendar_today_outlined,
+          title: booking['amenityName']?.toString() ?? 'Amenity',
+          supportingText: _formatApiDate(booking['startsAt']),
+        ),
+        const SizedBox(height: AaraagateTokens.space2),
+        Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}${guests>0?' · $guests guest${guests==1?'':'s'}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+        if (depositPaise > 0) ...[
+          const SizedBox(height: AaraagateTokens.space2),
+          Text('Refundable deposit ${_feeLabel(depositPaise)} · ${_titleCase(depositStatus.replaceAll('_',' ').toLowerCase())}${booking['depositDueAt']!=null?' · due ${_formatApiDate(booking['depositDueAt'])}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+        ],
+        if (onPayDeposit != null || onCancel != null) ...[
+          const SizedBox(height: AaraagateTokens.space3),
+          PremiumActionGroup(
+            primary: onPayDeposit != null
+                ? FilledButton(onPressed: busy ? null : onPayDeposit, child: const Text('Pay deposit'))
+                : TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
+            secondary: onPayDeposit != null && onCancel != null
+                ? TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel'))
+                : null,
           ),
         ],
-      ),
+      ]),
     );
   }
 }

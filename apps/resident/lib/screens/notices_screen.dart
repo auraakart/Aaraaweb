@@ -277,6 +277,20 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
 
         return Scaffold(
           appBar: AppBar(title: const Text('Notice')),
+          bottomNavigationBar: requiresAcknowledgement
+              ? PremiumBottomActionBar(
+                  child: acknowledged
+                      ? const AaraagateStatusPill(label: 'Acknowledged', tone: AaraagateStatusTone.success)
+                      : FilledButton(
+                          onPressed: _acknowledging ? null : _acknowledge,
+                          child: PremiumActionLabel(
+                            label: _acknowledging ? 'Acknowledging…' : 'Acknowledge notice',
+                            icon: Icons.task_alt_rounded,
+                            busy: _acknowledging,
+                          ),
+                        ),
+                )
+              : null,
           body: ListView(
             padding: const EdgeInsets.fromLTRB(
               AaraagateTokens.pageGutter,
@@ -323,19 +337,6 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
               ],
               const SizedBox(height: AaraagateTokens.space6),
               Text(notice['body']?.toString() ?? '', style: theme.textTheme.bodyLarge?.copyWith(height: 1.6)),
-              if (requiresAcknowledgement) ...[
-                const SizedBox(height: AaraagateTokens.space6),
-                if (acknowledged)
-                  const AaraagateStatusPill(label: 'Acknowledged', tone: AaraagateStatusTone.neutral)
-                else
-                  FilledButton.icon(
-                    onPressed: _acknowledging ? null : _acknowledge,
-                    icon: _acknowledging
-                        ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary))
-                        : const Icon(Icons.task_alt_rounded),
-                    label: Text(_acknowledging ? 'Acknowledging…' : 'Acknowledge notice'),
-                  ),
-              ],
             ],
           ),
         );

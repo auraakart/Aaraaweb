@@ -3,6 +3,71 @@ import '../theme/aaraagate_theme.dart';
 
 enum AaraagateStatusTone { neutral, info, success, warning, danger }
 
+/// Retains the action's name while work is pending, including for screen readers.
+/// The button owns enablement; this content never introduces another tap target.
+class PremiumActionLabel extends StatelessWidget {
+  const PremiumActionLabel({super.key, required this.label, this.icon, this.busy = false});
+
+  final String label;
+  final IconData? icon;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    // Modal sheets can leave their parent route painted. Keep background work
+    // quiet until the route is current again instead of ticking behind a modal.
+    final animate = !reducedMotion && (ModalRoute.of(context)?.isCurrent ?? true);
+    return Semantics(
+      liveRegion: busy,
+      value: busy ? 'In progress' : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (busy || icon != null) ...[
+            ExcludeSemantics(
+              child: SizedBox.square(
+                dimension: AaraagateTokens.space5,
+                child: busy
+                    ? !animate
+                        ? const Icon(Icons.hourglass_top_rounded, size: 20)
+                        : CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: DefaultTextStyle.of(context).style.color,
+                          )
+                    : Icon(icon, size: 20),
+              ),
+            ),
+            const SizedBox(width: AaraagateTokens.space2),
+          ],
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
+        ],
+      ),
+    );
+  }
+}
+
+/// A reading action stays reachable without covering the scrollable document.
+class PremiumBottomActionBar extends StatelessWidget {
+  const PremiumBottomActionBar({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space3,
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space3,
+          ),
+          child: child,
+        ),
+      );
+}
+
 /// Shared low-chrome surface for resident journeys. Interactive surfaces add
 /// restrained press feedback while preserving a full semantic button target.
 class PremiumSurface extends StatefulWidget {
