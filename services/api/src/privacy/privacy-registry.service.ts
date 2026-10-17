@@ -160,7 +160,12 @@ export class PrivacyRegistryService {
   }
 
   private normaliseCode(value: string) {
-    const code = value.trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+    const normalised = value.trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_');
+    let start = 0;
+    let end = normalised.length;
+    while (start < end && normalised[start] === '_') start++;
+    while (end > start && normalised[end - 1] === '_') end--;
+    const code = normalised.slice(start, end);
     if (!code) throw new BadRequestException('Privacy data category code is required');
     return code;
   }

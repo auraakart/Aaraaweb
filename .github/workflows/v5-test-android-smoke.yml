@@ -19,7 +19,7 @@ concurrency:
 jobs:
   base-debug-apk:
     name: TEST base debug APK - ${{ matrix.app }}
-    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.base_ref == 'develop' || (github.base_ref == 'main' && github.head_ref == 'staging')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -93,7 +93,7 @@ jobs:
   verify-cross-role-base-evidence:
     name: Compare TEST Resident/Guard APK and AAB metadata
     needs: [base-debug-apk]
-    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.base_ref == 'develop' || (github.base_ref == 'main' && github.head_ref == 'staging')))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
