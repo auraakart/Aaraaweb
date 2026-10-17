@@ -352,20 +352,38 @@ class DemoResidentRepository extends ResidentRepository {
 
   @override
   Future<Map<String, dynamic>> workforceAttendance(String assignmentId, {DateTime? from, DateTime? to}) async {
-    final now = DateTime.now();
-    final end = to ?? now;
-    final start = from ?? end.subtract(const Duration(days: 29));
+    final indiaNow = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    final today = DateTime(indiaNow.year, indiaNow.month, indiaNow.day);
+    final requestedEnd = to ?? today;
+    final end = DateTime(requestedEnd.year, requestedEnd.month, requestedEnd.day);
+    final requestedStart = from ?? end.subtract(const Duration(days: 29));
+    final start = DateTime(requestedStart.year, requestedStart.month, requestedStart.day);
+    // Illustrative demo records stay within the selected range. Summary and
+    // calendar must describe the same evidence, including a short current month.
+    final days = <Map<String, dynamic>>[];
+    for (final offset in [1, 2]) {
+      final date = DateTime(end.year, end.month, end.day - offset);
+      if (date.isBefore(start) || date.isAfter(today)) continue;
+      days.add({
+        'date': date.toIso8601String(),
+        'firstEntryAt': DateTime(date.year, date.month, date.day, 8).toIso8601String(),
+        'lastExitAt': DateTime(date.year, date.month, date.day, 10).toIso8601String(),
+        'visitCount': 1, 'minutesInside': 120, 'openVisit': false,
+      });
+    }
+    final leaveDate = DateTime(end.year, end.month, end.day - 5);
+    final leaves = <Map<String, dynamic>>[
+      if (!leaveDate.isBefore(start) && !leaveDate.isAfter(today))
+        {'id': 'demo-leave-attendance', 'startsOn': leaveDate.toIso8601String(), 'endsOn': leaveDate.toIso8601String(), 'reason': 'Personal work'},
+    ];
     return {
       'assignmentId': assignmentId,
       'worker': {'name': assignmentId == 'demo-workforce-2' ? 'Ramesh K.' : 'Lakshmi R.', 'role': assignmentId == 'demo-workforce-2' ? 'DRIVER' : 'MAID'},
       'from': start.toIso8601String().split('T').first,
       'to': end.toIso8601String().split('T').first,
-      'summary': {'presentDays': 22, 'totalVisits': 24, 'totalMinutesInside': 2460, 'leavePeriods': 1},
-      'days': [
-        {'date': end.subtract(const Duration(days: 1)).toIso8601String(), 'firstEntryAt': end.subtract(const Duration(days: 1, hours: 4)).toIso8601String(), 'lastExitAt': end.subtract(const Duration(days: 1, hours: 2)).toIso8601String(), 'visitCount': 1, 'minutesInside': 120, 'openVisit': false},
-        {'date': end.subtract(const Duration(days: 2)).toIso8601String(), 'firstEntryAt': end.subtract(const Duration(days: 2, hours: 4)).toIso8601String(), 'lastExitAt': end.subtract(const Duration(days: 2, hours: 2)).toIso8601String(), 'visitCount': 1, 'minutesInside': 120, 'openVisit': false},
-      ],
-      'leaves': [{'id': 'demo-leave-attendance', 'startsOn': end.subtract(const Duration(days: 5)).toIso8601String(), 'endsOn': end.subtract(const Duration(days: 5)).toIso8601String(), 'reason': 'Personal work'}],
+      'summary': {'presentDays': days.length, 'totalVisits': days.length, 'totalMinutesInside': days.length * 120, 'leavePeriods': leaves.length},
+      'days': days,
+      'leaves': leaves,
       'boundary': 'Attendance is derived only from authoritative gate check-in/check-out records.',
     };
   }
