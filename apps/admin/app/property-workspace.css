@@ -201,3 +201,11 @@ body > main:not(.shell):not(.login) article small {
     max-width: 100%;
   }
 }
+
+/* A hover cue should not move a frequently used operational control. */
+body > main:not(.shell):not(.login) button:not(:disabled):hover {
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  body > main:not(.shell):not(.login) button { transition: none; }
+}

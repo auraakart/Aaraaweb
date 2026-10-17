@@ -15,6 +15,7 @@ class WorkforceScreen extends StatelessWidget {
       child: RefreshIndicator(
         onRefresh: controller.refreshWorkforce,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
             _WorkforceHeader(
@@ -42,7 +43,7 @@ class WorkforceScreen extends StatelessWidget {
               )
             else
               ...assignments.map((assignment) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
                     child: _StaffCard(controller: controller, assignment: assignment),
                   )),
           ],
@@ -151,57 +152,57 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Add household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _householdId,
-            decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
-            items: widget.controller.households.map((household) {
-              final id = household['id']?.toString() ?? '';
-              final unit = household['unit'] is Map
-                  ? Map<String, dynamic>.from(household['unit'] as Map)
-                  : const <String, dynamic>{};
-              return DropdownMenuItem(value: id, child: Text(unit['number']?.toString() ?? 'Household'));
-            }).where((item) => item.value?.isNotEmpty == true).toList(),
-            onChanged: _busy ? null : (value) => setState(() => _householdId = value ?? ''),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _name,
-            enabled: !_busy,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _phone,
-            enabled: !_busy,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _role,
-            decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
-            items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER']
-                .map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value))))
-                .toList(),
-            onChanged: _busy ? null : (value) => setState(() => _role = value ?? 'OTHER'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('SUBMIT FOR REVIEW'),
-          ),
-        ],
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Add household staff', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _householdId,
+              decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
+              items: widget.controller.households.map((household) {
+                final id = household['id']?.toString() ?? '';
+                final unit = household['unit'] is Map
+                    ? Map<String, dynamic>.from(household['unit'] as Map)
+                    : const <String, dynamic>{};
+                return DropdownMenuItem(value: id, child: Text(unit['number']?.toString() ?? 'Household'));
+              }).where((item) => item.value?.isNotEmpty == true).toList(),
+              onChanged: _busy ? null : (value) => setState(() => _householdId = value ?? ''),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _name,
+              enabled: !_busy,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _phone,
+              enabled: !_busy,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _role,
+              decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
+              items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER']
+                  .map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value))))
+                  .toList(),
+              onChanged: _busy ? null : (value) => setState(() => _role = value ?? 'OTHER'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _busy ? null : _submit,
+              child: PremiumActionLabel(label: 'SUBMIT FOR REVIEW', busy: _busy),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -290,13 +291,13 @@ class _StaffCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _StatusChip(label: 'Assignment: ${_friendly(status)}', icon: Icons.assignment_turned_in_outlined),
-                _StatusChip(label: 'Verification: ${_friendly(verification)}', icon: Icons.verified_user_outlined),
-                _StatusChip(label: _gateAccessLabel(status, verification), icon: Icons.meeting_room_outlined),
+                _StaffDetail(label: 'Assignment: ${_friendly(status)}', icon: Icons.assignment_turned_in_outlined),
+                _StaffDetail(label: 'Verification: ${_friendly(verification)}', icon: Icons.verified_user_outlined),
+                _StaffDetail(label: _gateAccessLabel(status, verification), icon: Icons.meeting_room_outlined),
                 if (rating != null)
-                  _StatusChip(label: '${rating['score'] ?? '-'} / 5', icon: Icons.star_rounded),
+                  _StaffDetail(label: '${rating['score'] ?? '-'} / 5', icon: Icons.star_rounded),
                 if (payments.isNotEmpty)
-                  _StatusChip(label: '${payments.length} payment record${payments.length == 1 ? '' : 's'}', icon: Icons.payments_outlined),
+                  _StaffDetail(label: '${payments.length} payment record${payments.length == 1 ? '' : 's'}', icon: Icons.payments_outlined),
               ],
             ),
             if (leaves.isNotEmpty) ...[
@@ -307,48 +308,27 @@ class _StaffCard extends StatelessWidget {
                   )),
             ],
             const SizedBox(height: 16),
-            Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: assignmentId.isEmpty ? null : () => _openLeaveSheet(context, assignmentId),
-                        icon: const Icon(Icons.event_busy_outlined),
-                        label: const Text('ADD LEAVE'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.tonalIcon(
-                        onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
-                        icon: const Icon(Icons.star_outline_rounded),
-                        label: Text(rating == null ? 'RATE' : 'UPDATE RATING'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
-                        icon: const Icon(Icons.calendar_month_outlined),
-                        label: const Text('VIEW ATTENDANCE'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: assignmentId.isEmpty ? null : () => _openPaymentSheet(context, assignmentId),
-                        icon: const Icon(Icons.payments_outlined),
-                        label: const Text('PAYMENTS'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            PremiumActionGroup(
+              inlineMinWidth: 300, primaryFlex: 1,
+              primary: FilledButton.tonal(
+                onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
+                child: PremiumActionLabel(label: rating == null ? 'RATE' : 'UPDATE RATING', icon: Icons.star_outline_rounded),
+              ),
+              secondary: OutlinedButton(
+                onPressed: assignmentId.isEmpty ? null : () => _openLeaveSheet(context, assignmentId),
+                child: const PremiumActionLabel(label: 'ADD LEAVE', icon: Icons.event_busy_outlined),
+              ),
+            ),
+            const SizedBox(height: AaraagateTokens.space3),
+            PremiumActionGroup(
+              primary: OutlinedButton(
+                onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
+                child: const PremiumActionLabel(label: 'VIEW ATTENDANCE', icon: Icons.calendar_month_outlined),
+              ),
+              secondary: OutlinedButton(
+                onPressed: assignmentId.isEmpty ? null : () => _openPaymentSheet(context, assignmentId),
+                child: const PremiumActionLabel(label: 'PAYMENTS', icon: Icons.payments_outlined),
+              ),
             ),
           ],
         ),
@@ -512,65 +492,65 @@ class _WorkforceLeaveSheetState extends State<_WorkforceLeaveSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Add staff leave', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 16),
-          _DateButton(
-            label: 'Starts',
-            value: _startsOn,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                      initialDate: _startsOn,
-                    );
-                    if (picked != null && mounted) {
-                      setState(() {
-                        _startsOn = picked;
-                        if (_endsOn.isBefore(_startsOn)) _endsOn = picked;
-                      });
-                    }
-                  },
-          ),
-          const SizedBox(height: 12),
-          _DateButton(
-            label: 'Ends',
-            value: _endsOn,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      firstDate: _startsOn,
-                      lastDate: _startsOn.add(const Duration(days: 89)),
-                      initialDate: _endsOn.isBefore(_startsOn) ? _startsOn : _endsOn,
-                    );
-                    if (picked != null && mounted) setState(() => _endsOn = picked);
-                  },
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _reason,
-            enabled: !_busy,
-            maxLength: 300,
-            decoration: const InputDecoration(labelText: 'Reason (optional)', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: _busy ? null : _save,
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('SAVE LEAVE'),
-          ),
-        ],
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Add staff leave', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            _DateButton(
+              label: 'Starts',
+              value: _startsOn,
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        initialDate: _startsOn,
+                      );
+                      if (picked != null && mounted) {
+                        setState(() {
+                          _startsOn = picked;
+                          if (_endsOn.isBefore(_startsOn)) _endsOn = picked;
+                        });
+                      }
+                    },
+            ),
+            const SizedBox(height: 12),
+            _DateButton(
+              label: 'Ends',
+              value: _endsOn,
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        firstDate: _startsOn,
+                        lastDate: _startsOn.add(const Duration(days: 89)),
+                        initialDate: _endsOn.isBefore(_startsOn) ? _startsOn : _endsOn,
+                      );
+                      if (picked != null && mounted) setState(() => _endsOn = picked);
+                    },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _reason,
+              enabled: !_busy,
+              maxLength: 300,
+              decoration: const InputDecoration(labelText: 'Reason (optional)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _busy ? null : _save,
+              child: PremiumActionLabel(label: 'SAVE LEAVE', busy: _busy),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -620,41 +600,43 @@ class _WorkforceRatingSheetState extends State<_WorkforceRatingSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Rate household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (index) {
-              final value = index + 1;
-              return IconButton(
-                onPressed: _busy ? null : () => setState(() => _score = value),
-                iconSize: 34,
-                icon: Icon(value <= _score ? Icons.star_rounded : Icons.star_border_rounded),
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _comment,
-            enabled: !_busy,
-            maxLength: 300,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Comment (optional)', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: _busy ? null : _save,
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('SAVE RATING'),
-          ),
-        ],
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Rate household staff', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: List.generate(5, (index) {
+                final value = index + 1;
+                return IconButton(
+                  onPressed: _busy ? null : () => setState(() => _score = value),
+                  tooltip: '$value out of 5 stars',
+                  isSelected: value == _score,
+                  iconSize: 28,
+                  icon: Icon(value <= _score ? Icons.star_rounded : Icons.star_border_rounded),
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _comment,
+              enabled: !_busy,
+              maxLength: 300,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Comment (optional)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _busy ? null : _save,
+              child: PremiumActionLabel(label: 'SAVE RATING', busy: _busy),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -673,13 +655,21 @@ class _PresencePill extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.icon});
+class _StaffDetail extends StatelessWidget {
+  const _StaffDetail({required this.label, required this.icon});
   final String label;
   final IconData icon;
 
   @override
-  Widget build(BuildContext context) => Chip(avatar: Icon(icon, size: 16), label: Text(label));
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      const SizedBox(width: AaraagateTokens.space2),
+      Flexible(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+    ],
+  );
 }
 
 class _LeaveRow extends StatelessWidget {

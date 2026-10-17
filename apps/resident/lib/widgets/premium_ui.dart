@@ -165,16 +165,18 @@ class PremiumPageIntro extends StatelessWidget {
     final copy = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: AaraagateTokens.iconContainer,
-          height: AaraagateTokens.iconContainer,
-          decoration: BoxDecoration(
-            color: scheme.primary.withValues(alpha: .10),
-            borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+        if (scale < 1.5) ...[
+          Container(
+            width: AaraagateTokens.iconContainer,
+            height: AaraagateTokens.iconContainer,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+            ),
+            child: Icon(icon, color: scheme.primary, size: 24),
           ),
-          child: Icon(icon, color: scheme.primary, size: 24),
-        ),
-        const SizedBox(width: AaraagateTokens.space3),
+          const SizedBox(width: AaraagateTokens.space3),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,18 +330,10 @@ class PremiumQuickAction extends StatelessWidget {
         vertical: AaraagateTokens.space3,
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 76),
+        constraints: const BoxConstraints(minHeight: AaraagateTokens.minTouchTarget),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-              ),
-              child: Icon(icon, color: scheme.primary, size: 24),
-            ),
+            Icon(icon, color: scheme.primary, size: 24),
             const SizedBox(width: AaraagateTokens.space3),
             Expanded(
               child: Text(
@@ -423,16 +417,18 @@ class PremiumIdentityHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: AaraagateTokens.iconContainer,
-          height: AaraagateTokens.iconContainer,
-          decoration: BoxDecoration(
-            color: scheme.primaryContainer,
-            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+        if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
+          Container(
+            width: AaraagateTokens.iconContainer,
+            height: AaraagateTokens.iconContainer,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+            ),
+            child: Icon(icon, color: scheme.onPrimaryContainer),
           ),
-          child: Icon(icon, color: scheme.onPrimaryContainer),
-        ),
-        const SizedBox(width: AaraagateTokens.space3),
+          const SizedBox(width: AaraagateTokens.space3),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,15 +454,22 @@ class PremiumIdentityHeader extends StatelessWidget {
 
 /// Keeps primary and secondary actions usable at narrow widths or large type.
 class PremiumActionGroup extends StatelessWidget {
-  const PremiumActionGroup({super.key, required this.primary, this.secondary});
+  const PremiumActionGroup({
+    super.key, required this.primary, this.secondary,
+    this.inlineMinWidth = 360, this.primaryFlex = 2,
+  });
   final Widget primary;
   final Widget? secondary;
+  // Short gate decisions and equal supporting actions can share a phone row.
+  // Large text always stacks independently of the module's inline threshold.
+  final double inlineMinWidth;
+  final int primaryFlex;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       if (secondary == null) return SizedBox(width: double.infinity, child: primary);
-      if (constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+      if (constraints.maxWidth < inlineMinWidth || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           primary,
           const SizedBox(height: AaraagateTokens.space2),
@@ -476,7 +479,7 @@ class PremiumActionGroup extends StatelessWidget {
       return Row(children: [
         Expanded(child: secondary!),
         const SizedBox(width: AaraagateTokens.space3),
-        Expanded(flex: 2, child: primary),
+        Expanded(flex: primaryFlex, child: primary),
       ]);
     },
   );
