@@ -2,6 +2,7 @@ import { requireCoverageFloor } from './lib/coverage-thresholds.mjs';
 import assert from 'node:assert/strict';
 import { readContractBundle } from './lib/source-contract-bundles.mjs';
 import fs from 'node:fs';
+import { dependencyCompatibilityErrors } from './lib/dependency-compatibility.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const json = (path) => JSON.parse(read(path));
@@ -43,10 +44,7 @@ assert.equal(
   major(api.devDependencies.prisma),
   'Prisma client and CLI must stay on one coordinated major.',
 );
-assert.equal(api.devDependencies.eslint, '^10.11.0');
-assert.equal(admin.devDependencies.eslint, '^10.11.0');
-assert.equal(api.devDependencies['typescript-eslint'], '^8.71.0');
-assert.equal(admin.devDependencies['typescript-eslint'], '^8.71.0');
+assert.deepEqual(dependencyCompatibilityErrors(root, admin, api), [], 'Runtime, React and lint dependency cohorts must stay compatible.');
 
 const aiService = readContractBundle('aiAssistant');
 const occurrenceCount = (source, token) => source.split(token).length - 1;
@@ -105,8 +103,12 @@ assert.ok(hygiene.includes('retained after fresh canonical reconciliation'), 'Re
 const hygieneWorkflow = read('.github/workflows/branch-hygiene.yml');
 assert.ok(hygieneWorkflow.includes('echo "dry_run=false" >> "$GITHUB_OUTPUT"'), 'Scheduled/protected cleanup path must support real safe deletion.');
 
-const nextConfig = read('apps/admin/next.config.mjs');
-assert.ok(nextConfig.includes('eslint:{ignoreDuringBuilds:true}'), 'Admin build must avoid duplicate build-time lint.');
+const nextConfig = (await import('../apps/admin/next.config.mjs')).default;
+if (major(admin.dependencies.next) >= 16) {
+  assert.ok(!Object.hasOwn(nextConfig, 'eslint'), 'Next 16 must not retain removed build-time ESLint configuration.');
+} else {
+  assert.equal(nextConfig.eslint?.ignoreDuringBuilds, true, 'Admin build must avoid duplicate build-time lint.');
+}
 const ci = read('.github/workflows/ci.yml');
 assert.ok(ci.includes('pnpm --filter @aaraagate/admin lint'), 'Explicit Admin lint gate must remain in CI.');
 

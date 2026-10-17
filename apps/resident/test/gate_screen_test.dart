@@ -4,7 +4,9 @@ import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/gate_screen.dart';
+import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _InviteRepository extends DemoResidentRepository {
@@ -213,6 +215,13 @@ void main() {
   });
 
   testWidgets('guest invite stays usable on a compact screen and safely submits route-owned input', (tester) async {
+    const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
+    final shares = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(shareChannel, (call) async {
+      shares.add(call);
+      return 'com.example.sharetarget';
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(shareChannel, null));
     tester.view.physicalSize = const Size(360, 560);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -245,6 +254,15 @@ void main() {
     expect(repository.invite, containsPair('purpose', 'Dinner'));
     expect(repository.invite?['idempotencyKey']?.toString(), startsWith('resident-visitor-'));
     expect(find.text('Visitor pass ready'), findsOneWidget);
+    await tester.ensureVisible(find.byIcon(Icons.share_outlined));
+    await tester.tap(find.byIcon(Icons.share_outlined));
+    await tester.pumpAndSettle();
+    expect(shares, hasLength(1));
+    expect(shares.single.method, 'share');
+    final shared = Map<String, dynamic>.from(shares.single.arguments as Map);
+    expect(shared['subject'], 'Aaraagate visitor pass for Priya Shah');
+    expect(shared['text'], contains('TEST-PASS'));
+    expect(shared['text'], isNot(contains('9999999999')));
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
@@ -270,6 +288,10 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Deny'),
     );
     expect(denyButton.onPressed, isNull);
+    // Pending feedback belongs to Deny, never to the opposite Allow action.
+    final labels = tester.widgetList<PremiumActionLabel>(find.byType(PremiumActionLabel));
+    expect(labels.singleWhere((item) => item.label == 'Deny').busy, isTrue);
+    expect(labels.singleWhere((item) => item.label == 'Allow entry').busy, isFalse);
 
     await tester.tap(find.text('Deny'));
     await tester.pump();

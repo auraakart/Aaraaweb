@@ -1,10 +1,10 @@
 name: aaraagate_resident
 description: aaraagate Resident mobile application.
 publish_to: 'none'
-version: 4.91.5+49105
+version: 4.99.2+49902
 
 environment:
-  sdk: '>=3.5.0 <4.0.0'
+  sdk: '>=3.10.0 <4.0.0'
   flutter: '>=3.47.0'
 
 dependencies:
@@ -16,7 +16,7 @@ dependencies:
   firebase_messaging: ^15.1.6
   flutter_secure_storage: ^10.3.1
   qr_flutter: ^4.1.0
-  share_plus: ^10.1.4
+  share_plus: 13.3.1
   url_launcher: ^6.3.1
   speech_to_text: 7.4.0
 

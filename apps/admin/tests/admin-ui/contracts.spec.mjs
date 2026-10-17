@@ -88,3 +88,21 @@ test('focus, reduced motion and 200 percent scale preserve usable content', asyn
   await expect(page.getByText('Submissions: 1')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('admin-ui-200-percent.png'), fullPage: true })
 })
+
+test('legacy operational controls and navigation honor reduced motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  // Exercise the existing application classes, including standalone workspaces.
+  await page.evaluate(() => {
+    const fixture = document.createElement('div')
+    fixture.innerHTML = '<nav class="nav"><button>Operational navigation</button></nav><div class="actions"><button>Operational action</button></div><div class="notice">Notice preview</div><aside class="managementNavPanel open"><div class="managementNavLinks"><a href="#workspace">Workspace link</a></div></aside>'
+    document.body.append(fixture)
+  })
+  for (const selector of ['.nav button', '.actions button', '.notice', '.managementNavPanel', '.managementNavLinks a']) {
+    const item = page.locator(selector).last()
+    expect(await item.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0s')
+  }
+  const navigation = page.getByRole('button', { name: 'Operational navigation' })
+  await navigation.hover()
+  expect(await navigation.evaluate(el => getComputedStyle(el).transform)).toBe('none')
+  expect((await navigation.boundingBox()).height).toBeGreaterThanOrEqual(48)
+})

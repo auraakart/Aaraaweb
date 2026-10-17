@@ -1,9 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MigrationBatchService } from './migration-batch.service';
+import { MigrationPreviewService } from './migration-preview.service';
 
 const service = new MigrationBatchService({} as never, {} as never);
 
 describe('MigrationBatchService evidence', () => {
+  it('rejects normalized header collisions before reference reads or persistence', async () => {
+    const prisma = { $queryRaw: vi.fn(), $transaction: vi.fn() };
+    const guarded = new MigrationBatchService(prisma as never, new MigrationPreviewService());
+    await expect(guarded.createPreviewBatch('society', 'actor', 'BUILDING', [{ name: 'Alpha', code: 'A', CODE: 'B' }]))
+      .rejects.toThrow(/normalize to the same field/);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
   const snapshot = {
     buildings: [{ code: 'A', name: 'Alpha' }, { code: 'B', name: 'Beta' }],
     units: [

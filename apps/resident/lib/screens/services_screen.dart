@@ -455,25 +455,25 @@ class _ServicesScreenState extends State<ServicesScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: AaraagateTokens.iconContainer,
-                    height: AaraagateTokens.iconContainer,
-                    decoration: BoxDecoration(
-                      color: scheme.tertiaryContainer,
-                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                  if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
+                    Container(
+                      width: AaraagateTokens.iconContainer,
+                      height: AaraagateTokens.iconContainer,
+                      decoration: BoxDecoration(
+                        color: scheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                      ),
+                      child: Icon(Icons.flash_on_rounded, color: scheme.onTertiaryContainer),
                     ),
-                    child: Icon(Icons.flash_on_rounded, color: scheme.onTertiaryContainer),
-                  ),
-                  const SizedBox(width: AaraagateTokens.space3),
+                    const SizedBox(width: AaraagateTokens.space3),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: Text('Insta Services', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-                            const AaraagateStatusPill(label: 'NEARBY', tone: AaraagateStatusTone.info),
-                          ],
+                        const PremiumSectionHeader(
+                          title: 'Insta Services',
+                          trailing: AaraagateStatusPill(label: 'NEARBY', tone: AaraagateStatusTone.info),
                         ),
                         const SizedBox(height: AaraagateTokens.space1),
                         Text(
@@ -577,7 +577,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                 const SizedBox(height: AaraagateTokens.space1),
                                 Text(first.description ?? 'Compare providers, prices and service details.', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                                 const SizedBox(height: AaraagateTokens.space2),
-                                Text('From ${_price(minPrice)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: scheme.primary)),
+                                Text('From ${_price(minPrice)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700, color: scheme.onSurface)),
                               ],
                             ),
                           ),

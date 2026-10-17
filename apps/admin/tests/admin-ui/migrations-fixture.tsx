@@ -17,7 +17,7 @@ const fixtureOptions=new URLSearchParams(window.location.search)
 const financeRequests:Array<{path:string;method:string}>=[]
 Object.assign(window,{financeRequests})
 let periodClosed=false
-const session={accessToken:'visual-fixture-token',role:fixtureOptions.get('role')??'SUPER_ADMIN',societyName:'Aaraagate Visual Society'}
+const session={sessionId:'visual-session',societyId:'visual-society',accessToken:'visual-fixture-token',refreshToken:'visual-refresh-token',role:fixtureOptions.get('role')??'SUPER_ADMIN',societyName:'Aaraagate Visual Society'}
 sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(session))
 
 const now='2026-09-20T02:30:00.000Z'
