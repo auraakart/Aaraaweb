@@ -291,13 +291,13 @@ class _StaffCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _StatusChip(label: 'Assignment: ${_friendly(status)}', icon: Icons.assignment_turned_in_outlined),
-                _StatusChip(label: 'Verification: ${_friendly(verification)}', icon: Icons.verified_user_outlined),
-                _StatusChip(label: _gateAccessLabel(status, verification), icon: Icons.meeting_room_outlined),
+                _StaffDetail(label: 'Assignment: ${_friendly(status)}', icon: Icons.assignment_turned_in_outlined),
+                _StaffDetail(label: 'Verification: ${_friendly(verification)}', icon: Icons.verified_user_outlined),
+                _StaffDetail(label: _gateAccessLabel(status, verification), icon: Icons.meeting_room_outlined),
                 if (rating != null)
-                  _StatusChip(label: '${rating['score'] ?? '-'} / 5', icon: Icons.star_rounded),
+                  _StaffDetail(label: '${rating['score'] ?? '-'} / 5', icon: Icons.star_rounded),
                 if (payments.isNotEmpty)
-                  _StatusChip(label: '${payments.length} payment record${payments.length == 1 ? '' : 's'}', icon: Icons.payments_outlined),
+                  _StaffDetail(label: '${payments.length} payment record${payments.length == 1 ? '' : 's'}', icon: Icons.payments_outlined),
               ],
             ),
             if (leaves.isNotEmpty) ...[
@@ -655,13 +655,21 @@ class _PresencePill extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.icon});
+class _StaffDetail extends StatelessWidget {
+  const _StaffDetail({required this.label, required this.icon});
   final String label;
   final IconData icon;
 
   @override
-  Widget build(BuildContext context) => Chip(avatar: Icon(icon, size: 16), label: Text(label));
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      const SizedBox(width: AaraagateTokens.space2),
+      Flexible(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+    ],
+  );
 }
 
 class _LeaveRow extends StatelessWidget {

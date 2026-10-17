@@ -9,6 +9,7 @@ import 'package:aaraagate_resident/screens/services_screen.dart';
 import 'package:aaraagate_resident/screens/workforce_screen.dart';
 import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'support/resident_visual_capture.dart';
 
@@ -110,6 +111,12 @@ void main() {
             await captureResidentScreen(tester, boundary, '$name-arrival');
             expect(tester.takeException(), isNull);
           } else if (screen == 'staff') {
+            // Verification and gate access are essential text, not single-line chips.
+            for (final label in ['Assignment: Approved', 'Verification: Verified', 'Gate access: Allowed']) {
+              final paragraph = tester.renderObject<RenderParagraph>(find.text(label).first);
+              expect(paragraph.maxLines, isNull);
+              expect(paragraph.overflow, TextOverflow.clip);
+            }
             for (final label in ['ADD LEAVE', 'RATE', 'VIEW ATTENDANCE', 'PAYMENTS']) {
               await tester.scrollUntilVisible(find.text(label).first, 240, scrollable: find.byType(Scrollable).first);
               await tester.ensureVisible(find.text(label).first);

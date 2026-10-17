@@ -263,7 +263,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final openTickets=_tickets.where((t)=>!{'RESOLVED','CLOSED'}.contains((t['status']?.toString()??'').toUpperCase())).take(2).toList();
     return SafeArea(child:RefreshIndicator(onRefresh:() async{await widget.controller.load();await _load();},child:ListView(
       physics:const AlwaysScrollableScrollPhysics(),padding:const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter,AaraagateTokens.space4,AaraagateTokens.pageGutter,AaraagateTokens.space8),children:[
-      Text('Community',style:theme.textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.w800)),
+      Text('Community',style:theme.textTheme.headlineSmall),
       const SizedBox(height:AaraagateTokens.space1),Text('Society updates, meetings, documents and polls with your access rules applied.',style:theme.textTheme.bodyLarge?.copyWith(color:scheme.onSurfaceVariant)),
       const SizedBox(height:AaraagateTokens.space4),
       _CommunityShortcutBar(
@@ -355,7 +355,7 @@ class _CommunityShortcutBar extends StatelessWidget {
       padding:const EdgeInsets.all(AaraagateTokens.space2),
       child:LayoutBuilder(builder:(context,constraints){
         const gap=AaraagateTokens.space1;
-        final columns=constraints.maxWidth>=560?3:2;
+        final columns=MediaQuery.textScalerOf(context).scale(1)>1.3?1:constraints.maxWidth>=560?3:2;
         final width=(constraints.maxWidth-gap*(columns-1))/columns;
         return Wrap(
           spacing:gap,

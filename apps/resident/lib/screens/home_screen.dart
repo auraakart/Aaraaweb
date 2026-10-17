@@ -417,16 +417,18 @@ class _AssistantEntryCard extends StatelessWidget {
       padding: const EdgeInsets.all(AaraagateTokens.space4),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: scheme.primary,
-              borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+              ),
+              child: Icon(Icons.auto_awesome_rounded, color: scheme.onPrimary),
             ),
-            child: Icon(Icons.auto_awesome_rounded, color: scheme.onPrimary),
-          ),
-          const SizedBox(width: AaraagateTokens.space4),
+            const SizedBox(width: AaraagateTokens.space4),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

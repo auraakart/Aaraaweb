@@ -455,16 +455,18 @@ class _ServicesScreenState extends State<ServicesScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: AaraagateTokens.iconContainer,
-                    height: AaraagateTokens.iconContainer,
-                    decoration: BoxDecoration(
-                      color: scheme.tertiaryContainer,
-                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                  if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
+                    Container(
+                      width: AaraagateTokens.iconContainer,
+                      height: AaraagateTokens.iconContainer,
+                      decoration: BoxDecoration(
+                        color: scheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                      ),
+                      child: Icon(Icons.flash_on_rounded, color: scheme.onTertiaryContainer),
                     ),
-                    child: Icon(Icons.flash_on_rounded, color: scheme.onTertiaryContainer),
-                  ),
-                  const SizedBox(width: AaraagateTokens.space3),
+                    const SizedBox(width: AaraagateTokens.space3),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
