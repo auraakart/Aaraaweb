@@ -53,4 +53,8 @@ See `docs/architecture/README.md` for the architecture baseline.
 
 ## Aaraagate V5 development
 
-Society Branding and Partner White Label development uses this shared repository. See [V5 roadmap](docs/AARAAGATE-V5-MULTIBRAND-ROADMAP.md) and [V5 program manifest](docs/v5-release-manifest.json). V5.0.1 starts with read-only default-brand configuration; partner activation, isolation, licensing and branded builds remain subsequent gated milestones. Existing distributed app versions remain unchanged until an approved consolidated candidate. Productionization is excluded.
+Society Branding and Partner White Label development uses this shared repository. See [V5 roadmap](docs/AARAAGATE-V5-MULTIBRAND-ROADMAP.md) and [V5 program manifest](docs/v5-release-manifest.json). V5.0–V5.3 are recorded complete; V5.4/V5.5 remain in progress and formal V5.6 acceptance remains planned. Partner TEST infrastructure, independently verified signed artifacts and device acceptance remain separately gated. Existing distributed app versions remain unchanged until an approved consolidated candidate. Productionization is excluded.
+
+## Current development cycle
+
+[V4.92 workflow reliability and acceptance](docs/AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md) consolidates the October 17 recommendations into bounded develop-only changes and explicit independent acceptance dependencies.

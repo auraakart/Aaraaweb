@@ -1,6 +1,12 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.89.14 Secure Society Copilot, plus the V4.90 non-production develop quality slices tracked in [V4.90 Competitive Excellence](AARAAGATE-V4.90-COMPETITIVE-EXCELLENCE.md). V4.90 does not become a main/released app version until separately approved and promoted. Earlier V4.86 and V4.51.1 narratives below remain historical implementation evidence, including V4.51.1 Post-Release Regression Hardening; older release documents may intentionally describe capabilities as deferred at their original date.
+**Current-state review baseline:** V4.92 candidate on develop, building on completed Services 4.5 and the V5 implementation baseline. See [V4.92 workflow reliability and acceptance](AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md) for exact scope and validation state. Version numbers and repository checks do not establish field acceptance.
+
+Current implementation includes the Services provider checklist editor, separately authorized field-agent workspace, resident quality/rework review, conservative arrival estimates, explicit recurring visits and conflict-safe dispatch. Consolidated payable service checkout, automatic recurring scheduling, public quality scoring, membership/loyalty and protection remain policy gated. See [Services 4.5](AARAAGATE-SERVICES-4.5-WORKFLOW-COMPLETION.md).
+
+V5.0–V5.3 are recorded complete in the [V5 manifest](v5-release-manifest.json); V5.4/V5.5 remain IN_PROGRESS and V5.6 PLANNED. Independent TEST infrastructure, authenticated runtime evidence, signed Partner A/B artifacts and device acceptance remain [external blocker #1380](https://github.com/auraakart/Aaraaweb/issues/1380). The default Resident demo is not partner acceptance. Earlier milestone narratives below are historical, not the current backlog.
+
+The Resident Assistant remains English-only under V4.91.1; multilingual Helpdesk and Guard speech/localization are separate features.
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
