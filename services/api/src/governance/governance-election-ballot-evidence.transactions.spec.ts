@@ -12,6 +12,18 @@ function fixture(rows:unknown[]=[]){
   return {tx,prisma,controller:new GovernanceElectionBallotDraftController(prisma as never)};
 }
 describe('ballot evidence tenant transactions',()=>{
+  it.each([null, {length:2147483647,0:'Yes',1:'No'}, ['Yes'], Array.from({length:21},(_,i)=>`Option ${i}`), ['Yes',42]].map(options=>({options})))('rejects malformed or unbounded options before opening a transaction: $options',async({options})=>{
+    const f=fixture();
+    await expect(f.controller.createDraft('society','actor','snapshot',{...input,options:options as string[]})).rejects.toBeInstanceOf(BadRequestException);
+    expect(f.prisma.withTenantContext).not.toHaveBeenCalled();
+  });
+  it('preserves all 20 permitted options and their ordinals',async()=>{
+    const f=fixture([[],[setup],[review],[draft]]);
+    const options=Array.from({length:20},(_,i)=>` Option ${i+1} `);
+    const result=await f.controller.createDraft('society','actor','snapshot',{...input,options});
+    expect(result.options).toEqual(options.map((label,i)=>({ordinal:i+1,label:label.trim()})));
+    expect(f.tx.$executeRaw).toHaveBeenCalledTimes(20);
+  });
   const operations=[
     {name:'listReviews',rows:[],run:(c:GovernanceElectionBallotDraftController)=>c.listReviews('society','snapshot')},
     {name:'recordReview',rows:[[],[setup],[],[{id:'review',sequence:1}]],run:(c:GovernanceElectionBallotDraftController)=>c.recordReview('society','actor','snapshot',{outcome:'REVIEWED'})},

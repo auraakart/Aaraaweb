@@ -3,6 +3,25 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PrivacyRegistryService } from './privacy-registry.service';
 
 describe('PrivacyRegistryService', () => {
+  it.each([
+    ['___Visitor--ID_Proof___', 'VISITOR_ID_PROOF'],
+    ['_'.repeat(100000) + 'visit__evidence' + '_'.repeat(100000), 'VISIT__EVIDENCE'],
+    ['A' + '_'.repeat(100000) + 'Z', 'A' + '_'.repeat(100000) + 'Z'],
+  ])('normalises underscore boundaries without backtracking', async (code, expected) => {
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 'category-1' }]), $executeRaw: vi.fn() };
+    const prisma = { withTenantContext: vi.fn(async (_id: string, run: (client: typeof tx) => unknown) => run(tx)) };
+    await new PrivacyRegistryService(prisma as unknown as PrismaService).createCategory('society-1', 'admin-1', {
+      code, name: 'Evidence', purpose: 'Review', retentionTrigger: 'Completion',
+    });
+    expect((tx.$queryRaw.mock.calls[0][0] as { values: unknown[] }).values).toContain(expected);
+  });
+  it('rejects a long all-separator code before creating a transaction', async () => {
+    const prisma = { withTenantContext: vi.fn() };
+    await expect(new PrivacyRegistryService(prisma as unknown as PrismaService).createCategory('society-1', 'admin-1', {
+      code: '_'.repeat(100000), name: 'Evidence', purpose: 'Review', retentionTrigger: 'Completion',
+    })).rejects.toThrow('Privacy data category code is required');
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();
+  });
   it('normalises category codes and records append-only creation evidence', async () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: 'category-1' }]),

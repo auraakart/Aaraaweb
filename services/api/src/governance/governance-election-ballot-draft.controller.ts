@@ -111,6 +111,7 @@ export class GovernanceElectionBallotDraftController{
   @Post('electorate-snapshots/:id/ballot-drafts')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
   async createDraft(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) snapshotId:string,@Body() dto:CreateBallotDraftDto){
+    if(!Array.isArray(dto.options)||dto.options.length<2||dto.options.length>20||dto.options.some(value=>typeof value!=='string'))throw new BadRequestException('Ballot options must contain 2 to 20 string labels');
     const actor=this.user(userId),title=dto.title.trim(),question=dto.question.trim(),options=dto.options.map(v=>v.trim());
     if(!title||!question)throw new BadRequestException('Ballot title and question are required');
     if(options.some(v=>!v))throw new BadRequestException('Ballot option labels cannot be empty');
