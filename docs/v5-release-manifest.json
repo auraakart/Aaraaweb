@@ -990,7 +990,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.24",
+      "currentSlice": "V5.4.25",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1476,6 +1476,20 @@
             "Full API/Admin/Flutter and dependency-security protected gates passed",
             "Required merge gate and develop auto merge successful"
           ]
+        },
+        {
+          "id": "V5.4.25",
+          "name": "Browser-equivalent ingress redirect validation and exact no-store/Host response tokens",
+          "status": "PENDING_PROTECTED_CI",
+          "evidence": [
+            "scripts/v5.4.24-ingress-acceptance.mjs",
+            "scripts/v5.4.24-ingress-acceptance.test.mjs",
+            "docs/architecture/V5.4.25-INGRESS-RESPONSE-VALIDATION.md"
+          ],
+          "limitations": [
+            "Local TLS fixture only; no remote ingress or authenticated partner session acceptance.",
+            "Independent TEST operator, Partner A/B artifacts and 15-case formal acceptance remain blocked under #1380. No build/distribution or staging/main authority."
+          ]
         }
       ],
       "scopedAcceptance": {
@@ -1497,7 +1511,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.48",
+      "currentSlice": "V5.5.49",
       "slices": [
         {
           "id": "V5.5.1",
@@ -2373,7 +2387,7 @@
           "ciRun": 38708353856,
           "verifiedScope": [
             "Read-only bounded Linux target proc executable file-descriptor SHA-256 and raw argv hash bound to separately pinned executable/identity/namespace policy",
-            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42–43 cgroup and rootfs checks",
+            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42\u201343 cgroup and rootfs checks",
             "Negative executable replacement, PID reuse, namespaces, process exit, malformed bounds and permission-injection tests passed",
             "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security and develop auto-merge"
           ]
@@ -2473,6 +2487,22 @@
             "Offline receipt corruption, foreign pins, fabricated authority and unsigned claim metadata rejections covered by no-network regression",
             "Operator-only evidence correlation; 15 V5.6 formal TEST cases remained NOT_EXECUTED"
           ]
+        },
+        {
+          "id": "V5.5.49",
+          "name": "Conservative reviewed offline TEST operator CI scope with protected gates preserved",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "scripts/classify-v5-test-operator-change.mjs",
+            "scripts/classify-v5-test-operator-change.test.mjs",
+            "docs/architecture/V5.5.49-CI-OPERATOR-SCOPE-LATENCY.md"
+          ],
+          "pullRequest": 1406,
+          "mergeSha": "633ee0e48fc883340b9eb24f22b7502b6fc7980e",
+          "ciRun": 38984309592,
+          "limitations": [
+            "CI scope optimization only; independent TEST infrastructure, real signed Partner A/B artifacts and device acceptance remain blocked under #1380."
+          ]
         }
       ],
       "remaining": [
@@ -2500,7 +2530,7 @@
         "lastVerifiedMergeSha": "899d064927fe2b139028b26ce622e2a680895689",
         "pendingIndependentTestIssue": 1380,
         "status": "ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE",
-        "note": "V5.6.16–20 verified merged with protected CI; repo-only historical finance recovery issue #1387 is completed. Independent TEST worker and Partner A/B signed build acceptance #1380 remain pending. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no build execution, distribution, release or branch promotion authorization.",
+        "note": "V5.6.16\u201320 verified merged with protected CI; repo-only historical finance recovery issue #1387 is completed. Independent TEST worker and Partner A/B signed build acceptance #1380 remain pending. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no build execution, distribution, release or branch promotion authorization.",
         "verifiedSlices": [
           {
             "id": "V5.6.16",

@@ -30,6 +30,34 @@ function leafSpkiSha256(peer){
  const der=new X509Certificate(peer.raw).publicKey.export({type:'spki',format:'der'});
  return createHash('sha256').update(der).digest('hex');
 }
+function safeRedirect(location,hostname){
+ if(typeof location!=='string'||/[\\\u0000-\u0020\u007f]/u.test(location))return false;
+ const origin='https://'+hostname;
+ if(!(location.startsWith('/')&&!location.startsWith('//'))&&
+    !location.startsWith(origin+'/'))return false;
+ try{
+  // Match browser URL interpretation, not just the raw Location prefix.
+  const target=new URL(location,origin);
+  return target.origin===origin&&!target.username&&!target.password;
+ }catch{return false;}
+}
+function hasHeaderToken(value,token){
+ if(typeof value!=='string')return false;
+ // Cache-Control values may contain quoted comma lists. A token inside a
+ // quoted directive value is not an independent response directive.
+ const parts=[];
+ let part='',quoted=false,escaped=false;
+ for(const char of value){
+  if(escaped)escaped=false;
+  else if(quoted&&char==='\\')escaped=true;
+  else if(char==='"')quoted=!quoted;
+  else if(char===','&&!quoted){parts.push(part);part='';continue;}
+  part+=char;
+ }
+ if(quoted||escaped)return false;
+ parts.push(part);
+ return parts.some(item=>item.trim().toLowerCase()===token);
+}
 // Injectable loopback fixture is only for deterministic tests, never CLI input.
 export async function probeTestIngress(input,{testTransport}={}){
  const plan=validateTestIngressPlan(input);
@@ -62,15 +90,11 @@ export async function probeTestIngress(input,{testTransport}={}){
      if(leafSpkiSha256(socket.getPeerCertificate(true))!==plan.approvedSpkiSha256)
       throw Error('Server SPKI fingerprint differs from reviewed pin');
      if(!check.statuses.includes(res.statusCode))throw Error('Unexpected '+check.label+' status '+res.statusCode);
-     if(!/\bno-store\b/i.test(String(res.headers['cache-control']??'')))throw Error('Missing no-store');
-     if(!/\bhost\b/i.test(String(res.headers.vary??'')))throw Error('Missing Host Vary');
+     if(!hasHeaderToken(res.headers['cache-control'],'no-store'))throw Error('Missing no-store');
+     if(!hasHeaderToken(res.headers.vary,'host'))throw Error('Missing Host Vary');
      if(String(res.headers['x-content-type-options']??'').toLowerCase()!=='nosniff')throw Error('Missing nosniff');
      const location=res.headers.location;
-     if(location!==undefined&&(
-       typeof location!=='string'||
-       (!(location.startsWith('/')&&!location.startsWith('//'))&&
-        !location.startsWith('https://'+plan.hostname+'/'))
-     ))throw Error('Unsafe cross-origin redirect');
+     if(location!==undefined&&!safeRedirect(location,plan.hostname))throw Error('Unsafe cross-origin redirect');
      // Never save response bodies or Set-Cookie; bound bytes and discard data.
      let bytes=0;
      res.on('data',chunk=>{bytes+=chunk.length;if(bytes>1048576)res.destroy(Error('Response too large'));});
