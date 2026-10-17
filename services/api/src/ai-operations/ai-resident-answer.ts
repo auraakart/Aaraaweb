@@ -35,7 +35,7 @@ export function residentAnswer(question: string, facts: ResidentRecords, mayView
     return 'Your latest recorded payment transaction is '+amount(latest.amountPaise)
       +' with status '+tidy(latest.status)+'. A pending transaction does not prove settlement. Open Billing to verify its receipt.';
   }
-  if(/\b(dues?|maintenance|invoices?|bills?|payment)\b/.test(question)){
+  if(/\b(dues?|maintenance|invoices?|bills?|billing|payments?)\b/.test(question)){
     if(!mayViewPayables) return 'Your current property role is not permitted to view maintenance invoices.';
     if(!invoices.length) return 'No eligible maintenance invoices were found for the selected property.';
     const selected=invoices.find(item=>!['PAID','CANCELLED','VOID'].includes(tidy(item.status))) ?? invoices[0];

@@ -2,6 +2,7 @@ import { requireCoverageFloor } from './lib/coverage-thresholds.mjs';
 import assert from 'node:assert/strict';
 import { readContractBundle } from './lib/source-contract-bundles.mjs';
 import fs from 'node:fs';
+import { dependencyCompatibilityErrors } from './lib/dependency-compatibility.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const json = (path) => JSON.parse(read(path));
@@ -43,10 +44,7 @@ assert.equal(
   major(api.devDependencies.prisma),
   'Prisma client and CLI must stay on one coordinated major.',
 );
-assert.equal(api.devDependencies.eslint, '^10.11.0');
-assert.equal(admin.devDependencies.eslint, '^10.11.0');
-assert.equal(api.devDependencies['typescript-eslint'], '^8.71.0');
-assert.equal(admin.devDependencies['typescript-eslint'], '^8.71.0');
+assert.deepEqual(dependencyCompatibilityErrors(root, admin, api), [], 'Runtime, React and lint dependency cohorts must stay compatible.');
 
 const aiService = readContractBundle('aiAssistant');
 const occurrenceCount = (source, token) => source.split(token).length - 1;
