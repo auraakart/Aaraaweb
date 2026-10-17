@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **All 22 Services 4.x slices through 4.4.2 merged to develop. Services 4.5 workflow completion is in implementation/validation.**
+Status: **All 22 Services 4.x slices through 4.4.2 merged to develop. Services 4.5 workflow completion merged into develop after protected CI.**
 
 Services 4.4.2 merged as PR #1377 at `353a1d4ca9d63e068c11bf6558b134cdcbe33479` after CI 38837309003 passed. These completed slices do not activate chargeable checkout, memberships, rewards, protection, public scores or new rework guarantees. See [Services 4.5 scope and decision register](AARAAGATE-SERVICES-4.5-WORKFLOW-COMPLETION.md) for the explicitly approved next implementation and remaining product acceptance gates.
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
@@ -229,3 +229,18 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
 5. **Stop after 4.4.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+
+
+## Services 4.5 — protected workflow completion
+
+[PR #1409](https://github.com/auraakart/Aaraaweb/pull/1409) merged at
+`378ddcb6d4b4be61921378501d0d6d95add40fe6` after protected
+[CI 38993647717](https://github.com/auraakart/Aaraaweb/actions/runs/38993647717)
+passed on exact tested head `4bb9aea00d7c678c09122bd2215beb1533843f55`.
+Provider checklist editing/private activity, own-agent checklist evidence and
+milestones, resident quality/rework visibility, conflict-safe platform dispatch,
+qualified historical arrival updates and explicit recurring next-visit planning
+are implemented. See the [scope and decision register](AARAAGATE-SERVICES-4.5-WORKFLOW-COMPLETION.md).
+Full API/Admin/Flutter and required gates passed. Commercial activation,
+group booking conversion, public scoring, rework SLA promises and physical-device
+role UAT remain separate acceptance items. No staging/main promotion.
