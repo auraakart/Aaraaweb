@@ -65,6 +65,31 @@ export class ServiceQualityEvidenceService {
     });
   }
 
+  async getAgentChecklist(actorUserId: string, assignmentId: string) {
+    const agent = await this.agents.resolveAgent(actorUserId);
+    const rows = await this.prisma.$queryRaw<Array<{
+      assignmentId: string; bookingId: string; assignmentStatus: string;
+      bookingStatus: string; templateVersion: number; items: ChecklistItem[];
+      captured: boolean;
+    }>>(Prisma.sql`
+      SELECT a."id" AS "assignmentId", b."id" AS "bookingId",
+        a."status" AS "assignmentStatus", b."status" AS "bookingStatus",
+        COALESCE(s."templateVersion", 0) AS "templateVersion",
+        COALESCE(s."items", '[]'::jsonb) AS "items",
+        (s."bookingId" IS NOT NULL) AS "captured"
+      FROM "ConsumerServiceAssignment" a
+      JOIN "ConsumerServiceBooking" b
+        ON b."id" = a."bookingId" AND b."providerId" = a."providerId"
+      LEFT JOIN "ConsumerServiceQualityChecklistSnapshot" s ON s."bookingId" = b."id"
+      WHERE a."id" = ${assignmentId}::uuid
+        AND a."agentId" = ${agent.agentId}::uuid
+        AND a."providerId" = ${agent.providerId}::uuid
+      LIMIT 1
+    `);
+    if (!rows[0]) throw new NotFoundException('Provider assignment not found');
+    return { ...rows[0], immutable: rows[0].captured };
+  }
+
   async listForAgent(actorUserId: string, assignmentId: string) {
     const agent = await this.agents.resolveAgent(actorUserId);
     const assignments = await this.prisma.$queryRaw<AssignmentBookingRow[]>(Prisma.sql`

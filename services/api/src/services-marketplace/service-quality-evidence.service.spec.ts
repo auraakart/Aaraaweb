@@ -21,6 +21,32 @@ function setup() {
 }
 
 describe('Services 4.0.3 — quality checklist evidence', () => {
+  it('exposes only the authenticated agent assignment booking-time checklist, including uncaptured legacy state', async () => {
+    const { service, prisma, agents } = setup();
+    const snapshot = { assignmentId, bookingId, assignmentStatus: 'ARRIVED', bookingStatus: 'IN_PROGRESS', templateVersion: 0, items: [], captured: false };
+    prisma.$queryRaw.mockResolvedValueOnce([snapshot]);
+    await expect(service.getAgentChecklist(userId, assignmentId)).resolves.toEqual({ ...snapshot, immutable: false });
+    expect(agents.resolveAgent).toHaveBeenCalledWith(userId);
+    const query = prisma.$queryRaw.mock.calls[0][0];
+    expect(query.values).toEqual([assignmentId, agentId, providerId]);
+    expect(query.strings.join(' ')).toContain('ConsumerServiceQualityChecklistSnapshot');
+    expect(query.strings.join(' ')).not.toContain('addressSnapshot');
+  });
+
+  it('refuses foreign agent checklist access and never substitutes a current offering template', async () => {
+    const { service, prisma } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getAgentChecklist(userId, assignmentId)).rejects.toThrow('Provider assignment not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not read a checklist if the user has no active verified agent identity', async () => {
+    const { service, prisma, agents } = setup();
+    agents.resolveAgent.mockRejectedValueOnce(new Error('Provider agent access is not available'));
+    await expect(service.getAgentChecklist(userId, assignmentId)).rejects.toThrow('access is not available');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('requires a verified assigned agent and an in-progress, arrived booking before writing', async () => {
     const { service, tx, agents } = setup();
     tx.$queryRaw.mockResolvedValueOnce([]);
