@@ -54,4 +54,3 @@ Future<void> captureResidentScreen(WidgetTester tester, GlobalKey key, String na
     }
   });
 }
-
