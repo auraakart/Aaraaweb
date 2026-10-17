@@ -68,7 +68,7 @@ void main() {
     expect(tester.widget<Semantics>(_day('2026-10-03')).properties.label, contains('no gate evidence'));
     expect(tester.widget<Semantics>(_day('2026-10-01')).properties.label, contains('Gate presence recorded'));
     expect(tester.widget<Semantics>(_day('2026-10-02')).properties.label, contains('Recorded leave'));
-    expect(tester.widget<IconButton>(find.byTooltip('Next month')).onPressed, isNull);
+    expect(tester.widget<IconButton>(find.byWidgetPredicate((widget) => widget is IconButton && widget.tooltip == 'Next month')).onPressed, isNull);
     expect(tester.takeException(), isNull);
   });
 
@@ -87,7 +87,7 @@ void main() {
     expect(repository.requests[6].from, DateTime(2026, 4, 1));
     expect(repository.requests[6].to, DateTime(2026, 4, 30));
     expect(repository.requests.last.from, DateTime(2025, 10, 1));
-    expect(tester.widget<IconButton>(find.byTooltip('Previous month')).onPressed, isNull);
+    expect(tester.widget<IconButton>(find.byWidgetPredicate((widget) => widget is IconButton && widget.tooltip == 'Previous month')).onPressed, isNull);
     await tester.tap(find.byTooltip('Next month'));
     await tester.pumpAndSettle();
     expect(repository.requests.last.from, DateTime(2025, 11, 1));

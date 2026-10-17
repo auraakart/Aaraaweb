@@ -61,7 +61,7 @@ class _WorkforceAttendanceSheetState extends State<WorkforceAttendanceSheet> {
     });
   }
 
-  void _retry() => setState(() => _attendance = _loadMonth());
+  void _retry() => setState(() { _attendance = _loadMonth(); });
 
   @override
   Widget build(BuildContext context) {
