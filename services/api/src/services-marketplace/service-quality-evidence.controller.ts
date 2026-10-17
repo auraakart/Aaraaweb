@@ -25,6 +25,11 @@ class QualityEvidenceDto {
 export class AgentQualityEvidenceController {
   constructor(private readonly service: ServiceQualityEvidenceService) {}
 
+  @Get('assignments/:assignmentId/quality-checklist')
+  checklist(@CurrentUser() userId: string, @Param('assignmentId', ParseUUIDPipe) assignmentId: string) {
+    return this.service.getAgentChecklist(requireUser(userId), assignmentId);
+  }
+
   @Get('assignments/:assignmentId/quality-evidence')
   events(@CurrentUser() userId: string, @Param('assignmentId', ParseUUIDPipe) assignmentId: string) {
     return this.service.listForAgent(requireUser(userId), assignmentId);

@@ -1,6 +1,8 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1–4.3.3 merged to develop; Services 4.4.1 submitted for gated validation.**
+Status: **All 22 Services 4.x slices through 4.4.2 merged to develop. Services 4.5 workflow completion is in implementation/validation.**
+
+Services 4.4.2 merged as PR #1377 at `353a1d4ca9d63e068c11bf6558b134cdcbe33479` after CI 38837309003 passed. These completed slices do not activate chargeable checkout, memberships, rewards, protection, public scores or new rework guarantees. See [Services 4.5 scope and decision register](AARAAGATE-SERVICES-4.5-WORKFLOW-COMPLETION.md) for the explicitly approved next implementation and remaining product acceptance gates.
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 

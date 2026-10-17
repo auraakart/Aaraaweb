@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../widgets/consumer_booking_post_service_panel.dart';
+import '../widgets/consumer_quality_review_panel.dart';
+import '../widgets/consumer_operational_eta_panel.dart';
 import '../widgets/consumer_checkout_breakdown_panel.dart';
 import '../widgets/consumer_technician_preference_panel.dart';
 import '../widgets/consumer_technician_request_status_panel.dart';
@@ -312,6 +314,20 @@ class _BookingTimelineSheetState extends State<_BookingTimelineSheet> {
                   leading: const Icon(Icons.engineering_outlined),
                   title: Text(agentName?.isNotEmpty == true ? agentName! : 'Assigned service professional', style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(_dispatchMessage(dispatchStatus)),
+                ),
+              ),
+            if (bookingId.isNotEmpty && ['CONFIRMED', 'IN_PROGRESS'].contains(currentStatus))
+              ConsumerOperationalEtaPanel(apiClient: apiClient, bookingId: bookingId),
+            if (bookingId.isNotEmpty)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('View quality checklist and rework'),
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context, isScrollControlled: true, showDragHandle: true,
+                  builder: (sheetContext) => SafeArea(child: SizedBox(
+                    height: MediaQuery.sizeOf(sheetContext).height * 0.78,
+                    child: ConsumerQualityReviewPanel(apiClient: apiClient, bookingId: bookingId, completed: currentStatus == 'COMPLETED'),
+                  )),
                 ),
               ),
             if (bookingId.isNotEmpty)
