@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const directory = await mkdtemp(path.join(tmpdir(), 'aaraagate-admin-ui-'))
+const loginEntry = fileURLToPath(new URL('./login-fixture.tsx', import.meta.url))
 const authEntry = fileURLToPath(new URL('./auth-fixture.tsx', import.meta.url))
 const adoptionEntry = fileURLToPath(new URL('./adoption-fixture.tsx', import.meta.url))
 const servicesEntry = fileURLToPath(new URL('./services-fixture.tsx', import.meta.url))
@@ -13,6 +14,7 @@ const partnerEntry = fileURLToPath(new URL('./partner-fixture.tsx', import.meta.
 const domainEntry = fileURLToPath(new URL('./domain-fixture.tsx', import.meta.url))
 const licensingEntry = fileURLToPath(new URL('./licensing-fixture.tsx', import.meta.url))
 const migrationsEntry = fileURLToPath(new URL('./migrations-fixture.tsx', import.meta.url))
+await writeFile(path.join(directory, 'login.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Login lifecycle</title><link rel="stylesheet" href="/login-fixture.css"></head><body><div id="root"></div><script src="/login-fixture.js"></script></body></html>')
 await writeFile(path.join(directory, 'auth.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Admin authentication isolation</title><link rel="stylesheet" href="/auth-fixture.css"></head><body><div id="root"></div><script src="/auth-fixture.js"></script></body></html>')
 await writeFile(path.join(directory, 'index.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin UI contract fixture</title><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>')
 await writeFile(path.join(directory, 'migrations.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin migration visual fixture</title><link rel="stylesheet" href="/migrations-fixture.css"></head><body><div id="root"></div><script src="/migrations-fixture.js"></script></body></html>')
@@ -22,7 +24,7 @@ await writeFile(path.join(directory, 'domains.html'), '<!doctype html><html lang
 await writeFile(path.join(directory, 'services.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Service workflows</title></head><body><div id="root"></div><script src="/services-fixture.js"></script></body></html>')
 await writeFile(path.join(directory, 'adoption.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Onboarding and import recovery</title><link rel="stylesheet" href="/adoption-fixture.css"></head><body><div id="root"></div><script src="/adoption-fixture.js"></script></body></html>')
 const build = await context({
-  entryPoints: [authEntry, adoptionEntry, servicesEntry, entry, migrationsEntry, licensingEntry, partnerEntry, domainEntry], bundle: true, outdir: directory, jsx: 'automatic', sourcemap: true,
+  entryPoints: [loginEntry, authEntry, adoptionEntry, servicesEntry, entry, migrationsEntry, licensingEntry, partnerEntry, domainEntry], bundle: true, outdir: directory, jsx: 'automatic', sourcemap: true,
   define: {
     'process.env.NODE_ENV': '"test"',
     'process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL': '"http://127.0.0.1:4318"',
