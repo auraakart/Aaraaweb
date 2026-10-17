@@ -321,7 +321,6 @@ class _StaffCard extends StatelessWidget {
             ),
             const SizedBox(height: AaraagateTokens.space3),
             PremiumActionGroup(
-              inlineMinWidth: 300, primaryFlex: 1,
               primary: OutlinedButton(
                 onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
                 child: const PremiumActionLabel(label: 'VIEW ATTENDANCE', icon: Icons.calendar_month_outlined),

@@ -74,7 +74,7 @@ The first protected Flutter execution produced 63 PNGs and passed 52 changed tes
 
 Actual Home, Staff, Helpdesk, Services, Community and Profile screenshots were inspected. At 320px/200%, decorative page icons squeezed long heading words into narrow columns. Page and identity headers now give that space back to essential text at accessibility sizes. Community tiles also truncated request context while reserving a trailing action column; they now wrap content and place the same action below it on phone/large-type layouts. Insta Services uses the existing adaptive section header for its identity/status pair. Price labels use onSurface for small-text contrast. These are screen-specific changes driven by rendered evidence.
 
-Short Home gate decisions may share a row at 300px content width, matching the established Gate pattern. Staff uses equal supporting actions at that width; large text always stacks. Other action groups retain the 360px default. This documented exception avoids unnecessarily tall phone cards while keeping long labels readable.
+Short Home gate decisions may share a row at 300px content width, matching the established Gate pattern. Staff uses equal leave/rating actions at that width; the longer attendance/payment group retains the 360px default after rendered review found an awkward split in ATTENDANCE. Large text always stacks. Other action groups retain the 360px default. This documented exception avoids unnecessarily tall phone cards while keeping long labels readable.
 
 The capture helper now supplies the SDK Roboto family to Chip styles as well as buttons. The first Staff capture exposed Ahem test-font blocks in chip labels; that image cannot establish label quality. No production font or chip style is changed. The populated Services fixture now supplies provider/category contract fields; the first capture showed the empty state because older demo offerings lacked the typed model's required provider object.
 
@@ -84,7 +84,13 @@ Additional modified files: `apps/resident/lib/screens/community_screen.dart`, `a
 
 ### Validation status
 
-Local stable domain invariants: 44/44 pass. Maintainability, release identity and hygiene checks pass. `git diff --check` passes. Flutter is unavailable in the local runtime; attempts to retrieve the pinned SDK returned 404. No SDK or dependency constraints were lowered. Flutter execution and actual screenshots must come from the existing protected CI runner. Pending CI checks are not credited as passes.
+Protected [CI 39060102653](https://github.com/auraakart/Aaraaweb/actions/runs/39060102653) passed for code head `c98d56ccd559ae4cc15f76de58db3b3b3cc172a3`. Changed Resident tests: 56 passed; risk regression: 66 passed and coverage gate passed; full Resident: 370 passed; Flutter analysis: no issues. Admin: 167 browser tests passed, including the new legacy reduced-motion/navigation check; Admin build and applicable validation gates passed. Repository structure, preflight, dependency/security routing and required merge gates passed. API full tests and Android smoke were scope-skipped; their wrapper success is not new API or device evidence. Guard source is unchanged.
+
+Local stable domain invariants: 44/44 pass. Maintainability, release identity, privacy/hygiene and base-to-working-tree diff checks pass. The Insta Services source invariant now accepts the existing Text label or its shared heading title, retaining runtime entry/navigation coverage. No assertions, hit-test warnings, retries or CI controls were suppressed.
+
+The green run produced 65 Resident PNGs in [artifact 12110764279](https://github.com/auraakart/Aaraaweb/actions/runs/39060102653/artifacts/12110764279) and 25 Admin PNGs in [artifact 12110932567](https://github.com/auraakart/Aaraaweb/actions/runs/39060102653/artifacts/12110932567). Reviewed standard/compact light/dark Home, Staff, Helpdesk, populated Services, Community, Profile and Staff form examples, plus Admin Helpdesk before/after. Representative images are presentation fixtures, not live sessions.
+
+Manual review after green CI found an awkward mid-word wrap in the phone attendance button. Its group now retains the existing wider stacking threshold. That follow-up is intentionally held for another protected run before merge; current exact-head checks and merge state are available in [PR 1435](https://github.com/auraakart/Aaraaweb/pull/1435). No whole-product closure is claimed from the earlier run.
 
 ### Quality scorecard and acceptance limits
 
@@ -92,16 +98,26 @@ The original whole-product score is **not established**: the available rendered 
 
 For each dimension use a 0–10 rubric: 0–2 blocks core use; 3–4 major defects; 5–6 usable with recurring friction; 7–8 coherent with remaining polish/coverage gaps; 9 professionally reviewed across required states with no known blockers; 10 exceptionally resolved with independent usability corroboration. Record evidence and coverage beside every score. Never average away a functional, brand, permission or accessibility blocker.
 
-| Dimension | Baseline status | Acceptance target |
-| --- | --- | --- |
-| Professional appearance | Partial rendered evidence; complete score pending | 9 |
-| Human crafted character | Home hierarchy/duplication findings; rendered review pending | 9 |
-| Visual consistency | Established shared system; remaining screen matrix pending | 9 |
-| Ease of use | Workflows retained; independently measured task success pending | 9 |
-| Information hierarchy | Home conflict findings; rendered review pending | 9 |
-| Accessibility | Existing contrast/large-type coverage; new compact form/decision checks pending | 9 |
-| Interaction polish | Home denial-progress defect identified; correction pending execution | 9 |
-| Dark and light quality | Existing theme pairs retained; full matrix pending | 9 |
-| Cross screen consistency | Resident and admin rendered review incomplete | 9 |
+| Dimension | Reviewed sample estimate | Evidence and remaining limit | Target |
+| --- | --- | --- | --- |
+| Professional appearance | 8.5 | Actual mobile/admin fixture composition reviewed; broader device coverage remains | 9 |
+| Human crafted character | 8.0 | Repetition, competing Assistant hierarchy and Community crowding corrected; deeper flows need equivalent review | 9 |
+| Visual consistency | 8.5 | Shared roles and adaptive controls; legacy admin surfaces remain | 9 |
+| Ease of use | Not rated | Callback/recovery tests pass; no independently measured user task success | 9 |
+| Information hierarchy | 8.5 | Full arrival context and distinct admin form/readiness grouping; more operational states remain | 9 |
+| Accessibility | 8.0 | Existing contrast checks, 200% type, keyboard/axe tests; physical screen-reader and multilingual acceptance pending | 9 |
+| Interaction polish | 8.5 | Selected-action progress and serial decisions; actual device feel remains untested | 9 |
+| Dark and light quality | 8.5 | Mobile theme fixtures reviewed; admin evidence is current light-theme only | 9 |
+| Cross screen consistency | 8.5 | Six additional Resident screens plus existing feature and Admin evidence; not every app route | 9 |
+
+The eight scored dimensions average **8.4/10** for the reviewed sample. This is a transparent reviewer estimate, not a measured whole-product score, competitor ranking or 9/10 acceptance. The original complete-product baseline remains unscored because current evidence does not cover the entire application.
 
 Brand-token deviation, unapproved functional changes and known functional regressions must all be zero. The complete initiative remains open until its evidence gates are satisfied; passing widget tests alone does not certify professional quality, real-device performance or screen-reader behavior.
+
+## Remaining acceptance work
+
+- Run physical lower-end Android, TalkBack, voice and intermittent-connectivity acceptance; widget fixtures do not model device behavior.
+- Review long multilingual strings with real fonts and complete operational/partner/Guard journeys.
+- Establish admin dark-theme coverage across legacy routes before claiming product-wide dark/light consistency. This slice does not invent a theme switch or force partial dark styling over hardcoded legacy surfaces.
+- Extend screenshot review to deeper forms, detail sheets, loading, offline, denied, expired and concurrent states. Existing automated recovery tests are retained, but are not visual evidence for every state.
+- Obtain independent task-based resident/senior/guard/operator feedback, remedy findings, then reassess the 9/10 target. No elapsed-time, tap-efficiency or commercial competitor score is invented.
