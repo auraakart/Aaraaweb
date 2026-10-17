@@ -3,7 +3,6 @@ import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/screens/emergency_contacts_screen.dart';
 import 'package:aaraagate_resident/screens/vehicles_screen.dart';
-import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
