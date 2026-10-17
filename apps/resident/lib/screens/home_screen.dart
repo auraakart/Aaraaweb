@@ -125,7 +125,6 @@ class HomeScreen extends StatelessWidget {
             if (hasQuickActions) ...[
               const PremiumSectionHeader(
                 title: 'Quick actions',
-                supportingText: 'Your most common home tasks.',
               ),
               const SizedBox(height: AaraagateTokens.space3),
               LayoutBuilder(
@@ -219,6 +218,7 @@ class HomeScreen extends StatelessWidget {
                 )
               else if (showGate && pending != null)
                 _PendingAccessCard(
+                  key: ValueKey(pending['id']),
                   pending: pending,
                   onDeny: () async {
                     await controller.denyAccess(pending['id'].toString());
@@ -413,40 +413,30 @@ class _AssistantEntryCard extends StatelessWidget {
     return PremiumSurface(
       onTap: onTap,
       semanticLabel: 'Open Aaraagate Assistant',
-      elevated: true,
-      color: scheme.primaryContainer.withValues(alpha: .34),
+      color: scheme.surfaceContainerLow,
       padding: const EdgeInsets.all(AaraagateTokens.space4),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: scheme.primary,
-              borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+              ),
+              child: Icon(Icons.auto_awesome_rounded, color: scheme.onPrimary),
             ),
-            child: Icon(Icons.auto_awesome_rounded, color: scheme.onPrimary),
-          ),
-          const SizedBox(width: AaraagateTokens.space4),
+            const SizedBox(width: AaraagateTokens.space4),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'AARAAGATE ASSISTANT',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: .7,
-                  ),
-                ),
-                const SizedBox(height: AaraagateTokens.space1),
                 Text('Ask Aaraagate Assistant', style: theme.textTheme.titleMedium),
                 const SizedBox(height: AaraagateTokens.space1),
                 Text(
                   summary,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ],
@@ -462,6 +452,7 @@ class _AssistantEntryCard extends StatelessWidget {
 
 class _PendingAccessCard extends StatefulWidget {
   const _PendingAccessCard({
+    super.key,
     required this.pending,
     required this.onDeny,
     required this.onAllow,
@@ -477,12 +468,14 @@ class _PendingAccessCard extends StatefulWidget {
 
 class _PendingAccessCardState extends State<_PendingAccessCard> {
   bool _busy = false;
+  String? _pendingAction;
   String? _error;
 
-  Future<void> _submit(Future<void> Function() action) async {
+  Future<void> _submit(String decision, Future<void> Function() action) async {
     if (_busy) return;
     setState(() {
       _busy = true;
+      _pendingAction = decision;
       _error = null;
     });
     try {
@@ -514,35 +507,11 @@ class _PendingAccessCardState extends State<_PendingAccessCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: AaraagateTokens.iconContainer,
-                  height: AaraagateTokens.iconContainer,
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-                  ),
-                  child: Icon(Icons.person_pin_circle_outlined, color: scheme.onPrimaryContainer),
-                ),
-                const SizedBox(width: AaraagateTokens.space4),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: theme.textTheme.titleMedium),
-                      const SizedBox(height: AaraagateTokens.space1),
-                      Text(
-                        purpose == null || purpose.isEmpty ? type : '$type · $purpose',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                const AaraagateStatusPill(label: 'Waiting', tone: AaraagateStatusTone.info),
-              ],
+            PremiumIdentityHeader(
+              icon: Icons.person_pin_circle_outlined,
+              title: name,
+              supportingText: purpose == null || purpose.isEmpty ? type : '$type · $purpose',
+              status: const AaraagateStatusPill(label: 'Waiting', tone: AaraagateStatusTone.info),
             ),
             if (_error != null) ...[
               const SizedBox(height: AaraagateTokens.space3),
@@ -552,29 +521,19 @@ class _PendingAccessCardState extends State<_PendingAccessCard> {
               ),
             ],
             const SizedBox(height: AaraagateTokens.space5),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _busy ? null : () => _submit(widget.onDeny),
-                    child: const Text('Deny'),
-                  ),
+            PremiumActionGroup(
+              inlineMinWidth: 300,
+              primary: FilledButton(
+                onPressed: _busy ? null : () => _submit('allow', widget.onAllow),
+                child: PremiumActionLabel(
+                  label: 'Allow', icon: Icons.check_rounded,
+                  busy: _busy && _pendingAction == 'allow',
                 ),
-                const SizedBox(width: AaraagateTokens.space3),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _busy ? null : () => _submit(widget.onAllow),
-                    icon: _busy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check_rounded),
-                    label: Text(_busy ? 'Updating…' : 'Allow'),
-                  ),
-                ),
-              ],
+              ),
+              secondary: OutlinedButton(
+                onPressed: _busy ? null : () => _submit('deny', widget.onDeny),
+                child: PremiumActionLabel(label: 'Deny', busy: _busy && _pendingAction == 'deny'),
+              ),
             ),
           ],
         ),
@@ -638,9 +597,7 @@ class _CommunityPreview extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 if (body.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -688,7 +645,7 @@ class _HomeSummaryRow extends StatelessWidget {
       onTap: onTap,
       semanticLabel: '$urgencyLabel. $title. $subtitle. $actionLabel',
       color: scheme.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space3),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Row(
@@ -707,38 +664,25 @@ class _HomeSummaryRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      AaraagateStatusPill(
-                        label: urgencyLabel,
-                        tone: urgency == ResidentHomeUrgency.immediate ? AaraagateStatusTone.danger : urgency == ResidentHomeUrgency.soon ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral,
-                      ),
-                    ],
+                  PremiumSectionHeader(
+                    title: title,
+                    trailing: AaraagateStatusPill(
+                      label: urgencyLabel,
+                      tone: urgency == ResidentHomeUrgency.immediate ? AaraagateStatusTone.danger : urgency == ResidentHomeUrgency.soon ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral,
+                    ),
                   ),
                   const SizedBox(height: AaraagateTokens.space1),
                   Text(
                     subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
+                  const SizedBox(height: AaraagateTokens.space2),
+                  Text(actionLabel, style: theme.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
                 ],
               ),
             ),
             const SizedBox(width: AaraagateTokens.space2),
-            Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.end,children:[
-              Text(actionLabel,style:theme.textTheme.labelSmall?.copyWith(color:scheme.primary,fontWeight:FontWeight.w800)),
-              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-            ]),
+            Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
           ],
         ),
       ),

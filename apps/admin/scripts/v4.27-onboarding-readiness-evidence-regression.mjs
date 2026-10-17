@@ -23,10 +23,10 @@ if(checksum!==expectedChecksum)throw new Error(`Representative migration fixture
 const onboarding=fs.readFileSync(new URL('../app/onboarding/page.tsx',import.meta.url),'utf8');
 for(const fragment of [
   '/onboarding/readiness',
-  'No duplicate configuration store is introduced',
+  'Review setup checks',
   'step.blockers',
   'step.nextActions',
-  'Productionization claimed',
+  'Setup checks do not establish field or production acceptance',
 ]) if(!onboarding.includes(fragment))throw new Error(`Missing onboarding authority/readiness contract: ${fragment}`);
 
 for(const stale of [

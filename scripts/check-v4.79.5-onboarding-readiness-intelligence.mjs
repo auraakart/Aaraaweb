@@ -39,7 +39,7 @@ must('Admin server-plan consumption',admin,[
   'step.blockers',
   'step.nextActions',
   'plan?.boundary',
-  "Productionization claimed: {plan?.productionizationClaim?'Yes':'No'}",
+  "result.productionizationClaim!==false",'Setup checks do not establish field or production acceptance' ,
 ]);
 
 for(const forbidden of [

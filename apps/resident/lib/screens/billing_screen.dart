@@ -721,13 +721,13 @@ class _InvoiceCard extends StatelessWidget {
     return PremiumSurface(
       color: scheme.surface,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text('${invoice['buildingName'] ?? 'Building'} · ${invoice['unitNumber'] ?? 'Unit'}', style: theme.textTheme.titleSmall)),
-          AaraagateStatusPill(
+        PremiumSectionHeader(
+          title: '${invoice['buildingName'] ?? 'Building'} · ${invoice['unitNumber'] ?? 'Unit'}',
+          trailing: AaraagateStatusPill(
             label: overdue ? 'OVERDUE' : 'DUE',
             tone: overdue ? AaraagateStatusTone.danger : AaraagateStatusTone.warning,
           ),
-        ]),
+        ),
         const SizedBox(height: AaraagateTokens.space2),
         Text(_money((invoice['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.headlineSmall),
         const SizedBox(height: AaraagateTokens.space1),
@@ -739,10 +739,13 @@ class _InvoiceCard extends StatelessWidget {
         const SizedBox(height: AaraagateTokens.space4),
         SizedBox(
           width: double.infinity,
-          child: FilledButton.icon(
+          child: FilledButton(
             onPressed: busy ? null : onPay,
-            icon: Icon(busy ? Icons.hourglass_top_rounded : Icons.lock_outline_rounded),
-            label: Text(busy ? 'Preparing payment…' : 'Pay securely'),
+            child: PremiumActionLabel(
+              label: busy ? 'Preparing payment…' : 'Pay securely',
+              icon: Icons.lock_outline_rounded,
+              busy: busy,
+            ),
           ),
         ),
       ]),
@@ -772,10 +775,10 @@ class _PaymentRecoveryCard extends StatelessWidget {
         Icon(failed ? Icons.error_outline_rounded : Icons.schedule_rounded, color: failed ? scheme.error : scheme.primary),
         const SizedBox(width: AaraagateTokens.space3),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.titleSmall)),
-            AaraagateStatusPill(label: status, tone: failed ? AaraagateStatusTone.danger : AaraagateStatusTone.warning),
-          ]),
+          PremiumSectionHeader(
+            title: _money((payment['amountPaise'] as num?)?.toInt() ?? 0),
+            trailing: AaraagateStatusPill(label: status, tone: failed ? AaraagateStatusTone.danger : AaraagateStatusTone.warning),
+          ),
           const SizedBox(height: AaraagateTokens.space1),
           Text(message, style: theme.textTheme.bodySmall?.copyWith(color: failed ? scheme.onErrorContainer : scheme.onSurfaceVariant)),
         ])),
@@ -791,19 +794,24 @@ class _PaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return PremiumSurface(
+      onTap: onReceipt,
+      semanticLabel: 'Receipt for invoice ${payment['invoiceNumber'] ?? ''}',
       color: scheme.surfaceContainerLow,
-      padding: EdgeInsets.zero,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space1),
-        leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)), child: Icon(Icons.check_rounded, color: scheme.onPrimaryContainer)),
-        title: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.titleSmall),
-        subtitle: Text('${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}'),
-        isThreeLine: true,
-        trailing: TextButton(onPressed: onReceipt, child: const Text('Receipt')),
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        PremiumIdentityHeader(
+          icon: Icons.receipt_long_outlined,
+          title: _money((payment['amountPaise'] as num?)?.toInt() ?? 0),
+          supportingText: '${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}',
+        ),
+        const SizedBox(height: AaraagateTokens.space3),
+        Row(children: [
+          Text('Receipt', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurface)),
+          const SizedBox(width: AaraagateTokens.space1),
+          Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+        ]),
+      ]),
     );
   }
 }

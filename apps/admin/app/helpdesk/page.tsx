@@ -312,4 +312,4 @@ const ticketButton:React.CSSProperties={display:'grid',gap:6,width:'100%',textAl
 const selectedStyle:React.CSSProperties={background:'var(--neutral-soft, #eef6f7)',borderColor:'var(--brand, #05879a)',boxShadow:'inset 3px 0 0 var(--brand, #05879a)'}
 const row:React.CSSProperties={display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}
 const formGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,260px),1fr))',gap:16,alignItems:'start'}
-const formCard:React.CSSProperties={display:'grid',gap:12,padding:16,border:'1px solid var(--line, #d5e8eb)',borderRadius:12,background:'var(--neutral-soft, #eef6f7)',minWidth:0}
+const formCard:React.CSSProperties={display:'grid',gap:12,padding:'16px 0',borderTop:'1px solid var(--line, #d5e8eb)',minWidth:0}

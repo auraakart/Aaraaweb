@@ -19,9 +19,10 @@ export function residentAnswer(question: string, facts: ResidentRecords, mayView
   const serviceBookings=facts.serviceBookings ?? [];
   const tidy=(value:unknown,maximum=100)=>String(value ?? '').replace(/\s+/g,' ').trim().slice(0,maximum);
   const amount=(paise:unknown)=>{
+    if(typeof paise!=='number'&&(typeof paise!=='string'||!/^\d+$/.test(paise)))return 'amount unavailable';
     const numeric=Number(paise);
-    return Number.isFinite(numeric) && numeric>=0
-      ? '₹'+(numeric/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})
+    return Number.isSafeInteger(numeric) && numeric>=0
+      ? '₹'+Math.floor(numeric/100).toLocaleString('en-IN')+'.'+String(numeric%100).padStart(2,'0')
       : 'amount unavailable';
   };
   // "Maintenance payment due" is a dues request, not a request for the payer's
@@ -34,7 +35,7 @@ export function residentAnswer(question: string, facts: ResidentRecords, mayView
     return 'Your latest recorded payment transaction is '+amount(latest.amountPaise)
       +' with status '+tidy(latest.status)+'. A pending transaction does not prove settlement. Open Billing to verify its receipt.';
   }
-  if(/\b(dues?|maintenance|invoices?|bills?|payment)\b/.test(question)){
+  if(/\b(dues?|maintenance|invoices?|bills?|billing|payments?)\b/.test(question)){
     if(!mayViewPayables) return 'Your current property role is not permitted to view maintenance invoices.';
     if(!invoices.length) return 'No eligible maintenance invoices were found for the selected property.';
     const selected=invoices.find(item=>!['PAID','CANCELLED','VOID'].includes(tidy(item.status))) ?? invoices[0];

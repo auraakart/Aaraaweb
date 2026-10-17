@@ -286,7 +286,7 @@ jobs:
       - name: Test version-aware TEST APK certificate report parser
         run: node --test scripts/v5-test-apksigner-report.test.mjs
       - name: Verify cross-role TEST artifact evidence invariants
-        run: node --test scripts/v5-test-build-matrix-evidence.test.mjs
+        run: node --test scripts/v5-test-build-matrix-evidence.test.mjs scripts/v5-test-android-toolchain.test.mjs
       - name: Scan tracked source for high-confidence secret patterns
         run: node scripts/check-secret-patterns.mjs
       - name: Check cross-role source contract

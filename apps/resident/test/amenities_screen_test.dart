@@ -442,6 +442,9 @@ void main() {
     expect(api.depositCalls,1);
     expect(find.text('Deposit payment order outcome could not be confirmed. Retry safely; the same request identity will be reused. The deposit remains unpaid until gateway confirmation.'),findsOneWidget);
 
+    // Dismiss the visible recovery message before using the underlying action.
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Pay deposit'));
     await tester.pumpAndSettle();
 

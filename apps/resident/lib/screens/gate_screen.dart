@@ -60,6 +60,7 @@ class GateScreen extends StatelessWidget {
               const SizedBox(height: AaraagateTokens.space3),
               for (final request in pending) ...[
                 _AccessCard(
+                  key: ValueKey(request['id']),
                   request: request,
                   strings: strings,
                   prominent: true,
@@ -81,6 +82,7 @@ class GateScreen extends StatelessWidget {
             else
               for (final request in requests.where((e) => e['status'] != 'PENDING')) ...[
                 _AccessCard(
+                  key: ValueKey(request['id']),
                   request: request,
                   strings: strings,
                   onCancel: request['status'] == 'APPROVED' && request['subjectType'] == 'VISITOR' ? () => _cancel(context, request) : null,
@@ -246,7 +248,7 @@ class GateScreen extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: () async {
                     final message = VisitorPassShareMessage.build(visitorName: visitor, credential: credential, validUntil: validUntil);
-                    await Share.share(message, subject: 'Aaraagate visitor pass for $visitor');
+                    await SharePlus.instance.share(ShareParams(text: message, subject: 'Aaraagate visitor pass for $visitor'));
                   },
                   icon: const Icon(Icons.share_outlined),
                   label: Text(strings.text('sharePass')),
@@ -411,7 +413,7 @@ class _Metric extends StatelessWidget {
 }
 
 class _AccessCard extends StatefulWidget {
-  const _AccessCard({required this.request, required this.strings, this.onApprove, this.onDeny, this.onCancel, this.prominent = false});
+  const _AccessCard({super.key, required this.request, required this.strings, this.onApprove, this.onDeny, this.onCancel, this.prominent = false});
   final Map<String, dynamic> request;
   final AaraagateStrings strings;
   final Future<void> Function()? onApprove;
@@ -425,6 +427,7 @@ class _AccessCard extends StatefulWidget {
 
 class _AccessCardState extends State<_AccessCard> {
   bool _busy = false;
+  String? _pendingAction;
 
   Future<void> _run(Future<void> Function() action) async {
     if (_busy) return;
@@ -432,7 +435,7 @@ class _AccessCardState extends State<_AccessCard> {
     try {
       await action();
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() { _busy = false; _pendingAction = null; });
     }
   }
 
@@ -504,25 +507,26 @@ class _AccessCardState extends State<_AccessCard> {
                 final deny = widget.onDeny == null
                     ? null
                     : OutlinedButton(
-                        onPressed: _busy ? null : () => _run(widget.onDeny!),
-                        child: Text(strings.text('deny')),
+                        onPressed: _busy ? null : () { _pendingAction = 'deny'; _run(widget.onDeny!); },
+                        child: PremiumActionLabel(label: strings.text('deny'), busy: _busy && _pendingAction == 'deny'),
                       );
                 final approve = widget.onApprove == null
                     ? null
                     : FilledButton(
-                        onPressed: _busy ? null : () => _run(widget.onApprove!),
-                        child: _busy
-                            ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary))
-                            : Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
+                        onPressed: _busy ? null : () { _pendingAction = 'approve'; _run(widget.onApprove!); },
+                        child: PremiumActionLabel(
+                          label: rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow'),
+                          busy: _busy && _pendingAction == 'approve',
+                        ),
                       );
                 final cancel = widget.onCancel == null
                     ? null
-                    : OutlinedButton.icon(
-                        onPressed: _busy ? null : () => _run(widget.onCancel!),
-                        icon: _busy
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.close_rounded),
-                        label: Text(strings.text('cancelPass')),
+                    : OutlinedButton(
+                        onPressed: _busy ? null : () { _pendingAction = 'cancel'; _run(widget.onCancel!); },
+                        child: PremiumActionLabel(
+                          label: strings.text('cancelPass'), icon: Icons.close_rounded,
+                          busy: _busy && _pendingAction == 'cancel',
+                        ),
                       );
                 if (constraints.maxWidth < 300 || scale > 1.1) {
                   return Column(

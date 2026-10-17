@@ -125,7 +125,27 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     }
   }
 
-  Future<void> _syncQueue() async {
+  Future<void>? _syncInFlight;
+
+  // One replay at a time, even when searches/refreshes overlap.
+  Future<void> _syncQueue() => _syncInFlight ??=
+      _syncQueueOnce().whenComplete(() { _syncInFlight = null; });
+
+  bool Function() _sessionCheck() {
+    final controller = widget.controller;
+    final session = controller.session;
+    final gateId = controller.gateId;
+    final token = controller.api.accessToken;
+    return () => mounted && session != null &&
+        identical(widget.controller, controller) &&
+        controller.session?.sessionId == session.sessionId &&
+        controller.session?.societyId == session.societyId &&
+        controller.session?.userId == session.userId &&
+        controller.gateId == gateId && controller.api.accessToken == token;
+  }
+
+  Future<void> _syncQueueOnce() async {
+    final current = _sessionCheck();
     final session = widget.controller.session;
     if (session == null) {
       if (mounted) {
@@ -138,6 +158,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
       return;
     }
     final all = await _queue.read();
+    if (!current()) return;
     final pending = all.where((action) => action.belongsTo(societyId: session.societyId, guardUserId: session.userId)).toList(growable: false);
     final otherSessions = all.where((action) => !action.belongsTo(societyId: session.societyId, guardUserId: session.userId)).toList(growable: false);
     if (pending.isEmpty) {
@@ -155,6 +176,9 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     var synced = 0;
     var deferred = 0;
     for (var index = 0; index < pending.length; index++) {
+      // Keep original retry identities intact when a guard/gate changes.
+      // A later explicit sync may reconcile them under their rightful owner.
+      if (!current()) return;
       var action = pending[index];
       if (action.reviewRequired) {
         remaining.add(action);
@@ -186,8 +210,9 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
       }
     }
     // Preserve unrelated guard/society queues, including records requiring review.
+    if (!current()) return;
     await _queue.replace([...otherSessions, ...remaining]);
-    if (!mounted || widget.controller.session?.sessionId != session.sessionId) return;
+    if (!current()) return;
     final reviewCount = remaining.where((action) => action.reviewRequired).length;
     setState(() {
       _queued = remaining.length;
@@ -204,6 +229,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
 
   Future<void> _retrySync() async {
     if (_busy || _queued <= _reviewRequired) return;
+    final current = _sessionCheck();
     setState(() {
       _busy = true;
       _error = null;
@@ -211,9 +237,9 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     try {
       await _syncQueue();
     } on GuardApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (current()) setState(() => _error = e.message);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
@@ -224,6 +250,8 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   }
 
   Future<void> _mutate(GuardWorkforceAssignment assignment, String type) async {
+    if (_busy) return;
+    final current = _sessionCheck();
     final gateId = widget.controller.gateId;
     final assignmentId = assignment.id;
     if (gateId == null || assignmentId.isEmpty) return;
@@ -243,12 +271,12 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
       } else {
         await widget.controller.api.workforceCheckOut(gateId: gateId, assignmentId: assignmentId, idempotencyKey: key);
       }
-      if (!mounted) return;
+      if (!current()) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(type == 'CHECK_IN' ? 'Worker checked in' : 'Worker checked out')));
       await _load();
     } on GuardApiException catch (e) {
       if (!e.transport) {
-        if (mounted) setState(() => _error = e.message);
+        if (current()) setState(() => _error = e.message);
         return;
       }
       await _queue.enqueue(QueuedWorkforceAction(
@@ -261,18 +289,19 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
         guardUserId: session.userId,
       ));
       final count = (await _queue.read()).where((action) => action.belongsTo(societyId: session.societyId, guardUserId: session.userId)).length;
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _queued = count;
         _syncMessage = 'Attendance pending. Refresh to retry safely when connectivity returns.';
       });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network unavailable. Attendance is pending secure reconciliation.')));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
   Future<void> _mutateSociety(GuardSocietyWorker worker) async {
+    final current = _sessionCheck();
     final gateId = widget.controller.gateId;
     if (gateId == null || worker.id.isEmpty || _busy) return;
     final key = _idempotencyKey();
@@ -294,15 +323,15 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
           idempotencyKey: key,
         );
       }
-      if (!mounted) return;
+      if (!current()) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(worker.present ? 'Society worker checked out' : 'Society worker checked in')),
       );
       await _load();
     } on GuardApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (current()) setState(() => _error = e.message);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
