@@ -8,12 +8,11 @@ import { currentAdminSession, sameAdminContext } from '../../lib/admin-session-c
 import { parseMigrationCsv as parseCsv } from '../../lib/migration-csv'
 import { parseXlsx } from './xlsx'
 import type { SpreadsheetRow } from './xlsx'
+import {readMigrationPreview,readMigrationBatch,type MigrationEntity,type MigrationPreview} from '../../lib/adoption-response'
 
 export type MigrationSession=Session
-type Entity='BUILDING'|'UNIT'|'RESIDENT'|'VEHICLE'|'PARKING'|'WORKFORCE'|'VENDOR'|'OPENING_BALANCE'
-type Issue={row:number;field?:string;code:string;message:string}
-type Preview={entityType:Entity;totalRows:number;validRows:number;invalidRows:number;duplicateRows:number;normalizedRows:Record<string,string>[];issues:Issue[]}
-type Batch={id:string;status:string;entityType:string;checksum:string;idempotentReplay?:boolean}
+type Entity=MigrationEntity
+type Preview=MigrationPreview&{sourceRows:string[]}
 
 const entities:Entity[]=['BUILDING','UNIT','RESIDENT','VEHICLE','PARKING','WORKFORCE','VENDOR','OPENING_BALANCE']
 
@@ -55,17 +54,19 @@ export function MigrationImportStager({session,onBatchCreated}:{session:Migratio
   }
   async function previewRows(){
     const request=begin();if(request===null)return
-    try{const parsed=currentRows();const result=await api<Preview>('/migration/preview',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed})},session)
+    try{const parsed=currentRows();const raw=await api<unknown>('/migration/preview',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed})},session)
       if(!current(request))return
-      setPreview(result);setFeedback(result.invalidRows===0?'Preview is clean and ready for a dry-run batch.':'Preview completed with row-level issues.')
+      const result=readMigrationPreview(raw,entity,parsed.length)
+      setPreview({...result,sourceRows:parsed.map(row=>row.__source_row)});setFeedback(result.invalidRows===0?'Preview is clean and ready for a dry-run batch.':'Preview completed with row-level issues.')
     }catch(e){if(current(request))setError(e instanceof Error?e.message:'Migration preview failed')}finally{finish(request)}
   }
   async function createBatch(){
     if(!canPersist)return
     const request=begin();if(request===null)return
-    try{const parsed=currentRows();const batch=await api<Batch>('/migration/batches',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed,sourceLabel:sourceLabel.trim()||undefined})},session)
+    try{const parsed=currentRows();const raw=await api<unknown>('/migration/batches',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed,sourceLabel:sourceLabel.trim()||undefined})},session)
       if(!current(request))return
-      setFeedback(batch.idempotentReplay?'Matching dry-run batch already exists; reused safely.':'Dry-run migration batch created.');onBatchCreated()
+      const batch=readMigrationBatch(raw,entity)
+      setFeedback(batch.idempotentReplay?`Matching batch found (${batch.status.replaceAll('_',' ')}). Review its recorded state before continuing.`:'Dry-run migration batch created.');onBatchCreated()
     }catch(e){if(current(request))setError(e instanceof Error?e.message:'Dry-run batch could not be created')}finally{finish(request)}
   }
   async function chooseFile(event:ChangeEvent<HTMLInputElement>){
@@ -94,7 +95,7 @@ export function MigrationImportStager({session,onBatchCreated}:{session:Migratio
       {error&&<ErrorState title="Import staging needs attention" description={error}/>}
       {preview&&<section aria-label="Migration preview result" style={{display:'grid',gap:10}}>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><StatusPill label={preview.invalidRows===0?'READY':'NEEDS ATTENTION'} tone={preview.invalidRows===0?'success':'warning'}/><span>{preview.validRows}/{preview.totalRows} valid · {preview.duplicateRows} duplicates</span></div>
-        {preview.issues.length>0&&<div style={{display:'grid',gap:8}}>{preview.issues.slice(0,100).map((issue,index)=><article key={index} style={{border:'1px solid #e5e7eb',borderRadius:10,padding:10}}><strong>Row {issue.row}{issue.field?' · '+issue.field:''}</strong><div>{issue.code.replaceAll('_',' ')} · {issue.message}</div></article>)}</div>}
+        {preview.issues.length>0&&<div style={{display:'grid',gap:8}}>{preview.issues.slice(0,100).map((issue,index)=><article key={index} style={{border:'1px solid #e5e7eb',borderRadius:10,padding:10}}><strong>Source row {preview.sourceRows[issue.row-1]}{issue.field?' · '+issue.field:''}</strong><div>{issue.code.replaceAll('_',' ')} · {issue.message}</div></article>)}</div>}
         {preview.issues.length>100&&<small>Showing first 100 of {preview.issues.length} issues.</small>}
       </section>}
       <small>XLSX is parsed locally in the browser and only canonical row data is sent to the existing migration preview API. The first worksheet is used; preview remains non-mutating. Use values only; convert formulas to values and correct ambiguous columns before preview.</small>
