@@ -4,6 +4,7 @@ import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/gate_screen.dart';
+import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -287,6 +288,10 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Deny'),
     );
     expect(denyButton.onPressed, isNull);
+    // Pending feedback belongs to Deny, never to the opposite Allow action.
+    final labels = tester.widgetList<PremiumActionLabel>(find.byType(PremiumActionLabel));
+    expect(labels.singleWhere((item) => item.label == 'Deny').busy, isTrue);
+    expect(labels.singleWhere((item) => item.label == 'Allow entry').busy, isFalse);
 
     await tester.tap(find.text('Deny'));
     await tester.pump();
