@@ -56,7 +56,7 @@ Future<void> _loadSdkFonts() async {
   for (var level = 0; level < 8; level++) {
     final directory = Directory('${root.path}/bin/cache/artifacts/material_fonts');
     if (directory.existsSync()) {
-      for (final entry in [('Roboto', 'Roboto-Regular.ttf'), ('Ahem', 'Roboto-Regular.ttf'), ('MaterialIcons', 'MaterialIcons-Regular.otf')]) {
+      for (final entry in [('Roboto', 'Roboto-Regular.ttf'), ('MaterialIcons', 'MaterialIcons-Regular.otf')]) {
         final file = File('${directory.path}/${entry.$2}');
         if (file.existsSync()) {
           final loader = FontLoader(entry.$1)..addFont(file.readAsBytes().then(ByteData.sublistView));
@@ -67,6 +67,21 @@ Future<void> _loadSdkFonts() async {
     }
     root = root.parent;
   }
+}
+
+// Unspecified button font families use FlutterTest blocks in a widget test.
+// Supply the native Android family for captures, preserving every style value.
+ThemeData _captureTheme(bool dark) {
+  final theme = dark ? AaraagateTheme.dark() : AaraagateTheme.light();
+  ButtonStyle font(ButtonStyle style) => style.copyWith(
+    textStyle: WidgetStateProperty.resolveWith((states) =>
+      (style.textStyle?.resolve(states) ?? theme.textTheme.labelLarge!).copyWith(fontFamily: 'Roboto')),
+  );
+  return theme.copyWith(
+    filledButtonTheme: FilledButtonThemeData(style: font(theme.filledButtonTheme.style!)),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: font(theme.outlinedButtonTheme.style!)),
+    textButtonTheme: TextButtonThemeData(style: font(theme.textButtonTheme.style!)),
+  );
 }
 
 Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
@@ -117,7 +132,7 @@ void main() {
             key: boundary,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: dark ? AaraagateTheme.dark() : AaraagateTheme.light(),
+              theme: _captureTheme(dark),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: TextScaler.linear(compact ? 2 : 1), disableAnimations: true,
