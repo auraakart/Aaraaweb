@@ -29,7 +29,13 @@ Future<ResidentDataController> _controller() async {
   final controller = ResidentDataController(repository, activeUnitId: 'demo-unit-1', fetchEntitlements: false)
     ..households = await repository.households()
     ..workforceAssignments = await repository.workforce()
-    ..serviceOfferings = await repository.serviceOfferings()
+    ..serviceCategories = await repository.serviceCategories()
+    ..serviceOfferings = [
+      {'id': 'offering-one', 'categoryId': 'demo-category-1', 'name': 'Air conditioner servicing',
+        'description': 'Inspection and cleaning for your home air conditioner.', 'pricePaise': 149900,
+        'provider': {'businessName': 'Community appliance specialists', 'ratingAverage': 4.6, 'ratingCount': 24},
+        'category': {'id': 'demo-category-1', 'name': 'Home maintenance'}},
+    ]
     ..notices = await repository.notices()
     ..helpdeskTickets = await repository.helpdeskTickets()
     ..accessRequests = [
@@ -107,6 +113,7 @@ void main() {
             for (final label in ['ADD LEAVE', 'RATE', 'VIEW ATTENDANCE', 'PAYMENTS']) {
               await tester.scrollUntilVisible(find.text(label).first, 240, scrollable: find.byType(Scrollable).first);
               await tester.ensureVisible(find.text(label).first);
+              await tester.pumpAndSettle();
               expect(find.text(label).first.hitTestable(), findsOneWidget);
               expect(tester.takeException(), isNull);
             }
@@ -165,6 +172,7 @@ void main() {
         await tester.scrollUntilVisible(target, 240, scrollable: find.byType(Scrollable).first);
       }
       await tester.ensureVisible(target);
+      await tester.pumpAndSettle();
       await tester.tap(target);
       await tester.pumpAndSettle();
       final submit = find.text(switch (sheet) { 'ADD LEAVE' => 'SAVE LEAVE', 'RATE' => 'SAVE RATING', _ => 'SUBMIT FOR REVIEW' });

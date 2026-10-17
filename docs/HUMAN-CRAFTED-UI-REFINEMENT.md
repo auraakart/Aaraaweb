@@ -68,13 +68,27 @@ Reuse 120/220ms motion and reduced-motion handling. Pending labels remain visibl
 - `apps/resident/test/resident_premium_visual_test.dart`: use the shared helper; retain existing Gate/Billing/Amenities/Notice assertions and captures.
 - `apps/resident/test/resident_craft_visual_test.dart`: six-screen layout/capture matrix, original quick-action destinations, Home denial progress and single-flight feedback, compact keyboard form reachability.
 
+### Rendered review corrections
+
+The first protected Flutter execution produced 63 PNGs and passed 52 changed tests with four failures. These failures were Staff hit-test assertions before the scrolled viewport had been repainted; the test now waits for layout after scrolling, without suppressing hit-test warnings or dropping assertions. No RenderFlex exception was reported in this matrix. It is still a failed run and is not a merge gate pass.
+
+Actual Home, Staff, Helpdesk, Services, Community and Profile screenshots were inspected. At 320px/200%, decorative page icons squeezed long heading words into narrow columns. Page and identity headers now give that space back to essential text at accessibility sizes. Community tiles also truncated request context while reserving a trailing action column; they now wrap content and place the same action below it on phone/large-type layouts. Insta Services uses the existing adaptive section header for its identity/status pair. Price labels use onSurface for small-text contrast. These are screen-specific changes driven by rendered evidence.
+
+Short Home gate decisions may share a row at 300px content width, matching the established Gate pattern. Staff uses equal supporting actions at that width; large text always stacks. Other action groups retain the 360px default. This documented exception avoids unnecessarily tall phone cards while keeping long labels readable.
+
+The capture helper now supplies the SDK Roboto family to Chip styles as well as buttons. The first Staff capture exposed Ahem test-font blocks in chip labels; that image cannot establish label quality. No production font or chip style is changed. The populated Services fixture now supplies provider/category contract fields; the first capture showed the empty state because older demo offerings lacked the typed model's required provider object.
+
+Admin Helpdesk's prior rendered queue/detail layout was inspected at 1440px. Routine forms used the same tinted rounded treatment as readiness summaries. Forms now use spacing and a top divider, retaining readiness tint for its distinct purpose. Existing navigation/action/notice hover treatments stop moving controls; reduced-motion preferences cover those legacy surfaces and the management drawer. Metric, notice and action shadows are removed, and legacy amount columns use tabular numerals. No controls, forms, filters, evidence or operational destinations are removed.
+
+Additional modified files: `apps/resident/lib/screens/community_screen.dart`, `apps/resident/lib/screens/services_screen.dart`, `apps/admin/app/helpdesk/page.tsx`, `apps/admin/app/admin-shell.css`, `apps/admin/app/property-workspace.css`, and `apps/admin/tests/admin-ui/contracts.spec.mjs`.
+
 ### Validation status
 
 Local stable domain invariants: 44/44 pass. Maintainability, release identity and hygiene checks pass. `git diff --check` passes. Flutter is unavailable in the local runtime; attempts to retrieve the pinned SDK returned 404. No SDK or dependency constraints were lowered. Flutter execution and actual screenshots must come from the existing protected CI runner. Pending CI checks are not credited as passes.
 
 ### Quality scorecard and acceptance limits
 
-The original whole-product score is **not established**: the available rendered baseline covers four resident feature screens, while operational, accessibility and human usability evidence is incomplete. Source findings above identify specific review failures; they do not establish a measured whole-product score.
+The original whole-product score is **not established**: the available rendered baseline covers four resident feature screens, while operational, accessibility and human usability evidence is incomplete. Source and rendered findings above identify specific review failures; they do not establish a measured whole-product score.
 
 For each dimension use a 0–10 rubric: 0–2 blocks core use; 3–4 major defects; 5–6 usable with recurring friction; 7–8 coherent with remaining polish/coverage gaps; 9 professionally reviewed across required states with no known blockers; 10 exceptionally resolved with independent usability corroboration. Record evidence and coverage beside every score. Never average away a functional, brand, permission or accessibility blocker.
 

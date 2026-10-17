@@ -381,7 +381,42 @@ class _CommunityShortcutBar extends StatelessWidget {
   }
 }
 
-class _Tile extends StatelessWidget{
-  const _Tile({required this.icon,required this.title,required this.subtitle,this.actionLabel,this.onAction});final IconData icon;final String title,subtitle;final String? actionLabel;final VoidCallback? onAction;
-  @override Widget build(BuildContext context){final theme=Theme.of(context),scheme=theme.colorScheme;return ListTile(minTileHeight:AaraagateTokens.minTouchTarget,contentPadding:const EdgeInsets.symmetric(horizontal:AaraagateTokens.space4,vertical:AaraagateTokens.space2),leading:Container(width:AaraagateTokens.iconContainer,height:AaraagateTokens.iconContainer,alignment:Alignment.center,decoration:BoxDecoration(color:scheme.surfaceContainerHighest,borderRadius:BorderRadius.circular(AaraagateTokens.radiusSmall)),child:Icon(icon,color:scheme.primary)),title:Text(title,maxLines:2,overflow:TextOverflow.ellipsis,style:theme.textTheme.titleSmall?.copyWith(fontWeight:FontWeight.w700)),subtitle:Text(subtitle,maxLines:3,overflow:TextOverflow.ellipsis),trailing:onAction==null?null:TextButton(onPressed:onAction,child:Text(actionLabel??'Open')));}
+class _Tile extends StatelessWidget {
+  const _Tile({required this.icon, required this.title, required this.subtitle, this.actionLabel, this.onAction});
+  final IconData icon;
+  final String title, subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space3),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+        final stacked = constraints.maxWidth < 360 || largeText;
+        final action = onAction == null ? null : TextButton(onPressed: onAction, child: Text(actionLabel ?? 'Open'));
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (!largeText) ...[
+            Icon(icon, color: theme.colorScheme.primary),
+            const SizedBox(width: AaraagateTokens.space3),
+          ],
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: AaraagateTokens.space1),
+            Text(subtitle, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            if (stacked && action != null) ...[
+              const SizedBox(height: AaraagateTokens.space2),
+              action,
+            ],
+          ])),
+          if (!stacked && action != null) ...[
+            const SizedBox(width: AaraagateTokens.space3),
+            action,
+          ],
+        ]);
+      }),
+    );
+  }
 }

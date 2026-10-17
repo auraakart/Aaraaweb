@@ -520,6 +520,7 @@ class _PendingAccessCardState extends State<_PendingAccessCard> {
             ],
             const SizedBox(height: AaraagateTokens.space5),
             PremiumActionGroup(
+              inlineMinWidth: 300,
               primary: FilledButton(
                 onPressed: _busy ? null : () => _submit('allow', widget.onAllow),
                 child: PremiumActionLabel(

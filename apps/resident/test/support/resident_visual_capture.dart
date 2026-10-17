@@ -34,6 +34,10 @@ ThemeData captureTheme(bool dark) {
       (style.textStyle?.resolve(states) ?? theme.textTheme.labelLarge!).copyWith(fontFamily: 'Roboto')),
   );
   return theme.copyWith(
+    chipTheme: theme.chipTheme.copyWith(
+      labelStyle: theme.chipTheme.labelStyle?.copyWith(fontFamily: 'Roboto'),
+      secondaryLabelStyle: theme.chipTheme.secondaryLabelStyle?.copyWith(fontFamily: 'Roboto'),
+    ),
     filledButtonTheme: FilledButtonThemeData(style: font(theme.filledButtonTheme.style!)),
     outlinedButtonTheme: OutlinedButtonThemeData(style: font(theme.outlinedButtonTheme.style!)),
     textButtonTheme: TextButtonThemeData(style: font(theme.textButtonTheme.style!)),

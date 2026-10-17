@@ -154,55 +154,55 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Add household staff', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _householdId,
-            decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
-            items: widget.controller.households.map((household) {
-              final id = household['id']?.toString() ?? '';
-              final unit = household['unit'] is Map
-                  ? Map<String, dynamic>.from(household['unit'] as Map)
-                  : const <String, dynamic>{};
-              return DropdownMenuItem(value: id, child: Text(unit['number']?.toString() ?? 'Household'));
-            }).where((item) => item.value?.isNotEmpty == true).toList(),
-            onChanged: _busy ? null : (value) => setState(() => _householdId = value ?? ''),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _name,
-            enabled: !_busy,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _phone,
-            enabled: !_busy,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _role,
-            decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
-            items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER']
-                .map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value))))
-                .toList(),
-            onChanged: _busy ? null : (value) => setState(() => _role = value ?? 'OTHER'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: PremiumActionLabel(label: 'SUBMIT FOR REVIEW', busy: _busy),
-          ),
-        ],
-      ),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Add household staff', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _householdId,
+              decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
+              items: widget.controller.households.map((household) {
+                final id = household['id']?.toString() ?? '';
+                final unit = household['unit'] is Map
+                    ? Map<String, dynamic>.from(household['unit'] as Map)
+                    : const <String, dynamic>{};
+                return DropdownMenuItem(value: id, child: Text(unit['number']?.toString() ?? 'Household'));
+              }).where((item) => item.value?.isNotEmpty == true).toList(),
+              onChanged: _busy ? null : (value) => setState(() => _householdId = value ?? ''),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _name,
+              enabled: !_busy,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _phone,
+              enabled: !_busy,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _role,
+              decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
+              items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER']
+                  .map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value))))
+                  .toList(),
+              onChanged: _busy ? null : (value) => setState(() => _role = value ?? 'OTHER'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _busy ? null : _submit,
+              child: PremiumActionLabel(label: 'SUBMIT FOR REVIEW', busy: _busy),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -309,6 +309,7 @@ class _StaffCard extends StatelessWidget {
             ],
             const SizedBox(height: 16),
             PremiumActionGroup(
+              inlineMinWidth: 300, primaryFlex: 1,
               primary: FilledButton.tonal(
                 onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
                 child: PremiumActionLabel(label: rating == null ? 'RATE' : 'UPDATE RATING', icon: Icons.star_outline_rounded),
@@ -320,6 +321,7 @@ class _StaffCard extends StatelessWidget {
             ),
             const SizedBox(height: AaraagateTokens.space3),
             PremiumActionGroup(
+              inlineMinWidth: 300, primaryFlex: 1,
               primary: OutlinedButton(
                 onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
                 child: const PremiumActionLabel(label: 'VIEW ATTENDANCE', icon: Icons.calendar_month_outlined),
@@ -493,63 +495,63 @@ class _WorkforceLeaveSheetState extends State<_WorkforceLeaveSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Add staff leave', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          _DateButton(
-            label: 'Starts',
-            value: _startsOn,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                      initialDate: _startsOn,
-                    );
-                    if (picked != null && mounted) {
-                      setState(() {
-                        _startsOn = picked;
-                        if (_endsOn.isBefore(_startsOn)) _endsOn = picked;
-                      });
-                    }
-                  },
-          ),
-          const SizedBox(height: 12),
-          _DateButton(
-            label: 'Ends',
-            value: _endsOn,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      firstDate: _startsOn,
-                      lastDate: _startsOn.add(const Duration(days: 89)),
-                      initialDate: _endsOn.isBefore(_startsOn) ? _startsOn : _endsOn,
-                    );
-                    if (picked != null && mounted) setState(() => _endsOn = picked);
-                  },
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _reason,
-            enabled: !_busy,
-            maxLength: 300,
-            decoration: const InputDecoration(labelText: 'Reason (optional)', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: _busy ? null : _save,
-            child: PremiumActionLabel(label: 'SAVE LEAVE', busy: _busy),
-          ),
-        ],
-      ),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Add staff leave', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            _DateButton(
+              label: 'Starts',
+              value: _startsOn,
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        initialDate: _startsOn,
+                      );
+                      if (picked != null && mounted) {
+                        setState(() {
+                          _startsOn = picked;
+                          if (_endsOn.isBefore(_startsOn)) _endsOn = picked;
+                        });
+                      }
+                    },
+            ),
+            const SizedBox(height: 12),
+            _DateButton(
+              label: 'Ends',
+              value: _endsOn,
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        firstDate: _startsOn,
+                        lastDate: _startsOn.add(const Duration(days: 89)),
+                        initialDate: _endsOn.isBefore(_startsOn) ? _startsOn : _endsOn,
+                      );
+                      if (picked != null && mounted) setState(() => _endsOn = picked);
+                    },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _reason,
+              enabled: !_busy,
+              maxLength: 300,
+              decoration: const InputDecoration(labelText: 'Reason (optional)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _busy ? null : _save,
+              child: PremiumActionLabel(label: 'SAVE LEAVE', busy: _busy),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -601,41 +603,41 @@ class _WorkforceRatingSheetState extends State<_WorkforceRatingSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Rate household staff', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          Wrap(
-            alignment: WrapAlignment.center,
-            children: List.generate(5, (index) {
-              final value = index + 1;
-              return IconButton(
-                onPressed: _busy ? null : () => setState(() => _score = value),
-                tooltip: '$value out of 5 stars',
-                isSelected: value == _score,
-                iconSize: 28,
-                icon: Icon(value <= _score ? Icons.star_rounded : Icons.star_border_rounded),
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _comment,
-            enabled: !_busy,
-            maxLength: 300,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Comment (optional)', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: _busy ? null : _save,
-            child: PremiumActionLabel(label: 'SAVE RATING', busy: _busy),
-          ),
-        ],
-      ),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Rate household staff', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: List.generate(5, (index) {
+                final value = index + 1;
+                return IconButton(
+                  onPressed: _busy ? null : () => setState(() => _score = value),
+                  tooltip: '$value out of 5 stars',
+                  isSelected: value == _score,
+                  iconSize: 28,
+                  icon: Icon(value <= _score ? Icons.star_rounded : Icons.star_border_rounded),
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _comment,
+              enabled: !_busy,
+              maxLength: 300,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Comment (optional)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _busy ? null : _save,
+              child: PremiumActionLabel(label: 'SAVE RATING', busy: _busy),
+            ),
+          ],
+        ),
       ),
     );
   }
