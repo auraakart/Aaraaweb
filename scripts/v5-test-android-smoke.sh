@@ -14,6 +14,20 @@ if [[ "$ACTION" == "prepare" ]]; then
 from pathlib import Path
 import re, sys
 app = Path(sys.argv[1]) / "android" / "app"
+android = app.parent
+settings = [p for p in (android / "settings.gradle.kts", android / "settings.gradle") if p.is_file()]
+if len(settings) != 1: raise SystemExit("One Android plugin settings file required")
+plugins = settings[0].read_text()
+def require_minimum(label, values, minimum):
+    if len(values) != 1: raise SystemExit("One explicit " + label + " version required")
+    version = tuple(int(part) for part in values[0].split("."))
+    version = version + (0,) * (3-len(version))
+    if version < minimum: raise SystemExit(label + " is below the reviewed share_plus toolchain minimum")
+for plugin, minimum in (("com.android.application", (8,12,1)), ("org.jetbrains.kotlin.android", (2,2,0))):
+    values = re.findall(r'''["']''' + re.escape(plugin) + r'''["']\s*\)?\s*version\s*["'](\d+\.\d+\.\d+)["']''', plugins)
+    require_minimum(plugin, values, minimum)
+wrapper = (android / "gradle" / "wrapper" / "gradle-wrapper.properties").read_text()
+require_minimum("Gradle", re.findall(r"gradle-(\d+\.\d+(?:\.\d+)?)-(?:all|bin)\.zip", wrapper), (8,13,0))
 candidates = [app / "build.gradle.kts", app / "build.gradle"]
 present = [p for p in candidates if p.is_file()]
 if len(present) != 1: raise SystemExit("One Android Gradle app file required")

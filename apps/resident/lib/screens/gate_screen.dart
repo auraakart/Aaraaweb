@@ -246,7 +246,7 @@ class GateScreen extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: () async {
                     final message = VisitorPassShareMessage.build(visitorName: visitor, credential: credential, validUntil: validUntil);
-                    await Share.share(message, subject: 'Aaraagate visitor pass for $visitor');
+                    await SharePlus.instance.share(ShareParams(text: message, subject: 'Aaraagate visitor pass for $visitor'));
                   },
                   icon: const Icon(Icons.share_outlined),
                   label: Text(strings.text('sharePass')),

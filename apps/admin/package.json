@@ -1,10 +1,10 @@
 {
   "name": "@aaraagate/admin",
-  "version": "4.93.0",
+  "version": "4.94.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -23,16 +23,16 @@
     "@aaraagate/config": "workspace:*",
     "@aaraagate/types": "workspace:*",
     "lucide-react": "^0.468.0",
-    "next": "15.5.27",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
     "@types/node": "^22.0.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "typescript": "^5.7.0",

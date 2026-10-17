@@ -105,8 +105,13 @@ for (const [name, expected] of Object.entries({
   assert.equal(rootPackage.pnpm?.overrides?.[name], expected, 'Dependency security override mismatch: ' + name);
 }
 const lock = read('pnpm-lock.yaml');
-for (const token of ['proxy-addr@2.0.8:', 'source-map-js@1.2.2:', 'brace-expansion@5.0.12:', 'multer@2.4.0:', 'uuid@11.1.1:']) {
+for (const token of ['proxy-addr@2.0.8:', 'source-map-js@1.2.2:', 'brace-expansion@5.0.12:', 'multer@2.4.0:']) {
   assert.ok(lock.includes(token), 'Patched dependency lock evidence missing: ' + token);
+}
+// Firebase 14 retires the legacy chain that needed uuid 11.1.1. Removing an
+// unused dependency is valid; reintroducing an unsafe resolved version is not.
+for (const match of lock.matchAll(/^ {2}uuid@(\d+\.\d+\.\d+):$/gm)) {
+  assert.ok(versionAtLeast(match[1], [11,1,1]), 'Unsafe resolved uuid version: ' + match[1]);
 }
 const dependencyBudget = read('scripts/check-dependency-risk-budget.mjs');
 assert.ok(dependencyBudget.includes('if (moderate > 0)'), 'Dependency risk budget must fail on moderate findings.');
