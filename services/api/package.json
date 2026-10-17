@@ -29,7 +29,7 @@
     "@aaraagate/config": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.5",
     "eslint": "^10.13.0",
     "prisma": "^6.0.0",
     "tsx": "^4.19.0",
