@@ -58,8 +58,8 @@ void main() {
       expect(find.text('Resident requests'), findsOneWidget);
       expect(find.text('New request'), findsOneWidget);
       expect(find.byType(PremiumPageIntro), findsOneWidget);
-      expect(tester.widget<DropdownButtonFormField<String>>(
-        find.byType(DropdownButtonFormField<String>),
+      expect(tester.widget<DropdownButton<String>>(
+        find.byType(DropdownButton<String>),
       ).isExpanded, isTrue);
       await tester.scrollUntilVisible(
         find.text(description),
