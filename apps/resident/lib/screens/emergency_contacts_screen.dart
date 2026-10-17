@@ -95,8 +95,6 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final contacts = [..._contacts]
       ..sort((a, b) => (a['priority'] as int? ?? 999).compareTo(b['priority'] as int? ?? 999));
     return Scaffold(
@@ -116,24 +114,8 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         children: [
           PremiumSectionHeader(
             title: 'Trusted contacts',
-            supportingText: 'Keep household emergency contacts easy to reach. These contacts do not change society membership or occupancy.',
+            supportingText: 'Keep household emergency contacts easy to reach. Adding a contact does not grant society membership or change occupancy.',
             trailing: AaraagateStatusPill(label: '${contacts.length}', tone: contacts.isEmpty ? AaraagateStatusTone.neutral : AaraagateStatusTone.info),
-          ),
-          const SizedBox(height: AaraagateTokens.space4),
-          PremiumSurface(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline_rounded, color: scheme.primary),
-                const SizedBox(width: AaraagateTokens.space3),
-                Expanded(
-                  child: Text(
-                    'Contacts are household information only and are not treated as residents or society members.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ),
           ),
           if (_error != null) ...[
             const SizedBox(height: AaraagateTokens.space3),
@@ -153,35 +135,22 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: AaraagateTokens.iconContainer,
-                      height: AaraagateTokens.iconContainer,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
-                      child: Icon(Icons.contact_emergency_rounded, color: scheme.onPrimaryContainer),
-                    ),
-                    const SizedBox(width: AaraagateTokens.space3),
                     Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: Text(contact['name']?.toString() ?? 'Emergency contact', style: theme.textTheme.titleMedium)),
-                            const SizedBox(width: AaraagateTokens.space2),
-                            AaraagateStatusPill(
-                              label: (contact['priority'] as int? ?? 1) == 1 ? 'Primary' : 'Priority ${contact['priority'] ?? 1}',
-                              tone: (contact['priority'] as int? ?? 1) == 1 ? AaraagateStatusTone.info : AaraagateStatusTone.neutral,
-                            ),
-                          ],
+                      child: PremiumIdentityHeader(
+                        icon: Icons.contact_emergency_rounded,
+                        title: contact['name']?.toString() ?? 'Emergency contact',
+                        supportingText: [
+                          contact['phone']?.toString() ?? '',
+                          if (contact['relation']?.toString().trim().isNotEmpty == true)
+                            contact['relation'].toString(),
+                        ].join('\n'),
+                        status: AaraagateStatusPill(
+                          label: (contact['priority'] as int? ?? 1) == 1 ? 'Primary' : 'Priority ${contact['priority'] ?? 1}',
+                          tone: (contact['priority'] as int? ?? 1) == 1 ? AaraagateStatusTone.info : AaraagateStatusTone.neutral,
                         ),
-                        const SizedBox(height: AaraagateTokens.space1),
-                        Text(contact['phone']?.toString() ?? '', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                        if (contact['relation']?.toString().trim().isNotEmpty == true) ...[
-                          const SizedBox(height: AaraagateTokens.space1),
-                          Text(contact['relation'].toString(), style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-                        ],
-                      ]),
+                      ),
                     ),
+                    const SizedBox(width: AaraagateTokens.space2),
                     IconButton(
                       icon: const Icon(Icons.delete_outline_rounded),
                       tooltip: 'Remove contact',
@@ -256,6 +225,7 @@ class _EmergencyContactDialogState extends State<_EmergencyContactDialog> {
           TextField(controller: _relation, decoration: const InputDecoration(labelText: 'Relationship (optional)')),
           const SizedBox(height: AaraagateTokens.space3),
           DropdownButtonFormField<int>(
+            isExpanded: true,
             initialValue: _priority,
             decoration: const InputDecoration(labelText: 'Priority'),
             items: const [
