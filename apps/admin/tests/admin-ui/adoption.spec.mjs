@@ -63,6 +63,6 @@ test('quoted CSV reaches preview intact and creates only one dry-run batch',asyn
   await page.getByRole('button',{name:'Preview validation'}).click();await count(page,1)
   expect(await page.evaluate(()=>window.adoption.requests[0].body.rows)).toEqual([{name:'Alpha,Beta',notes:'line one\nline two',__source_row:'2'}])
   await reply(page,0,preview);await page.getByRole('button',{name:'Create dry-run batch'}).click();await count(page,2)
-  await reply(page,1,{id:'batch',status:'DRY_RUN'});await expect(page.getByText('Dry-run migration batch created.',{exact:true})).toBeVisible()
+  await reply(page,1,{id:'batch',status:'READY',entityType:'BUILDING',checksum:'a'.repeat(64),idempotentReplay:false});await expect(page.getByText('Dry-run migration batch created.',{exact:true})).toBeVisible()
   expect(await page.evaluate(()=>window.adoption.created)).toBe(1);await expect(page.getByRole('button',{name:'Create dry-run batch'})).toBeDisabled()
 })

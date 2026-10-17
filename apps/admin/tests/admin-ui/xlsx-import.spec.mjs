@@ -48,6 +48,13 @@ test('XLSX shared strings preserve decoded values',async({page})=>{
   await upload(page,workbook(row(1,cell('A1','name'))+row(2,'<c r="A2" t="s"><v>0</v></c>'),{shared:'<sst><si><r><t>Alpha </t></r><r><t>&amp; Ω</t></r></si></sst>'}))
   expect(await previewRows(page)).toEqual([{name:'Alpha & Ω',__source_row:'2'}])
 })
+test('XLSX preview errors retain the worksheet source row rather than the record ordinal',async({page})=>{
+  await upload(page,workbook(row(1,cell('A1','name'))+row(3,cell('A3','Alpha'))+row(7,cell('A7','Beta'))))
+  await previewRows(page)
+  await page.evaluate(()=>window.adoption.reply(0,{entityType:'BUILDING',totalRows:2,validRows:1,invalidRows:1,duplicateRows:0,normalizedRows:[{name:'Alpha'},{name:'Beta'}],issues:[{row:2,field:'code',code:'REQUIRED',message:'Code is required'}]}))
+  await expect(page.getByText('Source row 7 · code',{exact:true})).toBeVisible()
+  await expect(page.getByRole('button',{name:'Create dry-run batch'})).toBeDisabled()
+})
 const rejected=[
   ['extra cells',workbook(row(1,cell('A1','name'))+row(2,cell('A2','Alpha')+cell('B2','Lost data'))),'XLSX row 2 contains more values than column headers.'],
   ['sparse header',workbook(row(1,cell('A1','name')+cell('C1','notes'))+row(2,cell('A2','Alpha'))),'XLSX contains an empty column header.'],

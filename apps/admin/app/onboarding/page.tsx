@@ -3,30 +3,9 @@
 import {useCallback,useEffect,useRef,useState} from 'react'
 import {api,type Session} from '../../lib/admin-client'
 import {currentAdminSession,sameAdminContext} from '../../lib/admin-session-context'
+import {readOnboardingPlan,type OnboardingPlan} from '../../lib/adoption-response'
 
 type StepState='READY'|'IN_PROGRESS'|'REVIEW'
-type OnboardingStep={
-  id:string
-  title:string
-  description:string
-  href:string
-  state:StepState
-  evidence:string
-  blockers:string[]
-  nextActions:string[]
-}
-type OnboardingPlan={
-  status:'ACTION_REQUIRED'|'REPOSITORY_REVIEW_REQUIRED'
-  repositoryReady:boolean
-  readySteps:number
-  totalSteps:number
-  blockingStepIds:string[]
-  activation:{eligibleResidents:number;activatedResidents:number;activationPercent:number|null}
-  steps:OnboardingStep[]
-  evaluatedAt:string
-  productionizationClaim:false
-  boundary:string
-}
 
 const allowed=(value:Session|null)=>!!value&&['SUPER_ADMIN','SOCIETY_ADMIN'].includes(value.role)
 
@@ -53,8 +32,8 @@ export default function SocietyOnboardingPage(){
     const current=()=>request===epoch.current&&sameAdminContext(value,currentAdminSession())
     try{
       const result=await api<OnboardingPlan>('/onboarding/readiness',{},value)
-      if(result.productionizationClaim!==false)throw new Error('Setup checks cannot establish production acceptance. Refresh or contact support.')
-      if(current())setPlan(result)
+      if(result&&result.productionizationClaim!==false)throw new Error('Setup checks cannot establish production acceptance. Refresh or contact support.')
+      if(current())setPlan(readOnboardingPlan(result))
     }catch(reason){if(current())setError(reason instanceof Error?reason.message:'Could not load onboarding readiness')}
     finally{
       if(request===epoch.current){
