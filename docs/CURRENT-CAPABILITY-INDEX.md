@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.92 candidate on develop, building on completed Services 4.5 and the V5 implementation baseline. See [V4.92 workflow reliability and acceptance](AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md) for exact scope and validation state. Version numbers and repository checks do not establish field acceptance.
+**Current-state review baseline:** V4.92.0 engineering scope merged into develop through PR #1415 after protected CI 39011116299, building on completed Services 4.5 and the V5 implementation baseline. Independent product/device/field acceptance remains open. See [V4.92 workflow reliability and acceptance](AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md) for exact scope and validation state. Version numbers and repository checks do not establish field acceptance.
 
 Current implementation includes the Services provider checklist editor, separately authorized field-agent workspace, resident quality/rework review, conservative arrival estimates, explicit recurring visits and conflict-safe dispatch. Consolidated payable service checkout, automatic recurring scheduling, public quality scoring, membership/loyalty and protection remain policy gated. See [Services 4.5](AARAAGATE-SERVICES-4.5-WORKFLOW-COMPLETION.md).
 

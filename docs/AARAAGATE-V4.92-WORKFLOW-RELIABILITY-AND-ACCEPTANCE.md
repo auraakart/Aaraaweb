@@ -29,6 +29,20 @@ Mastermind workflow: inspect current code before adding work, fix demonstrated g
 
 ## Validation state
 
-Implementation candidate; protected CI not yet claimed. Focused local execution imports the actual pure TypeScript amount/CSV modules with the available Node runtime; required CI uses supported Node 22 and pinned pnpm. Local Flutter execution and dependency/browser bootstrap are not retried after the earlier environment/review failures; use the existing isolated protected workflows for API/Admin/Flutter/browser validation. No tests are weakened or skipped to obtain a merge.
+Engineering scope merged with protected CI; independent acceptance remains OPEN. Focused local execution imports the actual pure TypeScript amount/CSV modules with the available Node runtime; required CI uses supported Node 22 and pinned pnpm. Local Flutter execution and dependency/browser bootstrap are not retried after the earlier environment/review failures; use the existing isolated protected workflows for API/Admin/Flutter/browser validation. No tests are weakened or skipped to obtain a merge.
 
 No new API route, database schema, payment/invoice/settlement mutation, public quality score, rework guarantee, partner build authorization, productionization, physical hardware or iOS launch is included. Independent acceptance entries remain OPEN until their actual owners record evidence.
+
+## Protected engineering closure
+
+Status: MERGED_PROTECTED_CI_PASSED; develop only.
+Implementation PR: [#1415](https://github.com/auraakart/Aaraaweb/pull/1415).
+Validated runtime head: `cdb00ae803647992496654e3b92d000daff34aa2`.
+Develop merge: `0ae108c778fe9a313371853d2d602cdfe680844f`.
+Protected [CI 39011116299](https://github.com/auraakart/Aaraaweb/actions/runs/39011116299) passed Repository structure, Mastermind preflight, full API/Admin/Resident/Guard, dependency security and Required merge gates before develop auto-merge.
+
+Evidence includes all 65 Admin browser cases (9 new adoption/recovery cases), the 25-case Assistant answer-composition suite, clean PostgreSQL migrations and normal database/risk checks, plus Guard overlapping-replay/context-change widget regressions. The canonical broad API phase reported 2,401 passed / 15 intentionally skipped, followed by the 86-case risk phase; a skipped case is not counted as executed acceptance. No physical device or independent accountant acceptance is inferred.
+
+The original AST inventory generator ran in isolated CI. Its reviewed output changed only the whole-source digest for the pure API composer edit; no route/access register changed. The committed blob `034e703302b7809175d84cfd1ac74fd71a31766d` was independently regenerated and accepted on the final tested head. Future API source edits require regeneration even if they add no SQL.
+
+The three engineering slices and capability/version reconciliation are complete. This cycle stops here. All independent acceptance entries above remain OPEN, and the Services 4.5 decision register and external V5 #1380 remain authoritative. Staging/main and the published demo retain the prior approved release until separately authorized promotion. This record does not raise a product rating or authorize commercial policies.
