@@ -20,6 +20,15 @@ Independent device/accessibility/notification/onboarding acceptance, accountant/
 
 ## Validation and continuation ledger
 
-Status: IN_PROGRESS. Run focused repository checks and changed Resident widget tests, then protected milestone API/Admin/Resident/Guard/security gates. Native plugin/toolchain source is unchanged from the actual V4.94 APK/AAB acceptance; no new partner or physical-device claim is made. API runtime source and tenant inventory remain unchanged. Do not bootstrap local Flutter/browser dependencies again; use the isolated protected workflow.
+Status: MERGED_PROTECTED_CI_PASSED; all three repository slices are complete on develop. Independent acceptance and the commercial decisions above remain open.
 
-After the three demonstrated fixes pass and merge, record exact head/CI evidence and current remaining inputs. Continue any newly demonstrated authorized defect fix; do not invent commercial terms or field results to close the remaining backlog. Staging/main, the published demo, productionization and iOS remain unchanged in this cycle.
+- Implementation: [PR #1421](https://github.com/auraakart/Aaraaweb/pull/1421), validated head `00f5ec4c9921951e3faadda37fe141a8964801d6`.
+- Develop merge: `3136dc4c7cc99e49b1b409783f888c76b15891cb`; source tree `3ca46e495287a6fa013a3f0fdafae09c82911584` matches the uploaded and locally staged tree.
+- Protected [CI 39024729358](https://github.com/auraakart/Aaraaweb/actions/runs/39024729358) completed successfully for that exact PR head through `.github/workflows/ci.yml`. Repository structure, preflight, full API/Admin/Flutter, dependency security and Required merge gates passed before normal develop auto-merge. No CI correction or gate bypass was needed.
+- Flutter: analysis, all 20 new post-service widget cases, existing post-service regressions, full Resident/Guard suites and risk coverage gates passed. New cases cover ten invalid/missing amount shapes, one-paise formatting, invalid approved amounts, a committed-but-lost decline response with identical reason replay, dialog single-flight, failed/malformed quote reads, failed bill history and recovery, concurrent reads, late old-client results and booking changes with an open consent dialog.
+- API: broad phase 2,432 passed / 15 intentionally skipped, followed by all 86 risk cases; existing dedicated database gates passed. API runtime source and the generated tenant inventory are unchanged; protected CI retained the original inventory generator.
+- Admin: lint/type/build, all 65 browser/accessibility cases, direct-host SSR/cookie isolation and actual local TLS 1.3 host/cookie lifecycle checks passed.
+- Local: all 44 stable invariants, current release identity checks and `git diff --check` passed. Local Flutter bootstrap was not repeated; isolated protected CI supplied runtime validation.
+- Native plugin/toolchain source is unchanged from the actual V4.94 APK/AAB acceptance. The correctly scoped Android base smoke job was skipped for this UI-only change; no new APK/AAB, published demo update, partner artifact or physical-device result is claimed.
+
+Continue with accepted Services commercial policies, independent user/device/onboarding/accountant/AI acceptance and actual V5 TEST/partner evidence in #1380. Fix newly demonstrated authorized defects with focused regressions; do not invent commercial terms or field results to close the remaining backlog. Staging/main, the published V4.91.5 demo, productionization and iOS remain unchanged in this cycle.
