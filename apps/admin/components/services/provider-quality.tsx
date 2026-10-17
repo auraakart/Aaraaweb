@@ -49,13 +49,12 @@ export function ProviderQuality({ request, offerings }: { request: ServiceReques
     </select></label>{' '}<button disabled={!selected || busy} onClick={() => void load()}>Load checklist</button>
     {version !== null && <div><p>Template version {version}. Changes apply only to future bookings.</p>
       {items.map((item, index) => <fieldset key={index} disabled={busy}><legend>Step {index + 1}</legend>
-        <label>Step key {index + 1}<input maxLength={40} value={item.id} onChange={e => setItems(items.map((v, i) => i === index ? { ...v, id: e.target.value } : v))}/></label>{' '}
         <label>Step label {index + 1}<input maxLength={120} value={item.label} onChange={e => setItems(items.map((v, i) => i === index ? { ...v, label: e.target.value } : v))}/></label>{' '}
         <label><input type="checkbox" checked={item.required} onChange={e => setItems(items.map((v, i) => i === index ? { ...v, required: e.target.checked } : v))}/>Required step {index + 1}</label>{' '}
         <button onClick={() => setItems(items.filter((_, i) => i !== index))}>Remove step {index + 1}</button>
       </fieldset>)}
       <p>{items.length === 0 && 'No checklist steps configured. Saving an empty list removes steps only for future bookings.'}</p>
-      <button disabled={busy || items.length >= 20} onClick={() => setItems([...items, { id: '', label: '', required: true }])}>Add checklist step</button>{' '}
+      <button disabled={busy || items.length >= 20} onClick={() => setItems([...items, { id: 'step_' + crypto.randomUUID().replaceAll('-', '').slice(0, 24), label: '', required: true }])}>Add checklist step</button>{' '}
       <button disabled={busy} onClick={() => void save()}>Save checklist</button>
     </div>}
     <hr/><h2>Private quality activity</h2><p>90-day operational counts, based on current completion state and update time. These are not quality scores or public rankings.</p>

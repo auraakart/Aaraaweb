@@ -78,3 +78,16 @@ test('dispatch refuses overlap and reads server state after lost response', asyn
   await expect(page.getByText('An active assignment already exists. Quick dispatch is unavailable.')).toBeVisible()
   expect((await page.evaluate(() => window.serviceRequests)).filter(r => r.method === 'POST')).toHaveLength(1)
 })
+
+test('provider names checklist steps while internal stable keys are generated automatically', async ({ page }) => {
+  await page.goto('/services.html'); await checklist(page)
+  await page.getByRole('button', { name: 'Add checklist step' }).click()
+  await page.getByLabel('Step label 2', { exact: true }).fill('Clean the unit')
+  await expect(page.getByLabel('Step key 2', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Save checklist', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('Checklist saved')
+  const write = (await page.evaluate(() => window.serviceRequests)).find(r => r.method === 'PUT')
+  expect(write.body.items[0].id).toBe('inspect_filter')
+  expect(write.body.items[1].id).toMatch(/^step_[a-f0-9]{24}$/)
+  expect(write.body.items[1].label).toBe('Clean the unit')
+})

@@ -371,19 +371,18 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               title: widget.independentMode ? 'Services for your home' : 'Insta Services near you',
               supportingText: 'Compare trusted providers serving your selected address.',
               action: Wrap(spacing: 8, runSpacing: 8, children: [
-                OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConsumerRecurringServicesScreen(apiClient: widget.apiClient))), icon: const Icon(Icons.repeat_rounded), label: const Text('Recurring visits')),
                 OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My bookings')),
                 OutlinedButton.icon(onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded), label: const Text('Service history')),
               ]),
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConsumerRecurringServicesScreen(apiClient: widget.apiClient))), icon: const Icon(Icons.repeat_rounded), label: const Text('Recurring visits')),
+              OutlinedButton.icon(
                 onPressed: _openServiceBenefits,
                 icon: const Icon(Icons.card_giftcard_outlined),
                 label: const Text('Service benefits'),
               ),
-            ),
+            ]),
             const SizedBox(height: 16),
             TextField(
               controller: _searchController,
