@@ -21,6 +21,8 @@ export function dependencyCompatibilityErrors(root, admin, api) {
     }
   }
   const react = version(admin.dependencies?.react);
+  const next = version(admin.dependencies?.next);
+  if (next?.[0] === 16 && react?.[0] !== 19) errors.push('Next 16 requires the reviewed React 19 cohort.');
   if (!react || admin.dependencies?.react !== admin.dependencies?.['react-dom']) errors.push('React and React DOM declarations must match.');
   for (const dependency of ['@types/react', '@types/react-dom']) {
     const types = version(admin.devDependencies?.[dependency]);

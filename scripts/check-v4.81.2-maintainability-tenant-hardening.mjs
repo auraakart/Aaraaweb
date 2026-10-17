@@ -103,8 +103,12 @@ assert.ok(hygiene.includes('retained after fresh canonical reconciliation'), 'Re
 const hygieneWorkflow = read('.github/workflows/branch-hygiene.yml');
 assert.ok(hygieneWorkflow.includes('echo "dry_run=false" >> "$GITHUB_OUTPUT"'), 'Scheduled/protected cleanup path must support real safe deletion.');
 
-const nextConfig = read('apps/admin/next.config.mjs');
-assert.ok(nextConfig.includes('eslint:{ignoreDuringBuilds:true}'), 'Admin build must avoid duplicate build-time lint.');
+const nextConfig = (await import('../apps/admin/next.config.mjs')).default;
+if (major(admin.dependencies.next) >= 16) {
+  assert.ok(!Object.hasOwn(nextConfig, 'eslint'), 'Next 16 must not retain removed build-time ESLint configuration.');
+} else {
+  assert.equal(nextConfig.eslint?.ignoreDuringBuilds, true, 'Admin build must avoid duplicate build-time lint.');
+}
 const ci = read('.github/workflows/ci.yml');
 assert.ok(ci.includes('pnpm --filter @aaraagate/admin lint'), 'Explicit Admin lint gate must remain in CI.');
 

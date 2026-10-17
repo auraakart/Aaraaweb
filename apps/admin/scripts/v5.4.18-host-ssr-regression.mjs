@@ -36,7 +36,7 @@ await new Promise(resolve => portProbe.listen(0, '127.0.0.1', resolve))
 const port = portProbe.address().port
 await new Promise(resolve => portProbe.close(resolve))
 const admin = fileURLToPath(new URL('../', import.meta.url))
-const child = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/next/dist/bin/next', import.meta.url)), 'dev', '--hostname', '127.0.0.1', '--port', String(port)], {
+const child = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/next/dist/bin/next', import.meta.url)), 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(port)], {
   cwd: admin, env: { ...process.env, NODE_ENV: 'development', NEXT_TELEMETRY_DISABLED: '1',
     AARAGATE_ENABLE_TEST_HOST_WEB: 'true', AARAGATE_PLATFORM_HOSTNAMES: '["admin.aaraagate.in"]', AARAGATE_HOST_WEB_COOKIE_KEY: key,
     AARAGATE_HOST_WEB_API_BASE_URL: `http://127.0.0.1:${api.address().port}` }, stdio: ['ignore', 'pipe', 'pipe'],

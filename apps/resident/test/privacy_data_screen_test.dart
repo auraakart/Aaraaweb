@@ -1,6 +1,7 @@
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/screens/privacy_data_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 
@@ -23,22 +24,24 @@ class _NoNetworkApi extends ApiClient {
 
 
 class _ResilientPrivacyApi extends ApiClient {
-  _ResilientPrivacyApi({this.contextFails = false, this.failFirstPost = false})
+  _ResilientPrivacyApi({this.contextFails = false, this.failFirstPost = false, this.exportReady = false})
       : super(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test');
 
   final bool contextFails;
   final bool failFirstPost;
+  final bool exportReady;
   final List<Map<String, dynamic>> posts = [];
   int _postAttempts = 0;
 
   @override
   Future<dynamic> get(String path) async {
+    if (path == '/api/v1/privacy/self/requests/req-open/export' && exportReady) return {'profile': {'displayName': 'Asha'}};
     if (path == '/api/v1/privacy/self/requests') {
       return [
         {
           'id': 'req-open',
           'requestType': 'ACCESS',
-          'status': 'OPEN',
+          'status': exportReady ? 'COMPLETED' : 'OPEN',
           'requestSummary': 'Provide my data',
           'legalHold': false,
           'createdAt': '2026-10-05T00:00:00.000Z',
@@ -86,6 +89,27 @@ class _ResilientPrivacyApi extends ApiClient {
 }
 
 void main() {
+  testWidgets('completed privacy export shares the authorized payload through SharePlus', (tester) async {
+    const channel = MethodChannel('dev.fluttercommunity.plus/share');
+    final shares = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      shares.add(call);
+      return 'com.example.sharetarget';
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    await tester.pumpWidget(MaterialApp(home: PrivacyDataScreen(apiClient: _ResilientPrivacyApi(exportReady: true))));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Share my data export'), 250);
+    await tester.tap(find.text('Share my data export'));
+    await tester.pumpAndSettle();
+    expect(shares, hasLength(1));
+    expect(shares.single.method, 'share');
+    final payload = Map<String, dynamic>.from(shares.single.arguments as Map);
+    expect(payload['subject'], 'Aaraagate personal data export');
+    expect(payload['text'], contains('"displayName": "Asha"'));
+    expect(find.text('Preparing export…'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('privacy screen explains current data use without overstating rights automation', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: PrivacyDataScreen()));
 

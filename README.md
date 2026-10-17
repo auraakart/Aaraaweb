@@ -57,4 +57,4 @@ Society Branding and Partner White Label development uses this shared repository
 
 ## Current development cycle
 
-[V4.93 completion follow-through](docs/AARAAGATE-V4.93-COMPLETION-FOLLOW-THROUGH.md) consolidates the outstanding recommendations into bounded dependency compatibility and Assistant changes, with explicit product, finance, device and V5 acceptance dependencies. [V4.92 workflow reliability and acceptance](docs/AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md) remains the previous completed engineering milestone.
+[V4.94 dependency migrations](docs/AARAAGATE-V4.94-DEPENDENCY-MIGRATIONS.md) resumes the remaining Firebase, coordinated Next/React and native sharing proposals. [V4.93 completion follow-through](docs/AARAAGATE-V4.93-COMPLETION-FOLLOW-THROUGH.md) retains the consolidated policy and independent acceptance backlog, building on [V4.92 workflow reliability](docs/AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md).
