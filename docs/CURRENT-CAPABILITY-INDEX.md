@@ -9,6 +9,8 @@ V5.0–V5.3 are recorded complete in the [V5 manifest](v5-release-manifest.json)
 The Resident Assistant remains English-only under V4.91.1; multilingual Helpdesk and Guard speech/localization are separate features.
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
+Historical reference: [V4.51.1 Post-Release Regression Hardening](AARAAGATE-V4.51.1-POST-RELEASE-REGRESSION-HARDENING.md) remains retained evidence; it is not the current review baseline.
+
 ## Runtime surfaces
 
 - **Admin / Operations:** Next.js and React.
