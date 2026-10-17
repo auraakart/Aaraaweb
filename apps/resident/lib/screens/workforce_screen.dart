@@ -15,6 +15,7 @@ class WorkforceScreen extends StatelessWidget {
       child: RefreshIndicator(
         onRefresh: controller.refreshWorkforce,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
             _WorkforceHeader(
@@ -42,7 +43,7 @@ class WorkforceScreen extends StatelessWidget {
               )
             else
               ...assignments.map((assignment) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
                     child: _StaffCard(controller: controller, assignment: assignment),
                   )),
           ],
@@ -151,13 +152,14 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SafeArea(
+      child: SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Add household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          Text('Add household staff', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             initialValue: _householdId,
@@ -197,11 +199,10 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _busy ? null : _submit,
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('SUBMIT FOR REVIEW'),
+            child: PremiumActionLabel(label: 'SUBMIT FOR REVIEW', busy: _busy),
           ),
         ],
+      ),
       ),
     );
   }
@@ -307,48 +308,26 @@ class _StaffCard extends StatelessWidget {
                   )),
             ],
             const SizedBox(height: 16),
-            Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: assignmentId.isEmpty ? null : () => _openLeaveSheet(context, assignmentId),
-                        icon: const Icon(Icons.event_busy_outlined),
-                        label: const Text('ADD LEAVE'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.tonalIcon(
-                        onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
-                        icon: const Icon(Icons.star_outline_rounded),
-                        label: Text(rating == null ? 'RATE' : 'UPDATE RATING'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
-                        icon: const Icon(Icons.calendar_month_outlined),
-                        label: const Text('VIEW ATTENDANCE'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: assignmentId.isEmpty ? null : () => _openPaymentSheet(context, assignmentId),
-                        icon: const Icon(Icons.payments_outlined),
-                        label: const Text('PAYMENTS'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            PremiumActionGroup(
+              primary: FilledButton.tonal(
+                onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
+                child: PremiumActionLabel(label: rating == null ? 'RATE' : 'UPDATE RATING', icon: Icons.star_outline_rounded),
+              ),
+              secondary: OutlinedButton(
+                onPressed: assignmentId.isEmpty ? null : () => _openLeaveSheet(context, assignmentId),
+                child: const PremiumActionLabel(label: 'ADD LEAVE', icon: Icons.event_busy_outlined),
+              ),
+            ),
+            const SizedBox(height: AaraagateTokens.space3),
+            PremiumActionGroup(
+              primary: OutlinedButton(
+                onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
+                child: const PremiumActionLabel(label: 'VIEW ATTENDANCE', icon: Icons.calendar_month_outlined),
+              ),
+              secondary: OutlinedButton(
+                onPressed: assignmentId.isEmpty ? null : () => _openPaymentSheet(context, assignmentId),
+                child: const PremiumActionLabel(label: 'PAYMENTS', icon: Icons.payments_outlined),
+              ),
             ),
           ],
         ),
@@ -512,13 +491,14 @@ class _WorkforceLeaveSheetState extends State<_WorkforceLeaveSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SafeArea(
+      child: SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Add staff leave', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          Text('Add staff leave', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           _DateButton(
             label: 'Starts',
@@ -566,11 +546,10 @@ class _WorkforceLeaveSheetState extends State<_WorkforceLeaveSheet> {
           const SizedBox(height: 8),
           FilledButton(
             onPressed: _busy ? null : _save,
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('SAVE LEAVE'),
+            child: PremiumActionLabel(label: 'SAVE LEAVE', busy: _busy),
           ),
         ],
+      ),
       ),
     );
   }
@@ -620,21 +599,24 @@ class _WorkforceRatingSheetState extends State<_WorkforceRatingSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SafeArea(
+      child: SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Rate household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          Text('Rate household staff', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
             children: List.generate(5, (index) {
               final value = index + 1;
               return IconButton(
                 onPressed: _busy ? null : () => setState(() => _score = value),
-                iconSize: 34,
+                tooltip: '$value out of 5 stars',
+                isSelected: value == _score,
+                iconSize: 28,
                 icon: Icon(value <= _score ? Icons.star_rounded : Icons.star_border_rounded),
               );
             }),
@@ -650,11 +632,10 @@ class _WorkforceRatingSheetState extends State<_WorkforceRatingSheet> {
           const SizedBox(height: 8),
           FilledButton(
             onPressed: _busy ? null : _save,
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('SAVE RATING'),
+            child: PremiumActionLabel(label: 'SAVE RATING', busy: _busy),
           ),
         ],
+      ),
       ),
     );
   }

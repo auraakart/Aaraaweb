@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'dart:ui' as ui;
+import 'support/resident_visual_capture.dart';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
@@ -7,11 +6,8 @@ import 'package:aaraagate_resident/screens/amenities_screen.dart';
 import 'package:aaraagate_resident/screens/billing_screen.dart';
 import 'package:aaraagate_resident/screens/gate_screen.dart';
 import 'package:aaraagate_resident/screens/notices_screen.dart';
-import 'package:aaraagate_resident/theme/aaraagate_theme.dart';
 import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Deterministic presentation fixtures, with no external network or live identities.
@@ -50,58 +46,10 @@ class _PresentationApi extends ApiClient {
   }
 }
 
-// Use the SDK's bundled fonts rather than Ahem blocks in captured Flutter images.
-Future<void> _loadSdkFonts() async {
-  var root = Directory(Platform.environment['FLUTTER_ROOT'] ?? File(Platform.resolvedExecutable).parent.path);
-  for (var level = 0; level < 8; level++) {
-    final directory = Directory('${root.path}/bin/cache/artifacts/material_fonts');
-    if (directory.existsSync()) {
-      for (final entry in [('Roboto', 'Roboto-Regular.ttf'), ('MaterialIcons', 'MaterialIcons-Regular.otf')]) {
-        final file = File('${directory.path}/${entry.$2}');
-        if (file.existsSync()) {
-          final loader = FontLoader(entry.$1)..addFont(file.readAsBytes().then(ByteData.sublistView));
-          await loader.load();
-        }
-      }
-      return;
-    }
-    root = root.parent;
-  }
-}
-
-// Unspecified button font families use FlutterTest blocks in a widget test.
-// Supply the native Android family for captures, preserving every style value.
-ThemeData _captureTheme(bool dark) {
-  final theme = dark ? AaraagateTheme.dark() : AaraagateTheme.light();
-  ButtonStyle font(ButtonStyle style) => style.copyWith(
-    textStyle: WidgetStateProperty.resolveWith((states) =>
-      (style.textStyle?.resolve(states) ?? theme.textTheme.labelLarge!).copyWith(fontFamily: 'Roboto')),
-  );
-  return theme.copyWith(
-    filledButtonTheme: FilledButtonThemeData(style: font(theme.filledButtonTheme.style!)),
-    outlinedButtonTheme: OutlinedButtonThemeData(style: font(theme.outlinedButtonTheme.style!)),
-    textButtonTheme: TextButtonThemeData(style: font(theme.textButtonTheme.style!)),
-  );
-}
-
-Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
-  await tester.runAsync(() async {
-    final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-    final image = await boundary.toImage(pixelRatio: 1);
-    try {
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      final directory = Directory('coverage/resident-ux');
-      await directory.create(recursive: true);
-      await File('${directory.path}/$name.png').writeAsBytes(bytes!.buffer.asUint8List());
-    } finally {
-      image.dispose();
-    }
-  });
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(_loadSdkFonts);
+  setUpAll(loadSdkFonts);
   for (final dark in [false, true]) {
     for (final compact in [false, true]) {
       for (final screen in ['gate', 'billing', 'bookings', 'notice']) {
@@ -132,7 +80,7 @@ void main() {
             key: boundary,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: _captureTheme(dark),
+              theme: captureTheme(dark),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: TextScaler.linear(compact ? 2 : 1), disableAnimations: true,
@@ -156,7 +104,7 @@ void main() {
             expect(find.text('Pay deposit').hitTestable(), findsOneWidget);
             await tester.ensureVisible(find.ancestor(of: find.text('Pay deposit'), matching: find.byType(PremiumSurface)).first);
             await tester.pumpAndSettle();
-            await _capture(tester, boundary, name);
+            await captureResidentScreen(tester, boundary, name);
             await tester.ensureVisible(find.text('Cancel'));
             await tester.tap(find.text('Cancel'));
             await tester.pumpAndSettle();
@@ -169,7 +117,7 @@ void main() {
             expect(tester.takeException(), isNull);
             await tester.ensureVisible(find.ancestor(of: find.text('Pay securely'), matching: find.byType(PremiumSurface)).first);
             await tester.pumpAndSettle();
-            await _capture(tester, boundary, '$name-invoice');
+            await captureResidentScreen(tester, boundary, '$name-invoice');
             await tester.scrollUntilVisible(find.text('Receipt'), 240, scrollable: find.byType(Scrollable).first);
             await tester.pumpAndSettle();
             // Bring the record itself into view: scrolling to its bottom label
@@ -179,7 +127,7 @@ void main() {
             await tester.pumpAndSettle();
             expect(card.hitTestable(), findsOneWidget);
             expect(tester.getSize(card).height, greaterThanOrEqualTo(48));
-            await _capture(tester, boundary, name);
+            await captureResidentScreen(tester, boundary, name);
             await tester.tap(card);
             await tester.pumpAndSettle();
             expect(api.receiptReads, 1);
@@ -190,12 +138,12 @@ void main() {
             expect(action.hitTestable(), findsOneWidget);
             final bar = find.ancestor(of: action, matching: find.byType(SafeArea)).first;
             expect(tester.getRect(bar).bottom, lessThanOrEqualTo(844));
-            await _capture(tester, boundary, name);
+            await captureResidentScreen(tester, boundary, name);
             await tester.drag(find.byType(ListView), const Offset(0, -400));
             await tester.pumpAndSettle();
             expect(action.hitTestable(), findsOneWidget);
           }
-          if (screen == 'gate') await _capture(tester, boundary, name);
+          if (screen == 'gate') await captureResidentScreen(tester, boundary, name);
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
           controller.dispose();

@@ -328,18 +328,10 @@ class PremiumQuickAction extends StatelessWidget {
         vertical: AaraagateTokens.space3,
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 76),
+        constraints: const BoxConstraints(minHeight: AaraagateTokens.minTouchTarget),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-              ),
-              child: Icon(icon, color: scheme.primary, size: 24),
-            ),
+            Icon(icon, color: scheme.primary, size: 24),
             const SizedBox(width: AaraagateTokens.space3),
             Expanded(
               child: Text(
