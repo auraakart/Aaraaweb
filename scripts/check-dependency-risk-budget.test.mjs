@@ -12,6 +12,28 @@ const cleanCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 };
 const repository = new URL('../', import.meta.url);
 const manifest = (file) => JSON.parse(fs.readFileSync(new URL(file, repository), 'utf8'));
 const manifests = [manifest('package.json'), manifest('apps/admin/package.json'), manifest('services/api/package.json')];
+const sharpGate = new URL('./check-v4.83-automation-convenience-adoption.mjs', import.meta.url).href;
+
+for (const [name, edit] of [
+  ['missing patched snapshot', "content.replace(/^ {2}sharp@0\\.35\\.5\\(@types\\/node@[^)]+\\):$/m, '')"],
+  ['mismatched snapshot reference', "content.replaceAll('sharp: 0.35.5(@types/node@', 'sharp: 0.35.5(@types/other@')"],
+  ['unpatched sharp', "content.replaceAll('sharp@0.35.5', 'sharp@0.35.4').replaceAll('sharp: 0.35.5', 'sharp: 0.35.4')"],
+]) {
+  test(`sharp security gate rejects ${name} after Node-type migration`, () => {
+    const code = `import fs from 'node:fs';
+      const read = fs.readFileSync;
+      fs.readFileSync = function(file, ...args) {
+        const content = read.call(this, file, ...args);
+        return file === 'pnpm-lock.yaml' ? ${edit} : content;
+      };
+      await import(${JSON.stringify(sharpGate)});`;
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
+      encoding: 'utf8', cwd: fileURLToPath(repository),
+    });
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /Patched sharp snapshot|snapshot reference|sharp 0\.35\.4/);
+  });
+}
 
 test('current dependency cohort passes and later reviewed-major lint versions are allowed', () => {
   assert.deepEqual(dependencyCompatibilityErrors(...manifests), []);
