@@ -292,7 +292,7 @@ export class AiAssistantService {
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave','AccessRequest','WorkforcePaymentRecord'],'Grounded household-staff status, gate-derived attendance and resident-recorded payment evidence for the current occupant of the selected property only. Scheduled evidence gaps are not labelled absence, and payment records are not bank/payroll proof.');
     }
 
-    if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(routed)){
+    if(unitId && /\b(?:dues?|maintenance|invoices?|receipts?|payments?|bills?|billing|bookings?|status|complaints?|tickets?|helpdesk|last paid)\b/.test(routed)){
       this.requireTool(roles,'RESIDENT_STATUS');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentStatus(societyId,userId,unitId,roles);

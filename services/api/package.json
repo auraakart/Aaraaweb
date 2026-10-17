@@ -1,6 +1,6 @@
 {
   "name": "@aaraagate/api",
-  "version": "4.92.0",
+  "version": "4.93.0",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "eslint": "^10.11.0",
+    "eslint": "^10.13.0",
     "prisma": "^6.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

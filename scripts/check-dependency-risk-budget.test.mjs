@@ -5,9 +5,43 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { dependencyCompatibilityErrors } from './lib/dependency-compatibility.mjs';
 
 const gate = fileURLToPath(new URL('./check-dependency-risk-budget.mjs', import.meta.url));
 const cleanCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 };
+const repository = new URL('../', import.meta.url);
+const manifest = (file) => JSON.parse(fs.readFileSync(new URL(file, repository), 'utf8'));
+const manifests = [manifest('package.json'), manifest('apps/admin/package.json'), manifest('services/api/package.json')];
+
+test('current dependency cohort passes and later reviewed-major lint versions are allowed', () => {
+  assert.deepEqual(dependencyCompatibilityErrors(...manifests), []);
+  const [root, admin, api] = structuredClone(manifests);
+  for (const pkg of [admin, api]) {
+    pkg.devDependencies.eslint = '^10.13.1';
+    pkg.devDependencies['typescript-eslint'] = '^8.72.0';
+  }
+  assert.deepEqual(dependencyCompatibilityErrors(root, admin, api), []);
+});
+
+for (const [name, mutate, expected] of [
+  ['future Node APIs on a Node 22 runtime', ([, admin]) => { admin.devDependencies['@types/node'] = '^26.6.5'; }, 'Node types'],
+  ['older Admin Node types', ([, admin]) => { admin.devDependencies['@types/node'] = '^20.17.0'; }, 'Node types'],
+  ['broad runtime range', ([root]) => { root.engines.node = '>=22'; }, 'supported Node'],
+  ['React DOM upgrade without React', ([, admin]) => { admin.dependencies['react-dom'] = '19.3.0'; }, 'React and React DOM'],
+  ['React types upgrade without runtime', ([, admin]) => { admin.devDependencies['@types/react-dom'] = '^19.3.0'; }, '@types/react-dom'],
+  ['divergent workspace linters', ([,, api]) => { api.devDependencies.eslint = '^10.11.0'; }, 'declarations must match'],
+  ['ESLint downgrade', ([, admin, api]) => { for (const pkg of [admin, api]) pkg.devDependencies.eslint = '^10.10.0'; }, 'minimum version'],
+  ['unreviewed lint major', ([, admin, api]) => { for (const pkg of [admin, api]) pkg.devDependencies.eslint = '^11.0.0'; }, 'reviewed major'],
+  ['parser downgrade', ([, admin, api]) => { for (const pkg of [admin, api]) pkg.devDependencies['typescript-eslint'] = '^8.70.9'; }, 'minimum version'],
+  ['unbounded lint declaration', ([, admin, api]) => { for (const pkg of [admin, api]) pkg.devDependencies.eslint = '>=10.11.0'; }, 'reviewed major'],
+]) {
+  test(`rejects ${name}`, () => {
+    const changed = structuredClone(manifests);
+    mutate(changed);
+    assert.ok(dependencyCompatibilityErrors(...changed).some(error => error.includes(expected)));
+  });
+}
+
 const cases = [
   ['clean completed audit', { metadata: { vulnerabilities: cleanCounts } }, 0, 0],
   ['registry error', { error: { code: 'REGISTRY_UNAVAILABLE' } }, 1, 1],

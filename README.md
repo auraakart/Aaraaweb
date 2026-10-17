@@ -57,4 +57,4 @@ Society Branding and Partner White Label development uses this shared repository
 
 ## Current development cycle
 
-[V4.92 workflow reliability and acceptance](docs/AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md) consolidates the October 17 recommendations into bounded develop-only changes and explicit independent acceptance dependencies.
+[V4.93 completion follow-through](docs/AARAAGATE-V4.93-COMPLETION-FOLLOW-THROUGH.md) consolidates the outstanding recommendations into bounded dependency compatibility and Assistant changes, with explicit product, finance, device and V5 acceptance dependencies. [V4.92 workflow reliability and acceptance](docs/AARAAGATE-V4.92-WORKFLOW-RELIABILITY-AND-ACCEPTANCE.md) remains the previous completed engineering milestone.

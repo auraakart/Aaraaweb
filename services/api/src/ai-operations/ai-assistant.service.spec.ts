@@ -20,6 +20,50 @@ function setup(){
 }
 
 describe('V4.6 grounded AI assistant',()=>{
+  it.each([
+    ['show my bills','INV-493'],
+    ['open billing','INV-493'],
+    ['show payments','INV-493'],
+    ['show my receipts','₹99.00'],
+    ['what was my last paid transaction','₹99.00'],
+    ['show my helpdesk','Water leak (OPEN)'],
+  ])('routes "%s" through authorized selected-property retrieval',async(message,expected)=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{invoiceNumber:'INV-493',amountPaise:125000,status:'ISSUED'}])
+      .mockResolvedValueOnce([{amountPaise:9900,status:'CREATED'}])
+      .mockResolvedValueOnce([{title:'Water leak',status:'OPEN'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const result=await service.query('society-1','user-1',[AppRole.TENANT],message,'unit-1');
+    expect(result.intent).toBe('RESIDENT_STATUS');
+    expect(result.answer).toContain(expected);
+    expect(result.mutationPerformed).toBe(false);
+    const sql=prisma.$queryRaw.mock.calls.map(call=>call[0] as {strings:readonly string[],values:unknown[]});
+    for(const call of sql){
+      expect(call.values.flat(Infinity)).toEqual(expect.arrayContaining(['society-1','unit-1']));
+    }
+  });
+  it.each(['show my bills','what was my last paid transaction','show my helpdesk'])('rejects unauthorized property before retrieval for "%s"',async message=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('society-1','user-1',[AppRole.TENANT],message,'other-unit')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+  it.each(['show my bills','open billing','show payments','what was my last paid transaction'])('does not retrieve finance for a family member asking "%s"',async message=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]).mockResolvedValue([]);
+    const result=await service.query('society-1','user-1',[AppRole.FAMILY_MEMBER],message,'unit-1');
+    expect(result.intent).toBe('RESIDENT_STATUS');
+    expect(result.answer).toMatch(/not permitted|cannot view/);
+    expect(result.sources).not.toContain('MaintenanceInvoice');
+    expect(result.sources).not.toContain('Payment');
+    const sql=prisma.$queryRaw.mock.calls.map(call=>(call[0] as {strings:readonly string[]}).strings.join('?')).join('\n');
+    expect(sql).not.toContain('FROM "MaintenanceInvoice"');
+    expect(sql).not.toContain('FROM "Payment"');
+  });
   it('adds high-frequency vernacular routing hints without translating or mutating user text',()=>{
     expect(residentIntentRoutingText('मेरी शिकायत दिखाओ')).toContain('complaint helpdesk ticket');
     expect(residentIntentRoutingText('என் கட்டணம் நிலுவையில் உள்ளதா')).toContain('payment due maintenance invoice');
