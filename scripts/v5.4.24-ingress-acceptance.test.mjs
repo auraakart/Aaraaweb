@@ -59,3 +59,58 @@ test('real TLS13 socket pins SPKI and denies spoofed host/origin',async t=>{
  await assert.rejects(probeTestIngress({...template,approvedSpkiSha256:'f'.repeat(64)},{testTransport:transport}),/pin/i);
  await assert.rejects(probeTestIngress({...template,approvedSpkiSha256:hash},{testTransport:{...transport,connectHost:'10.0.0.1'}}));
 });
+test('reject browser-normalized foreign redirects and misleading cache/Vary tokens over TLS',async t=>{
+ const temp=mkdtempSync(join(tmpdir(),'aaraagate-v5425-'));
+ t.after(()=>rmSync(temp,{recursive:true,force:true}));
+ const key=join(temp,'key.pem'),cert=join(temp,'cert.pem');
+ execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-sha256',
+  '-days','1','-keyout',key,'-out',cert,'-subj','/CN=portal.qa.partner.in',
+  '-addext','subjectAltName=DNS:portal.qa.partner.in'],{timeout:7000,stdio:'ignore'});
+ const ca=readFileSync(cert);
+ const pin=createHash('sha256').update(new X509Certificate(ca).publicKey.export({type:'spki',format:'der'})).digest('hex');
+ let responseHeaders={};
+ let requests=0;
+ const server=createServer({key:readFileSync(key),cert:ca,minVersion:'TLSv1.3',maxVersion:'TLSv1.3'},(req,res)=>{
+  requests++;
+  res.writeHead(req.headers['x-forwarded-host']||req.headers.origin?403:302,{
+   'cache-control':'private, NO-STORE',vary:'Origin, HOST, Cookie',
+   'x-content-type-options':'nosniff',location:'/partner-host/sign-in',...responseHeaders
+  });
+  res.end('discarded');
+ });
+ await new Promise((resolve,reject)=>server.listen(0,'127.0.0.1',resolve).once('error',reject));
+ t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));});
+ const options={testTransport:{localFixtureOnly:true,connectHost:'127.0.0.1',port:server.address().port,ca}};
+ const plan={...template,approvedSpkiSha256:pin};
+ // Both values passed the old prefix check but WHATWG/browser URL parsing
+ // resolves them to a foreign origin. Reject before recording probe success.
+ for(const location of ['/\\other.qa.partner.in/','/\t/other.qa.partner.in/']){
+  assert.notEqual(new URL(location,'https://'+plan.hostname).origin,'https://'+plan.hostname);
+ }
+ for(const location of [
+  '/\\other.qa.partner.in/','/\t/other.qa.partner.in/',
+  '//other.qa.partner.in/','https://other.qa.partner.in/',
+  'http://'+plan.hostname+'/','https://'+plan.hostname+'@other.qa.partner.in/',
+  'https://'+plan.hostname+':444/','/partner-host/with space'
+ ]){
+  responseHeaders={location};
+  const before=requests;
+  await assert.rejects(probeTestIngress(plan,options),/Unsafe cross-origin redirect/);
+  assert.equal(requests,before+1,'stop on first unsafe response without following redirect');
+ }
+ for(const headers of [
+  {vary:'X-Host, Origin'},{vary:'Host-Override, Cookie'},
+  {'cache-control':'x-no-store, private'},{'cache-control':'no-store="ignored"'}
+ ]){
+  responseHeaders=headers;
+  await assert.rejects(probeTestIngress(plan,options),/Missing (Host Vary|no-store)/);
+ }
+ for(const location of ['/partner-host/sign-in?return=%2Fhome','https://'+plan.hostname+'/partner-host/sign-in']){
+  responseHeaders={location};
+  const result=await probeTestIngress(plan,options);
+  assert.equal(result.probePassed,true);
+  assert.equal(result.results.length,3);
+  assert.equal(result.actualPartnerSessionAuthenticated,false);
+  assert.equal(result.externalOperatorAttested,false);
+ }
+});
