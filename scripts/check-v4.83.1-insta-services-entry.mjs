@@ -29,7 +29,6 @@ assert.ok(fs.existsSync('docs/AARAAGATE-V4.83.1-INSTA-SERVICES-ENTRY.md'),'V4.83
 const services=read('apps/resident/lib/screens/services_screen.dart');
 for(const token of [
   "final ApiClient consumerApiClient",
-  "Text('Insta Services'",
   "IndependentServicesScreen(",
   "apiClient: widget.consumerApiClient",
   "independentMode: false",
@@ -37,6 +36,8 @@ for(const token of [
 ]){
   assert.ok(services.includes(token),'Insta Services Services-tab contract missing: '+token);
 }
+
+assert.match(services, /\b(?:Text\(\s*|title:\s*)'Insta Services'/, 'Services must retain a visible Insta Services entry label');
 
 const main=read('apps/resident/lib/main.dart');
 assert.ok(
