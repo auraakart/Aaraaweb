@@ -37,7 +37,7 @@ export class MigrationPreviewService {
       throw new BadRequestException('A preview batch cannot exceed 10000 rows');
     }
 
-    const normalizedRows = inputRows.map((row) => this.normalizeRow(row));
+    const normalizedRows = inputRows.map((row, index) => this.normalizeRow(row, index + 1));
     const issues: MigrationPreviewIssue[] = [];
     const invalid = new Set<number>();
     const duplicate = new Set<number>();
@@ -94,11 +94,15 @@ export class MigrationPreviewService {
     };
   }
 
-  private normalizeRow(row: Record<string, unknown>) {
+  private normalizeRow(row: Record<string, unknown>, rowNumber: number) {
     const normalized: Record<string, string> = {};
     for (const [rawKey, rawValue] of Object.entries(row ?? {})) {
       const key = rawKey.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
       if (!key) continue;
+      // Reject ambiguity before projection can silently overwrite import data.
+      if (Object.prototype.hasOwnProperty.call(normalized, key)) {
+        throw new BadRequestException(`Migration row ${rowNumber} contains columns that normalize to the same field: ${key}`);
+      }
       const value = rawValue == null ? '' : String(rawValue).trim();
       normalized[key] = value;
     }
