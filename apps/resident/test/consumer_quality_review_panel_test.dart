@@ -127,6 +127,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Submit for rework review'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Submit for rework review'));
       await tester.pumpAndSettle();
       expect(find.textContaining('submitted for review'), findsOneWidget);
@@ -146,6 +147,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Submit for rework review'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Submit for rework review'));
       await tester.pumpAndSettle();
       expect(
@@ -159,6 +161,7 @@ void main() {
       await tester.ensureVisible(
         find.text('Refresh quality and review status'),
       );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Refresh quality and review status'));
       await tester.pumpAndSettle();
       expect(

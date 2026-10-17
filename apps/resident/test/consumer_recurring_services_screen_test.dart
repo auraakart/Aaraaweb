@@ -39,12 +39,14 @@ void main() {
     expect(api.writes, isEmpty);
     await tester.tap(find.text('Plan one visit')); await tester.pumpAndSettle();
     expect(find.text('₹900'), findsOneWidget); expect(find.text('Other home'), findsNothing);
-    await tester.scrollUntilVisible(find.text('Choose date & time'), 250, scrollable: find.byType(Scrollable).first); await tester.tap(find.text('Choose date & time')); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Choose date & time'), 250, scrollable: find.byType(Scrollable).first); await tester.pumpAndSettle(); await tester.tap(find.text('Choose date & time')); await tester.pumpAndSettle();
     await tester.tap(find.text('OK')); await tester.pumpAndSettle();
     await tester.tap(find.text('OK')); await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Request service'), 250, scrollable: find.byType(Scrollable).first); await tester.tap(find.text('Request service')); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Request service'), 250, scrollable: find.byType(Scrollable).first); await tester.pumpAndSettle(); await tester.tap(find.text('Request service')); await tester.pumpAndSettle();
     expect(api.writes, hasLength(1));
-    await tester.scrollUntilVisible(find.text('Request service'), 250, scrollable: find.byType(Scrollable).first); await tester.tap(find.text('Request service')); await tester.pumpAndSettle();
+    // Allow the lost-response SnackBar to leave before the explicit retry tap.
+    await tester.pump(const Duration(seconds: 5)); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Request service'), 250, scrollable: find.byType(Scrollable).first); await tester.pumpAndSettle(); await tester.tap(find.text('Request service')); await tester.pumpAndSettle();
     expect(api.writes, hasLength(2));
     expect(api.writes[0]['idempotencyKey'], api.writes[1]['idempotencyKey']);
     expect(api.writes[0].keys, unorderedEquals(['scheduledFrom', 'scheduledUntil', 'idempotencyKey']));
