@@ -97,7 +97,7 @@ export function MigrationImportStager({session,onBatchCreated}:{session:Migratio
         {preview.issues.length>0&&<div style={{display:'grid',gap:8}}>{preview.issues.slice(0,100).map((issue,index)=><article key={index} style={{border:'1px solid #e5e7eb',borderRadius:10,padding:10}}><strong>Row {issue.row}{issue.field?' · '+issue.field:''}</strong><div>{issue.code.replaceAll('_',' ')} · {issue.message}</div></article>)}</div>}
         {preview.issues.length>100&&<small>Showing first 100 of {preview.issues.length} issues.</small>}
       </section>}
-      <small>XLSX is parsed locally in the browser and only canonical row data is sent to the existing migration preview API. The first worksheet is used; preview remains non-mutating.</small>
+      <small>XLSX is parsed locally in the browser and only canonical row data is sent to the existing migration preview API. The first worksheet is used; preview remains non-mutating. Use values only; convert formulas to values and correct ambiguous columns before preview.</small>
     </div>
   </DetailPanel>
 }
