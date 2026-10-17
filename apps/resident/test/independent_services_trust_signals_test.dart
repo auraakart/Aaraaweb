@@ -7,9 +7,36 @@ class FakeServicesApiClient extends ApiClient {
   FakeServicesApiClient({this.failTrust = false}) : super(baseUrl: 'http://test', accessToken: 'token');
 
   final bool failTrust;
+  int benefitsReads = 0;
 
   @override
   Future<dynamic> get(String path) async {
+    if (path == '/api/v1/consumer/services/benefits-readiness') {
+      benefitsReads++;
+      return <String, dynamic>{
+        'readOnly': true,
+        'activitySource': 'AUTHENTICATED_COMPLETED_BOOKINGS',
+        'historicalActivityOnly': true,
+        'completedBookings': 2,
+        'completedProviders': 1,
+        'eligibilityDetermined': false,
+        'membership': {
+          'status': 'NOT_LAUNCHED', 'enrollmentAvailable': false,
+          'activeEntitlement': null, 'pricePaise': null,
+        },
+        'loyalty': {
+          'status': 'NOT_LAUNCHED', 'pointsBalance': null,
+          'redeemableAmountPaise': null, 'earnRate': null,
+          'redemptionEnabled': false,
+        },
+        'optionalProtection': {
+          'status': 'NOT_OFFERED', 'coverageConfirmed': false,
+          'claimAvailable': false, 'terms': null,
+        },
+        'bookingCreated': false,
+        'chargeAuthorized': false,
+      };
+    }
     if (path == '/api/v1/consumer/services/categories') {
       return [
         {'id': '11111111-1111-1111-1111-111111111111', 'name': 'Cleaning'},
@@ -59,6 +86,25 @@ class FakeServicesApiClient extends ApiClient {
 }
 
 void main() {
+
+  testWidgets('benefits opens on demand below the service intro without an action-row overflow', (tester) async {
+    final api = FakeServicesApiClient();
+    await tester.pumpWidget(MaterialApp(
+      home: IndependentServicesScreen(apiClient: api, independentMode: false),
+    ));
+    await tester.pumpAndSettle();
+    expect(api.benefitsReads, 0);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Service benefits'));
+    await tester.pumpAndSettle();
+    expect(api.benefitsReads, 1);
+    expect(find.text('Completed services: 2'), findsOneWidget);
+    expect(find.text('Membership: Not launched'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    api.close();
+  });
+
   testWidgets('external service cards show verified rating and completed-job signals', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

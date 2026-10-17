@@ -28,6 +28,7 @@ jobs:
       run_resident: ${{ steps.detect.outputs.run_resident }}
       run_guard: ${{ steps.detect.outputs.run_guard }}
       run_dependency_audit: ${{ steps.detect.outputs.run_dependency_audit }}
+      run_android_smoke: ${{ steps.detect.outputs.run_android_smoke }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -77,6 +78,9 @@ jobs:
 
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           git diff --name-only "$BASE_SHA" "${{ github.sha }}" > /tmp/aaraagate-changed-files.txt
+          if grep -Eq '^(\.github/workflows/v5-test-android-smoke\.yml|scripts/v5-test-android-smoke\.sh|scripts/v5-test-apksigner-report(\.test)?\.mjs|scripts/v5-test-android-aab-smoke\.sh|scripts/v5-test-aab-signer-report(\.test)?\.mjs|scripts/v5-test-build-matrix-evidence(\.test)?\.mjs)$' /tmp/aaraagate-changed-files.txt; then
+            echo "run_android_smoke=true" >> "$GITHUB_OUTPUT"
+          fi
 
           if [ ! -s /tmp/aaraagate-changed-files.txt ]; then
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
@@ -117,6 +121,23 @@ jobs:
             exit 0
           fi
 
+          # Offline, manually invoked TEST operator claim/probe files have
+          # their own mandatory tests in Repository structure. Require a
+          # *strict* reviewed allowlist; every API, client, workflow, package,
+          # runner-hook, delete or rename change still runs the broad gates.
+          operator_scope_only="$(node scripts/classify-v5-test-operator-change.mjs "$BASE_SHA" "${{ github.sha }}")"
+          if [ "$operator_scope_only" = "true" ]; then
+            node scripts/check-secret-patterns.mjs
+            echo "V5 operator-claim-only files: required offline tests and secret scan still enforced; no runtime application surfaces changed."
+            echo "run_api=false" >> "$GITHUB_OUTPUT"
+            echo "run_admin=false" >> "$GITHUB_OUTPUT"
+            echo "run_flutter=false" >> "$GITHUB_OUTPUT"
+            echo "run_resident=false" >> "$GITHUB_OUTPUT"
+            echo "run_guard=false" >> "$GITHUB_OUTPUT"
+            echo "run_dependency_audit=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           run_api=false
           run_admin=false
           run_flutter=false
@@ -126,6 +147,14 @@ jobs:
 
           if grep -Eq '^services/api/' /tmp/aaraagate-changed-files.txt; then
             run_api=true
+          fi
+          # Authentication, branding and entitlement contracts affect every client.
+          # Focused API tests cannot replace dependent Admin/Flutter validation.
+          if grep -E '^services/api/src/(auth|branding|entitlements)/.*\.ts$' /tmp/aaraagate-changed-files.txt | grep -Ev '\.spec\.ts$' | grep -q .; then
+            run_admin=true
+            run_flutter=true
+            run_resident=true
+            run_guard=true
           fi
           if grep -Eq '^apps/admin/' /tmp/aaraagate-changed-files.txt; then
             run_admin=true
@@ -254,6 +283,10 @@ jobs:
           bash -n scripts/check-hosted-staging-contract.sh
           bash -n scripts/check-staging-deployment-template.sh
           bash -n scripts/open-main-release-pr.sh
+      - name: Test version-aware TEST APK certificate report parser
+        run: node --test scripts/v5-test-apksigner-report.test.mjs
+      - name: Verify cross-role TEST artifact evidence invariants
+        run: node --test scripts/v5-test-build-matrix-evidence.test.mjs
       - name: Scan tracked source for high-confidence secret patterns
         run: node scripts/check-secret-patterns.mjs
       - name: Check cross-role source contract
@@ -268,7 +301,7 @@ jobs:
           node scripts/check-services-3.1-closure.mjs --self-test
           node scripts/check-services-3.1-closure.mjs
       - name: Test release delay prevention controls
-        run: node --test scripts/release-delay-controls.test.mjs scripts/coverage-thresholds.test.mjs
+        run: node --test scripts/release-delay-controls.test.mjs scripts/coverage-thresholds.test.mjs scripts/partner-domain-contract.test.mjs scripts/partner-host-boundary.test.mjs scripts/partner-license-allocation-simulation.test.mjs scripts/android-build-contract.test.mjs
       - name: Check V4.80.12 main review routing
         run: node scripts/check-v4.80.12-main-review-routing.mjs
       - name: Validate release migration control syntax
@@ -294,7 +327,9 @@ jobs:
       - name: Test dependency audit failure handling
         run: node --test scripts/check-dependency-risk-budget.test.mjs
       - name: Check V4.81.1 tenant isolation and observability readiness
-        run: node scripts/check-v4.81.1-tenant-observability-readiness.mjs
+        run: |
+          node --test scripts/tenant-index-contract.test.mjs
+          node scripts/check-v4.81.1-tenant-observability-readiness.mjs
       - name: Check V4.81.2 maintainability and tenant hardening
         run: node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
       - name: Check V4.81.3 main validation reuse
@@ -453,6 +488,21 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       - name: Apply Prisma migrations to clean PostgreSQL
         run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      - name: Verify V5 tenant-access inventory
+        run: |
+          node services/api/scripts/tenant-access-inventory.mjs --write
+          if ! git diff --quiet -- docs/architecture/v5-tenant-access-inventory.json; then
+            echo "::error::V5 tenant-access inventory is stale; regenerate and commit the reviewed diff."
+            git diff --no-ext-diff --unified=0 -- docs/architecture/v5-tenant-access-inventory.json
+            exit 1
+          fi
+      - name: V5 partner ownership historical upgrade and replay
+        env:
+          AARAAGATE_PARTNER_MIGRATION_CI: '1'
+        run: |
+          node --test scripts/partner-ownership-migration-smoke.test.mjs
+          node services/api/scripts/partner-ownership-migration-smoke.mjs
+          pnpm --filter @aaraagate/api exec vitest run src/societies/societies-compatibility.postgres.spec.ts
       - name: Lint API
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
@@ -471,6 +521,8 @@ jobs:
         run: pnpm --filter @aaraagate/api test
       - name: Build API before coverage instrumentation
         run: pnpm --filter @aaraagate/api build
+      - name: V5 default-brand HTTP compatibility smoke
+        run: node services/api/scripts/branding-http-smoke.mjs
       - name: Install exact API coverage provider
         run: pnpm --dir services/api add --save-dev --lockfile=false @vitest/coverage-v8@5.0.2
       - name: Regenerate Prisma client after transient coverage install
@@ -605,6 +657,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Test Admin access boundaries
         run: pnpm --filter @aaraagate/admin test
+      - name: Test direct-host partner SSR and cookie isolation
+        run: pnpm --filter @aaraagate/admin test:host-ssr
       - name: Lint shared Admin components and browser contracts
         run: pnpm --filter @aaraagate/admin lint:ui
       - name: Install Admin browser test runtime
@@ -821,9 +875,15 @@ jobs:
           test "$FULL_RESULT" = "success"
 
 
+  android-test-smoke:
+    name: Android base TEST smoke acceptance
+    needs: [change-scope]
+    if: needs.change-scope.outputs.run_android_smoke == 'true'
+    uses: ./.github/workflows/v5-test-android-smoke.yml
+
   required-merge-gates:
     name: Required merge gates
-    needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security]
+    needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security, change-scope, android-test-smoke]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -835,6 +895,8 @@ jobs:
           ADMIN_VALIDATION: ${{ needs.admin-validation.result }}
           FLUTTER_VALIDATION: ${{ needs.flutter-validation.result }}
           DEPENDENCY_SECURITY: ${{ needs.dependency-security.result }}
+          RUN_ANDROID_SMOKE: ${{ needs.change-scope.outputs.run_android_smoke }}
+          ANDROID_SMOKE: ${{ needs.android-test-smoke.result }}
         run: |
           printf '%s\n'             "Repository structure: $REPOSITORY_STRUCTURE"             "API validation: $API_VALIDATION"             "Admin validation: $ADMIN_VALIDATION"             "Flutter validation: $FLUTTER_VALIDATION"             "Dependency security: $DEPENDENCY_SECURITY"
 
@@ -842,6 +904,10 @@ jobs:
             test "$result" = "success"
           done
 
+          if [ "$RUN_ANDROID_SMOKE" = "true" ]; then
+            echo "Real TEST Resident/Guard Android smoke result: $ANDROID_SMOKE"
+            test "$ANDROID_SMOKE" = "success"
+          fi
           echo "All required merge gates passed."
 
 

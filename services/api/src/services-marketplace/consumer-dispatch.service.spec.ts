@@ -51,6 +51,170 @@ describe('ConsumerDispatchService', () => {
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
+
+
+  it('refuses operational ETA for another booking owner before reading provider history', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getConsumerOperationalEta(consumerUserId, bookingId)).rejects.toThrow('Booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not predict an ETA before an en-route event', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'ACCEPTED', enRouteAt: null, arrivedAt: null }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta).toEqual(expect.objectContaining({
+      etaMinutes: null, liveTracking: false, reason: 'WAITING_FOR_EN_ROUTE_MILESTONE',
+    }));
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns only confirmed arrival and no prediction once arrived', async () => {
+    const { prisma, service } = setup();
+    const arrival = new Date();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'ARRIVED', enRouteAt: arrival, arrivedAt: arrival }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('ARRIVAL_CONFIRMED');
+    expect(eta.etaMinutes).toBeNull();
+    expect(eta.lastMilestoneAt).toEqual(arrival);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('withholds an ETA when en-route telemetry is stale', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 30 * 60_000), arrivedAt: null }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('EN_ROUTE_MILESTONE_STALE');
+    expect(eta.etaMinutes).toBeNull();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not manufacture ETA without at least five historical provider journeys', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 2 * 60_000), arrivedAt: null }])
+      .mockResolvedValueOnce([{ sampleSize: 4, medianMinutes: 35 }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('INSUFFICIENT_PROVIDER_HISTORY');
+    expect(eta.confidence).toBe('UNAVAILABLE');
+    expect(eta.etaMinutes).toBeNull();
+    const historical = prisma.$queryRaw.mock.calls[2][0] as { values: unknown[]; strings: string[] };
+    expect(historical.values).toContain(providerId);
+    expect(historical.values).toContain(assignmentId);
+    expect(historical.strings.join(' ')).not.toContain('"phone"');
+    expect(historical.strings.join(' ')).not.toContain('"addressSnapshot"');
+  });
+
+  it('returns a rounded low-confidence historical baseline only for fresh dispatch', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 6 * 60_000), arrivedAt: null }])
+      .mockResolvedValueOnce([{ sampleSize: 11, medianMinutes: 31 }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta).toEqual(expect.objectContaining({
+      etaMinutes: 25, confidence: 'LOW', liveTracking: false, guaranteedArrival: false,
+      source: 'PROVIDER_HISTORICAL_EN_ROUTE_TO_ARRIVED', reason: 'HISTORICAL_ESTIMATE_ONLY',
+      milestoneFresh: true, sampleSize: 11,
+    }));
+    expect(eta.estimatedArrivalAt).toBeInstanceOf(Date);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+  });
+
+  it('withholds an overdue historical window rather than showing an invented imminent ETA', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 10 * 60_000), arrivedAt: null }])
+      .mockResolvedValueOnce([{ sampleSize: 10, medianMinutes: 7 }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('HISTORICAL_WINDOW_ELAPSED');
+    expect(eta.etaMinutes).toBeNull();
+  });
+
+  it('rejects candidate requests for unknown or unverified provider bookings', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.listDispatchCandidates(bookingId)).rejects.toThrow('Verified provider booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw.mock.calls[0][0].strings.join(' ')).toContain('ProviderVerificationStatus');
+  });
+
+  it('does not suggest candidates for an assigned booking', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: true }]);
+    await expect(service.listDispatchCandidates(bookingId)).rejects.toThrow('unassigned confirmed booking');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a scoped provisional shortlist with no invented live ETA', async () => {
+    const { prisma, tx, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z');
+    const until = new Date('2030-01-01T11:00:00Z');
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false, scheduledFrom: from, scheduledUntil: until }])
+      .mockResolvedValueOnce([
+        { agentId, displayName: 'Ravi', activeAssignmentCount: 0, hasScheduleConflict: false },
+        { agentId: '77777777-7777-4777-8777-777777777777', displayName: 'Busy', activeAssignmentCount: 2, hasScheduleConflict: true },
+      ]);
+    const output = await service.listDispatchCandidates(bookingId);
+    expect(output.candidates[0]).toEqual(expect.objectContaining({
+      agentId, provisionallyAvailable: true, availabilityConfirmed: false,
+      skillsVerifiedForOffering: false, etaMinutes: null,
+    }));
+    expect(output.candidates[1].provisionallyAvailable).toBe(false);
+    expect(output.assignmentRequired).toBe(true);
+    const sqlQuery = prisma.$queryRaw.mock.calls[1][0] as { values: unknown[]; strings: string[] };
+    const sql = sqlQuery.strings.join(' ');
+    expect(sql).toContain('assignedBooking."scheduledFrom"');
+    expect(sql).toContain('assignedBooking."scheduledUntil"');
+    expect(sql).toContain('ag."providerId"');
+    expect(sql).toContain('ag."active" = true');
+    expect(sqlQuery.values).toEqual([until, from, providerId, null]);
+    expect(sql).not.toContain('"phone"');
+    expect(sql).not.toContain('"addressSnapshot"');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('4.2.6 puts a resident-requested conflict-free technician first without guaranteeing assignment', async () => {
+    const { prisma, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z');
+    const until = new Date('2030-01-01T11:00:00Z');
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{
+        id: bookingId, providerId, status: 'CONFIRMED',
+        hasActiveAssignment: false, preferredAgentId: agentId,
+        scheduledFrom: from, scheduledUntil: until,
+      }])
+      .mockResolvedValueOnce([
+        { agentId, displayName: 'Previous Technician', activeAssignmentCount: 0, hasScheduleConflict: false },
+      ]);
+    const result = await service.listDispatchCandidates(bookingId);
+    expect(result.residentPreferencePresent).toBe(true);
+    expect(result.residentPreferenceGuaranteed).toBe(false);
+    expect(result.candidates[0].residentRequested).toBe(true);
+    expect(result.candidates[0].availabilityConfirmed).toBe(false);
+    const sql = prisma.$queryRaw.mock.calls[1][0] as { strings: string[]; values: unknown[] };
+    expect(sql.strings.join(' ')).toContain('IS DISTINCT FROM');
+    expect(sql.values).toEqual([until, from, providerId, agentId]);
+  });
+
+  it('returns an explicit empty provisional shortlist when no agent is available', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false, scheduledFrom: new Date(), scheduledUntil: new Date() }])
+      .mockResolvedValueOnce([]);
+    const response = await service.listDispatchCandidates(bookingId);
+    expect(response.candidates).toEqual([]);
+    expect(response.provisional).toBe(true);
+  });
+
   it('rejects an agent that does not belong to the booking provider', async () => {
     const { tx, service } = setup();
     tx.$queryRaw
@@ -75,6 +239,7 @@ describe('ConsumerDispatchService', () => {
       .mockResolvedValueOnce([{ id: bookingId, userId: consumerUserId, providerId, status: 'CONFIRMED' }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: agentId, providerId, displayName: 'Ravi', active: true }])
+      .mockResolvedValueOnce([]) // No overlap under the agent row lock.
       .mockResolvedValueOnce([assignment]);
     tx.$executeRaw.mockResolvedValue(1);
     prisma.$queryRaw.mockResolvedValueOnce([{
@@ -106,6 +271,61 @@ describe('ConsumerDispatchService', () => {
     await expect(service.assign(actorUserId, bookingId, agentId)).rejects.toThrow(
       'Only confirmed consumer bookings can be assigned',
     );
+  });
+
+
+  it('blocks direct assignment when the selected agent has an overlapping active job', async () => {
+    const { tx, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z'), until = new Date('2030-01-01T11:00:00Z');
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, userId: consumerUserId, providerId, status: 'CONFIRMED', scheduledFrom: from, scheduledUntil: until }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: agentId, providerId, active: true }])
+      .mockResolvedValueOnce([{ id: '88888888-8888-4888-8888-888888888888' }]);
+    await expect(service.assign(actorUserId, bookingId, agentId)).rejects.toThrow('overlapping active service assignment');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    const agentLock = tx.$queryRaw.mock.calls[2][0] as { strings: string[] };
+    expect(agentLock.strings.join(' ')).toContain('FOR UPDATE OF ag');
+    const overlap = tx.$queryRaw.mock.calls[3][0] as { strings: string[]; values: unknown[] };
+    expect(overlap.strings.join(' ')).toContain('other."scheduledFrom"');
+    expect(overlap.strings.join(' ')).toContain('other."scheduledUntil"');
+    expect(overlap.values).toEqual([agentId, providerId, until, from]);
+  });
+
+  it('one-action dispatch only selects a candidate without a reported conflict', async () => {
+    const { prisma, tx, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z'), until = new Date('2030-01-01T11:00:00Z');
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false,
+      scheduledFrom: from, scheduledUntil: until,
+    }]).mockResolvedValueOnce([
+      { agentId: '77777777-7777-4777-8777-777777777777', displayName: 'Busy', activeAssignmentCount: 2, hasScheduleConflict: true },
+      { agentId, displayName: 'Ravi', activeAssignmentCount: 0, hasScheduleConflict: false },
+    ]);
+    const assignment = { id: assignmentId, bookingId, providerId, agentId, status: 'ASSIGNED' };
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, userId: consumerUserId, providerId, status: 'CONFIRMED', scheduledFrom: from, scheduledUntil: until }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: agentId, providerId, active: true }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([assignment]);
+    // The post-commit notification query may return no recipients in this isolated test.
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    const result = await service.quickDispatch(actorUserId, bookingId);
+    expect(result.agentId).toBe(agentId);
+    expect(tx.$queryRaw.mock.calls[2][0].values).toContain(agentId);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails without writing if all provisional candidates have conflicts', async () => {
+    const { prisma, tx, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false, scheduledFrom: new Date(), scheduledUntil: new Date() }])
+      .mockResolvedValueOnce([{ agentId, displayName: 'Ravi', activeAssignmentCount: 1, hasScheduleConflict: true }]);
+    await expect(service.quickDispatch(actorUserId, bookingId)).rejects.toThrow('No conflict-free provider agent currently available');
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('rejects invalid dispatch state jumps', async () => {

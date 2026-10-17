@@ -34,43 +34,45 @@ export class PrivacyService {
   constructor(private readonly prisma: PrismaService) {}
 
   listMine(userId: string, societyId?: string) {
-    return this.prisma.$queryRaw<Array<Pick<PrivacyCaseRow, 'id' | 'requestType' | 'status' | 'requestSummary' | 'legalHold' | 'dueAt' | 'closedAt' | 'createdAt' | 'updatedAt'>>>(Prisma.sql`
+    return this.withPrivacyCaseTransaction(societyId, tx => tx.$queryRaw<Array<Pick<PrivacyCaseRow, 'id' | 'requestType' | 'status' | 'requestSummary' | 'legalHold' | 'dueAt' | 'closedAt' | 'createdAt' | 'updatedAt'>>>(Prisma.sql`
       SELECT "id","requestType","status","requestSummary","legalHold","dueAt","closedAt","createdAt","updatedAt"
       FROM "PrivacyRequestCase"
       WHERE "subjectUserId"=${userId}::uuid
         AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
       ORDER BY "createdAt" DESC
       LIMIT 100
-    `);
+    `));
   }
 
   async selfContext(userId:string,societyId:string){
-    const [categories,consents]=await Promise.all([
-      this.prisma.$queryRaw<Array<{
-        code:string;name:string;purpose:string;retentionTrigger:string;retentionDays:number|null;
-      }>>(Prisma.sql`
-        SELECT "code","name","purpose","retentionTrigger","retentionDays"
-        FROM "PrivacyDataCategory"
-        WHERE "societyId"=${societyId}::uuid AND "active"=true
-        ORDER BY "name" ASC
-        LIMIT 50
-      `),
-      this.prisma.$queryRaw<Array<{
-        dataCategoryCode:string|null;purpose:string;status:'GRANTED'|'WITHDRAWN';grantedAt:Date;withdrawnAt:Date|null;
-      }>>(Prisma.sql`
-        SELECT "dataCategoryCode","purpose","status","grantedAt","withdrawnAt"
-        FROM "PrivacyConsentRecord"
-        WHERE "societyId"=${societyId}::uuid AND "subjectUserId"=${userId}::uuid
-        ORDER BY "grantedAt" DESC
-        LIMIT 100
-      `),
-    ]);
-    return {
-      categories,
-      consents,
-      activeConsentCount:consents.filter(item=>item.status==='GRANTED').length,
-      boundary:'This is product configuration and recorded consent evidence only; it does not determine statutory rights or legal compliance.',
-    };
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const [categories,consents]=await Promise.all([
+        tx.$queryRaw<Array<{
+          code:string;name:string;purpose:string;retentionTrigger:string;retentionDays:number|null;
+        }>>(Prisma.sql`
+          SELECT "code","name","purpose","retentionTrigger","retentionDays"
+          FROM "PrivacyDataCategory"
+          WHERE "societyId"=${societyId}::uuid AND "active"=true
+          ORDER BY "name" ASC
+          LIMIT 50
+        `),
+        tx.$queryRaw<Array<{
+          dataCategoryCode:string|null;purpose:string;status:'GRANTED'|'WITHDRAWN';grantedAt:Date;withdrawnAt:Date|null;
+        }>>(Prisma.sql`
+          SELECT "dataCategoryCode","purpose","status","grantedAt","withdrawnAt"
+          FROM "PrivacyConsentRecord"
+          WHERE "societyId"=${societyId}::uuid AND "subjectUserId"=${userId}::uuid
+          ORDER BY "grantedAt" DESC
+          LIMIT 100
+        `),
+      ]);
+      return {
+        categories,
+        consents,
+        activeConsentCount:consents.filter(item=>item.status==='GRANTED').length,
+        boundary:'This is product configuration and recorded consent evidence only; it does not determine statutory rights or legal compliance.',
+      };
+    });
   }
 
   async createMine(
@@ -83,7 +85,7 @@ export class PrivacyService {
     if (!summary) throw new BadRequestException('Privacy request summary is required');
     if (!requestKey) throw new BadRequestException('Privacy request key is required');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.withPrivacyCaseTransaction(societyId, async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${requestKey}`}))::text`);
       const existingRows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         SELECT *
@@ -126,68 +128,75 @@ export class PrivacyService {
   }
 
   operatorContext(societyId: string) {
-    return Promise.all([
-      this.prisma.$queryRaw<Array<{ id: string; name: string; phone: string; relationship: string }>>(Prisma.sql`
-        SELECT DISTINCT u."id", u."name", u."phone",
-          CASE
-            WHEN EXISTS (
-              SELECT 1 FROM "UnitOwnership" own
-              WHERE own."societyId"=${societyId}::uuid AND own."userId"=u."id" AND own."active"=true
-            ) THEN 'OWNER'
-            WHEN EXISTS (
-              SELECT 1 FROM "UnitOccupancy" occ
-              WHERE occ."societyId"=${societyId}::uuid AND occ."userId"=u."id" AND occ."active"=true AND occ."relation"='TENANT'
-            ) THEN 'TENANT'
-            ELSE 'MEMBER'
-          END AS "relationship"
-        FROM "User" u
-        WHERE EXISTS (
-          SELECT 1 FROM "SocietyMembership" sm
-          WHERE sm."societyId"=${societyId}::uuid AND sm."userId"=u."id" AND sm."active"=true
-        )
-        OR EXISTS (
-          SELECT 1 FROM "UnitOwnership" own
-          WHERE own."societyId"=${societyId}::uuid AND own."userId"=u."id" AND own."active"=true
-        )
-        OR EXISTS (
-          SELECT 1 FROM "UnitOccupancy" occ
-          WHERE occ."societyId"=${societyId}::uuid AND occ."userId"=u."id" AND occ."active"=true
-        )
-        ORDER BY u."name" ASC
-      `),
-      this.prisma.$queryRaw<Array<{ id: string; name: string; phone: string }>>(Prisma.sql`
-        SELECT DISTINCT u."id", u."name", u."phone"
-        FROM "User" u
-        JOIN "SocietyMembership" sm ON sm."userId"=u."id"
-        WHERE sm."societyId"=${societyId}::uuid AND sm."active"=true
-        ORDER BY u."name" ASC
-      `)
-    ]).then(([subjects, assignees]) => ({ subjects, assignees }));
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const [subjects, assignees] = await Promise.all([
+        tx.$queryRaw<Array<{ id: string; name: string; phone: string; relationship: string }>>(Prisma.sql`
+          SELECT DISTINCT u."id", u."name", u."phone",
+            CASE
+              WHEN EXISTS (
+                SELECT 1 FROM "UnitOwnership" own
+                WHERE own."societyId"=${societyId}::uuid AND own."userId"=u."id" AND own."active"=true
+              ) THEN 'OWNER'
+              WHEN EXISTS (
+                SELECT 1 FROM "UnitOccupancy" occ
+                WHERE occ."societyId"=${societyId}::uuid AND occ."userId"=u."id" AND occ."active"=true AND occ."relation"='TENANT'
+              ) THEN 'TENANT'
+              ELSE 'MEMBER'
+            END AS "relationship"
+          FROM "User" u
+          WHERE EXISTS (
+            SELECT 1 FROM "SocietyMembership" sm
+            WHERE sm."societyId"=${societyId}::uuid AND sm."userId"=u."id" AND sm."active"=true
+          )
+          OR EXISTS (
+            SELECT 1 FROM "UnitOwnership" own
+            WHERE own."societyId"=${societyId}::uuid AND own."userId"=u."id" AND own."active"=true
+          )
+          OR EXISTS (
+            SELECT 1 FROM "UnitOccupancy" occ
+            WHERE occ."societyId"=${societyId}::uuid AND occ."userId"=u."id" AND occ."active"=true
+          )
+          ORDER BY u."name" ASC
+        `),
+        tx.$queryRaw<Array<{ id: string; name: string; phone: string }>>(Prisma.sql`
+          SELECT DISTINCT u."id", u."name", u."phone"
+          FROM "User" u
+          JOIN "SocietyMembership" sm ON sm."userId"=u."id"
+          WHERE sm."societyId"=${societyId}::uuid AND sm."active"=true
+          ORDER BY u."name" ASC
+        `)
+      ]);
+      return { subjects, assignees };
+    });
   }
 
-  async programReadiness(societyId:string){
+  programReadiness(societyId: string) {
+    return this.prisma.withTenantContext(societyId, tx => this.programReadinessOnClient(tx, societyId));
+  }
+
+  private async programReadinessOnClient(tx: Prisma.TransactionClient, societyId: string) {
     const [categories,processors,cases,incidents,grievance]=await Promise.all([
-      this.prisma.$queryRaw<Array<{active:number;missingLegalBasis:number;missingRetention:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{active:number;missingLegalBasis:number;missingRetention:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "active",
           COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE("legalBasis",'')),'') IS NULL)::int AS "missingLegalBasis",
           COUNT(*) FILTER (WHERE "retentionDays" IS NULL OR "retentionDays"<=0)::int AS "missingRetention"
         FROM "PrivacyDataCategory" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
       `),
-      this.prisma.$queryRaw<Array<{active:number;missingAgreement:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{active:number;missingAgreement:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "active",
           COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE("agreementReference",'')),'') IS NULL)::int AS "missingAgreement"
         FROM "PrivacyProcessorRegister" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
       `),
-      this.prisma.$queryRaw<Array<{overdue:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{overdue:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "overdue" FROM "PrivacyRequestCase"
         WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('COMPLETED','REJECTED','CANCELLED')
           AND "dueAt" IS NOT NULL AND "dueAt"<CURRENT_TIMESTAMP
       `),
-      this.prisma.$queryRaw<Array<{open:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{open:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "open" FROM "PrivacySecurityIncident"
         WHERE "societyId"=${societyId}::uuid AND "status"<>'CLOSED'
       `),
-      this.prisma.$queryRaw<Array<{active:boolean}>>(Prisma.sql`
+      tx.$queryRaw<Array<{active:boolean}>>(Prisma.sql`
         SELECT "active" FROM "PrivacyGrievanceContact" WHERE "societyId"=${societyId}::uuid LIMIT 1
       `),
     ]);
@@ -224,35 +233,38 @@ export class PrivacyService {
     };
   }
 
-  async programEvidence(societyId:string){
+  programEvidence(societyId: string) {
+    return this.prisma.withTenantContext(societyId, async tx => {
     const [readiness,consents,cases,incidents,registryEvents]=await Promise.all([
-      this.programReadiness(societyId),
-      this.prisma.$queryRaw<Array<{granted:number;withdrawn:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"='GRANTED')::int AS "granted",COUNT(*) FILTER (WHERE "status"='WITHDRAWN')::int AS "withdrawn" FROM "PrivacyConsentRecord" WHERE "societyId"=${societyId}::uuid`),
-      this.prisma.$queryRaw<Array<{open:number;completed:number;erasure:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status" NOT IN ('COMPLETED','REJECTED','CANCELLED'))::int AS "open",COUNT(*) FILTER (WHERE "status"='COMPLETED')::int AS "completed",COUNT(*) FILTER (WHERE "requestType"='ERASURE')::int AS "erasure" FROM "PrivacyRequestCase" WHERE "societyId"=${societyId}::uuid`),
-      this.prisma.$queryRaw<Array<{open:number;closed:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"<>'CLOSED')::int AS "open",COUNT(*) FILTER (WHERE "status"='CLOSED')::int AS "closed" FROM "PrivacySecurityIncident" WHERE "societyId"=${societyId}::uuid`),
-      this.prisma.$queryRaw<Array<{count:number}>>(Prisma.sql`SELECT COUNT(*)::int AS "count" FROM "PrivacyRegistryEvent" WHERE "societyId"=${societyId}::uuid`),
+      this.programReadinessOnClient(tx, societyId),
+      tx.$queryRaw<Array<{granted:number;withdrawn:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"='GRANTED')::int AS "granted",COUNT(*) FILTER (WHERE "status"='WITHDRAWN')::int AS "withdrawn" FROM "PrivacyConsentRecord" WHERE "societyId"=${societyId}::uuid`),
+      tx.$queryRaw<Array<{open:number;completed:number;erasure:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status" NOT IN ('COMPLETED','REJECTED','CANCELLED'))::int AS "open",COUNT(*) FILTER (WHERE "status"='COMPLETED')::int AS "completed",COUNT(*) FILTER (WHERE "requestType"='ERASURE')::int AS "erasure" FROM "PrivacyRequestCase" WHERE "societyId"=${societyId}::uuid`),
+      tx.$queryRaw<Array<{open:number;closed:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"<>'CLOSED')::int AS "open",COUNT(*) FILTER (WHERE "status"='CLOSED')::int AS "closed" FROM "PrivacySecurityIncident" WHERE "societyId"=${societyId}::uuid`),
+      tx.$queryRaw<Array<{count:number}>>(Prisma.sql`SELECT COUNT(*)::int AS "count" FROM "PrivacyRegistryEvent" WHERE "societyId"=${societyId}::uuid`),
     ]);
     return {generatedAt:new Date().toISOString(),readiness,consentEvidence:consents[0]??{granted:0,withdrawn:0},caseEvidence:cases[0]??{open:0,completed:0,erasure:0},incidentEvidence:incidents[0]??{open:0,closed:0},registryEventCount:registryEvents[0]?.count??0,exportAndErasureWorkflowAvailable:true,legalHoldAndRetentionReviewRequiredForErasure:true,certificationClaim:false,boundary:'This audit pack is repository and society workflow evidence only. It is not a DPDP, GDPR, legal, security or statutory certification and does not replace counsel or independent audit.'};
+    });
   }
 
-  async caseReadiness(societyId: string, caseId: string) {
-    const current = await this.findCase(societyId, caseId);
+  caseReadiness(societyId: string, caseId: string) {
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const current = await this.findCase(societyId, caseId, tx);
     if (!current) throw new NotFoundException('Privacy request case not found');
 
     const [categoryRows, processorRows, incidentRows, grievanceRows] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
         SELECT COUNT(*)::int AS "count" FROM "PrivacyDataCategory"
         WHERE "societyId"=${societyId}::uuid AND "active"=true
       `),
-      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
         SELECT COUNT(*)::int AS "count" FROM "PrivacyProcessorRegister"
         WHERE "societyId"=${societyId}::uuid AND "active"=true
       `),
-      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
         SELECT COUNT(*)::int AS "count" FROM "PrivacySecurityIncident"
         WHERE "societyId"=${societyId}::uuid AND "status"<>'CLOSED'
       `),
-      this.prisma.$queryRaw<Array<{ active: boolean }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ active: boolean }>>(Prisma.sql`
         SELECT "active" FROM "PrivacyGrievanceContact"
         WHERE "societyId"=${societyId}::uuid LIMIT 1
       `),
@@ -291,10 +303,11 @@ export class PrivacyService {
       },
       boundary: 'Operational readiness evidence only; this does not determine statutory rights, legal validity or jurisdiction-specific compliance.',
     };
+    });
   }
 
   listCases(societyId: string) {
-    return this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT pc.*, subject."name" AS "subjectName", subject."phone" AS "subjectPhone",
              assignee."name" AS "assignedToName"
       FROM "PrivacyRequestCase" pc
@@ -305,7 +318,7 @@ export class PrivacyService {
         CASE pc."status" WHEN 'OPEN' THEN 0 WHEN 'IN_REVIEW' THEN 1 WHEN 'WAITING' THEN 2 ELSE 3 END,
         pc."createdAt" DESC
       LIMIT 250
-    `);
+    `));
   }
 
   async createCase(
@@ -319,15 +332,15 @@ export class PrivacyService {
       dueAt?: string;
     },
   ) {
-    await this.assertSocietySubjectRelationship(societyId, input.subjectUserId);
-    if (input.assignedToUserId) {
-      await this.assertActiveSocietyMember(societyId, input.assignedToUserId, 'Privacy case assignee');
-    }
     const summary = input.requestSummary.trim();
     if (!summary) throw new BadRequestException('Privacy request summary is required');
     const dueAt = input.dueAt ? new Date(input.dueAt) : null;
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.assertSocietySubjectRelationship(tx, societyId, input.subjectUserId);
+      if (input.assignedToUserId) {
+        await this.assertActiveSocietyMember(tx, societyId, input.assignedToUserId, 'Privacy case assignee');
+      }
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         INSERT INTO "PrivacyRequestCase" (
           "societyId", "subjectUserId", "requestType", "requestSummary",
@@ -382,24 +395,24 @@ export class PrivacyService {
     status: PrivacyCaseStatus,
     note?: string,
   ) {
-    const current = await this.findCase(societyId, caseId);
-    if (!current) throw new NotFoundException('Privacy request case not found');
-    if (TERMINAL_STATUSES.includes(current.status)) {
-      if (current.status === status) return current;
-      throw new BadRequestException('Closed privacy request cases cannot change status');
-    }
-    if (status === 'COMPLETED' && current.requestType === 'ERASURE') {
-      if (current.legalHold) {
-        throw new BadRequestException('Erasure case cannot be completed while legal hold is active');
+    return this.withPrivacyCaseTransaction(societyId, async (tx) => {
+      const current = await this.findCase(societyId, caseId, tx, true);
+      if (!current) throw new NotFoundException('Privacy request case not found');
+      if (TERMINAL_STATUSES.includes(current.status)) {
+        if (current.status === status) return current;
+        throw new BadRequestException('Closed privacy request cases cannot change status');
       }
-      if (current.retentionDecision !== 'ALLOW') {
-        throw new BadRequestException('Erasure case cannot be completed until retention review allows completion');
+      if (status === 'COMPLETED' && current.requestType === 'ERASURE') {
+        if (current.legalHold) {
+          throw new BadRequestException('Erasure case cannot be completed while legal hold is active');
+        }
+        if (current.retentionDecision !== 'ALLOW') {
+          throw new BadRequestException('Erasure case cannot be completed until retention review allows completion');
+        }
       }
-    }
-    const closedAt = TERMINAL_STATUSES.includes(status) ? new Date() : null;
-    const cleanNote = note?.trim() || 'Privacy case status updated';
+      const closedAt = TERMINAL_STATUSES.includes(status) ? new Date() : null;
+      const cleanNote = note?.trim() || 'Privacy case status updated';
 
-    return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         UPDATE "PrivacyRequestCase"
         SET "status" = ${status},
@@ -437,15 +450,15 @@ export class PrivacyService {
     legalHold: boolean,
     retentionReason?: string,
   ) {
-    const current = await this.findCase(societyId, caseId);
-    if (!current) throw new NotFoundException('Privacy request case not found');
-    if (TERMINAL_STATUSES.includes(current.status)) {
-      throw new BadRequestException('Closed privacy request cases cannot change legal-hold state');
-    }
-    const reason = retentionReason?.trim() || null;
-    if (legalHold && !reason) throw new BadRequestException('Retention reason is required when legal hold is enabled');
+    return this.withPrivacyCaseTransaction(societyId, async (tx) => {
+      const current = await this.findCase(societyId, caseId, tx, true);
+      if (!current) throw new NotFoundException('Privacy request case not found');
+      if (TERMINAL_STATUSES.includes(current.status)) {
+        throw new BadRequestException('Closed privacy request cases cannot change legal-hold state');
+      }
+      const reason = retentionReason?.trim() || null;
+      if (legalHold && !reason) throw new BadRequestException('Retention reason is required when legal hold is enabled');
 
-    return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         UPDATE "PrivacyRequestCase"
         SET "legalHold" = ${legalHold},
@@ -487,21 +500,21 @@ export class PrivacyService {
     decision: 'ALLOW' | 'BLOCK',
     reasonRaw: string,
   ) {
-    const current = await this.findCase(societyId, caseId);
-    if (!current) throw new NotFoundException('Privacy request case not found');
-    if (current.requestType !== 'ERASURE') {
-      throw new BadRequestException('Retention review is only valid for erasure cases');
-    }
-    if (TERMINAL_STATUSES.includes(current.status)) {
-      throw new BadRequestException('Closed privacy request cases cannot change retention review');
-    }
-    const reason = reasonRaw.trim();
-    if (!reason) throw new BadRequestException('Retention review reason is required');
-    if (decision === 'ALLOW' && current.legalHold) {
-      throw new BadRequestException('Retention review cannot allow erasure while legal hold is active');
-    }
+    return this.withPrivacyCaseTransaction(societyId, async (tx) => {
+      const current = await this.findCase(societyId, caseId, tx, true);
+      if (!current) throw new NotFoundException('Privacy request case not found');
+      if (current.requestType !== 'ERASURE') {
+        throw new BadRequestException('Retention review is only valid for erasure cases');
+      }
+      if (TERMINAL_STATUSES.includes(current.status)) {
+        throw new BadRequestException('Closed privacy request cases cannot change retention review');
+      }
+      const reason = reasonRaw.trim();
+      if (!reason) throw new BadRequestException('Retention review reason is required');
+      if (decision === 'ALLOW' && current.legalHold) {
+        throw new BadRequestException('Retention review cannot allow erasure while legal hold is active');
+      }
 
-    return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         UPDATE "PrivacyRequestCase"
         SET "retentionDecision" = ${decision},
@@ -535,25 +548,47 @@ export class PrivacyService {
   }
 
   async history(societyId: string | undefined, caseId: string) {
-    const current = await this.findCase(societyId, caseId);
-    if (!current) throw new NotFoundException('Privacy request case not found');
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT pe.*, actor."name" AS "actorName"
-      FROM "PrivacyRequestEvent" pe
-      JOIN "User" actor ON actor."id" = pe."actorUserId"
-      WHERE pe."societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
-        AND pe."caseId" = ${caseId}::uuid
-      ORDER BY pe."createdAt" ASC
-    `);
+    const operation = async (tx: Prisma.TransactionClient) => {
+      const current = await this.findCase(societyId, caseId, tx);
+      if (!current) throw new NotFoundException('Privacy request case not found');
+      return tx.$queryRaw(Prisma.sql`
+        SELECT pe.*, actor."name" AS "actorName"
+        FROM "PrivacyRequestEvent" pe
+        JOIN "User" actor ON actor."id" = pe."actorUserId"
+        WHERE pe."societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
+          AND pe."caseId" = ${caseId}::uuid
+        ORDER BY pe."createdAt" ASC
+      `);
+    };
+    // Independent-home cases intentionally have no society context.
+    return societyId
+      ? this.prisma.withTenantContext(societyId, operation)
+      : this.prisma.$transaction(operation);
   }
 
-  private async findCase(societyId: string | undefined, caseId: string) {
-    const rows = await this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+  private withPrivacyCaseTransaction<T>(
+    societyId: string | undefined,
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    // Independent-home privacy cases intentionally carry no society UUID.
+    return societyId
+      ? this.prisma.withTenantContext(societyId, operation)
+      : this.prisma.$transaction(operation);
+  }
+
+  private async findCase(
+    societyId: string | undefined,
+    caseId: string,
+    tx?: Prisma.TransactionClient,
+    forUpdate = false,
+  ) {
+    const rows = await (tx ?? this.prisma).$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT *
       FROM "PrivacyRequestCase"
       WHERE "id" = ${caseId}::uuid
         AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
       LIMIT 1
+      ${forUpdate ? Prisma.sql`FOR UPDATE` : Prisma.empty}
     `);
     return rows[0] ?? null;
   }
@@ -564,8 +599,8 @@ export class PrivacyService {
     return candidate.code === '23505' || candidate.code === 'P2002' || candidate.meta?.code === '23505';
   }
 
-  private async assertSocietySubjectRelationship(societyId: string, userId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+  private async assertSocietySubjectRelationship(tx: Prisma.TransactionClient, societyId: string, userId: string) {
+    const rows = await tx.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
       SELECT relationship."userId"
       FROM (
         SELECT sm."userId"
@@ -587,8 +622,8 @@ export class PrivacyService {
     }
   }
 
-  private async assertActiveSocietyMember(societyId: string, userId: string, label: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+  private async assertActiveSocietyMember(tx: Prisma.TransactionClient, societyId: string, userId: string, label: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT sm."id"
       FROM "SocietyMembership" sm
       WHERE sm."societyId" = ${societyId}::uuid

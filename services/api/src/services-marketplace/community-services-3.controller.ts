@@ -101,6 +101,16 @@ export class ConsumerCommunityServicesController {
   communityDeals(@CurrentServiceUser() userId: string, @Query() query: LocationDto) {
     return this.services.listCommunityDeals(this.requireUser(userId), query.locationType, query.locationId);
   }
+  @Get('community-deals/:campaignId/participation')
+  participation(
+    @CurrentServiceUser() userId: string,
+    @Param('campaignId', ParseUUIDPipe) campaignId: string,
+    @Query() query: LocationDto,
+  ) {
+    return this.services.getCommunityDealParticipation(
+      this.requireUser(userId), campaignId, query.locationType, query.locationId,
+    );
+  }
   @Post('community-deals/:campaignId/join')
   joinCommunityDeal(@CurrentServiceUser() userId: string, @Param('campaignId', ParseUUIDPipe) campaignId: string, @Body() dto: LocationDto) {
     return this.services.joinCommunityDeal(this.requireUser(userId), campaignId, dto.locationType, dto.locationId);

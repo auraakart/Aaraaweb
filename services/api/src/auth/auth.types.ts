@@ -18,4 +18,8 @@ export interface AuthPrincipal {
   userId: string;
   societyId?: string;
   roles: AppRole[];
+  /** Server-persisted commercial login audience; omitted for STANDARD sessions. */
+  audience?: "PARTNER";
+  /** Derived from the persisted verified domain claim, never client input. */
+  hostPartnerId?: string;
 }

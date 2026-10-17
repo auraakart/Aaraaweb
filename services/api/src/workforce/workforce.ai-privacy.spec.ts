@@ -3,10 +3,11 @@ import { WorkforceService } from './workforce.service';
 
 describe('WorkforceService occupant privacy for AI',()=>{
   it('does not substitute verified ownership for active occupancy',async()=>{
-    const prisma={
+    const tx={
       unitOccupancy:{findFirst:vi.fn().mockResolvedValue(null)},
       $queryRaw:vi.fn(),
     };
+    const prisma={...tx,withTenantContext:vi.fn(async (_id:string,op:(client:typeof tx)=>Promise<unknown>)=>op(tx))};
     const service=new WorkforceService(prisma as never,{} as never);
     await expect(service.residentStatusMine(
       '11111111-1111-4111-8111-111111111111',
@@ -25,12 +26,13 @@ describe('WorkforceService occupant privacy for AI',()=>{
   });
 
   it('returns workforce evidence to an active occupant only',async()=>{
-    const prisma={
+    const tx={
       unitOccupancy:{findFirst:vi.fn().mockResolvedValue({id:'occupancy-1'})},
       $queryRaw:vi.fn().mockResolvedValue([
         {id:'assignment-1',name:'Maya',role:'MAID',verification:'VERIFIED',status:'APPROVED',onLeaveToday:false,checkedInNow:true},
       ]),
     };
+    const prisma={...tx,withTenantContext:vi.fn(async (_id:string,op:(client:typeof tx)=>Promise<unknown>)=>op(tx))};
     const service=new WorkforceService(prisma as never,{} as never);
     const result=await service.residentStatusMine('society-1','resident-1','unit-1');
     expect(result.activeAssignmentCount).toBe(1);

@@ -1,5 +1,6 @@
-import { Body, Controller, ExecutionContext, Get, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
+import { Body, Controller, ExecutionContext, Get, Header, Post, Req, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsNotEmpty, IsPhoneNumber, IsString, IsUUID, Length } from 'class-validator';
+import { PartnerInvitationStatus, PartnerRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperationalUsageService } from '../analytics/operational-usage.service';
 import { AuthService } from './auth.service';
@@ -92,6 +93,58 @@ export class AuthController {
     };
   }
 
+  /** Dedicated, society-less commercial login using the existing one-time OTP store. */
+  @Post('partner/otp/verify')
+  @Header('Cache-Control', 'no-store')
+  async verifyPartnerOtp(@Body() dto: VerifyOtpDto, hostRequest?: AuthenticatedRequest) {
+    const proof = await this.authService.verifyOtp(dto.challengeId, dto.code);
+    if (!proof.verified || !proof.phone) throw new UnauthorizedException('Invalid or expired OTP');
+    const user = await this.prisma.user.findUnique({ where: { phone: proof.phone }, select: { id: true, status: true } });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Partner access unavailable');
+    const [membership, invitation] = await Promise.all([
+      this.prisma.partnerMembership.findFirst({
+        where: {userId:user.id, active:true, role:{in:[PartnerRole.OWNER,PartnerRole.BRAND_MANAGER,PartnerRole.COMMERCIAL_ADMIN,PartnerRole.SUPPORT]},partner:{is:{status:'ACTIVE'}}},
+        select: {id:true},
+      }),
+      this.prisma.partnerInvitation.findFirst({
+        where: {userId:user.id,status:PartnerInvitationStatus.PENDING,expiresAt:{gt:new Date()},partner:{is:{status:'ACTIVE'}}},
+        select: {id:true},
+      }),
+    ]);
+    if (!membership && !invitation) throw new UnauthorizedException('Partner access unavailable');
+    // A partner identity receives no societyId, AppRole or operational permission.
+    // Every partner action still reloads current membership/invitation authority.
+    return {verified:true,contextType:'PARTNER' as const,
+      session:await this.sessions.create(user.id,undefined,[],{audience:'PARTNER',...(hostRequest?{hostRequest}:{})})};
+  }
+
+  /** Direct-host test adapter; receives no client-supplied partner identity. */
+  @Post('partner/host/otp/verify')
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Vary', 'Host, Origin')
+  async verifyHostPartnerOtp(@Body() dto: VerifyOtpDto, @Req() request: AuthenticatedRequest) {
+    const result = await this.verifyPartnerOtp(dto, request);
+    const hostContext = await this.hostPartnerContext(result.session.accessToken, request);
+    return { ...result, hostContext };
+  }
+
+  /** BFF/SSR session validation: never accept an unbound platform token. */
+  @Get('partner/host/session')
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Vary', 'Host, Origin')
+  async hostPartnerSession(@Req() request: AuthenticatedRequest) {
+    const authorization = request.header('authorization');
+    if (!authorization?.startsWith('Bearer ')) throw new UnauthorizedException('Authentication required');
+    return this.hostPartnerContext(authorization.slice(7), request);
+  }
+
+  private async hostPartnerContext(accessToken: string, request: AuthenticatedRequest) {
+    const principal = await this.sessions.getPrincipal(accessToken, request);
+    if (principal.audience !== 'PARTNER' || !principal.hostPartnerId || principal.societyId || principal.roles.length)
+      throw new UnauthorizedException('Host-bound partner access required');
+    return { contextType: 'PARTNER_HOST' as const, partnerId: principal.hostPartnerId, hostname: request.header('host') };
+  }
+
   @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
     await this.authService.consumeSocietySelectionGrant(dto.selectionToken, dto.userId);
     return this.createSocietySession(dto.userId, dto.societyId);
@@ -118,7 +171,7 @@ export class AuthController {
     return result;
   }
 
-  @Post('refresh') refresh(@Body() dto: RefreshDto) { return this.sessions.refresh(dto.sessionId, dto.refreshToken); }
+  @Post('refresh') refresh(@Body() dto: RefreshDto, @Req() request: AuthenticatedRequest) { return request ? this.sessions.refresh(dto.sessionId, dto.refreshToken, request) : this.sessions.refresh(dto.sessionId, dto.refreshToken); }
   @Post('logout') async logout(@Body() dto: LogoutDto) { await this.sessions.revoke(dto.sessionId, dto.refreshToken); return { success: true }; }
 
   private async createSocietySession(userId: string, societyId: string) {

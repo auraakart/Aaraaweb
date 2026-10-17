@@ -147,6 +147,15 @@ describe('ConsumerBookingsService', () => {
     });
 
     expect(result.servicePricePaise).toBe(75000);
+    // Snapshot is written in the same transaction as the new booking.
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
+    const checklistSnapshot = tx.$executeRaw.mock.calls[0][0];
+    expect(sqlText(checklistSnapshot)).toContain('INSERT INTO "ConsumerServiceQualityChecklistSnapshot"');
+    expect(sqlText(checklistSnapshot)).toContain('ON CONFLICT ("bookingId") DO NOTHING');
+    expect(sqlValues(checklistSnapshot)).toEqual(expect.arrayContaining([
+      '44444444-4444-4444-4444-444444444444',
+      '33333333-3333-3333-3333-333333333333',
+    ]));
     expect(tx.serviceOffering.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         id: '33333333-3333-3333-3333-333333333333',

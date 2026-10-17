@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "program": "Aaraagate V5",
+  "milestone": "V5.6",
+  "slice": "V5.6.2",
+  "environment": "TEST",
+  "status": "PREPARATION_ONLY",
+  "authority": {
+    "productionizationIncluded": false,
+    "buildExecutionAuthorized": false,
+    "partnerDistributionApproved": false,
+    "releaseCandidateApproved": false,
+    "stagingPromotionApproved": false,
+    "mainPromotionApproved": false
+  },
+  "candidateSha": null,
+  "externalAcceptanceVerified": false,
+  "cases": [
+    {
+      "id": "V56-TENANT-01",
+      "category": "TENANT",
+      "expectedOutcome": "DENY_CROSS_PARTNER_DATA",
+      "description": "Cross-partner society and home read/write authorization, including former occupants",
+      "dependsOn": [
+        "CI",
+        "TEST_DB"
+      ],
+      "evidenceKinds": [
+        "AUTH_NEGATIVE",
+        "DB_REPLAY"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-TENANT-02",
+      "category": "TENANT",
+      "expectedOutcome": "PRESERVE_OCCUPANT_GATE_ROUTING",
+      "description": "Gate notices reach the current occupant whether owner or tenant, without leaking across partners",
+      "dependsOn": [
+        "CI",
+        "TEST_DB"
+      ],
+      "evidenceKinds": [
+        "AUTH_NEGATIVE",
+        "USER_FLOW"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-TENANT-03",
+      "category": "TENANT",
+      "expectedOutcome": "PRESERVE_LEGACY_ENTITLEMENTS",
+      "description": "Existing rights and grandfathered subscriptions remain authoritative without automatic conversion",
+      "dependsOn": [
+        "CI",
+        "TEST_DB"
+      ],
+      "evidenceKinds": [
+        "DB_REPLAY",
+        "USER_FLOW"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-DOMAIN-01",
+      "category": "DOMAIN",
+      "expectedOutcome": "REJECT_UNTRUSTED_HOST",
+      "description": "Exact allowed host, TLS peer/SPKI and SNI check reject forged Host and forwarding headers",
+      "dependsOn": [
+        "CI",
+        "TRUSTED_INGRESS"
+      ],
+      "evidenceKinds": [
+        "TLS_CAPTURE",
+        "AUTH_NEGATIVE"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-DOMAIN-02",
+      "category": "DOMAIN",
+      "expectedOutcome": "ISOLATE_HOST_COOKIES",
+      "description": "Partner A/B Admin host-only cookies, audience and logged-in sessions stay isolated",
+      "dependsOn": [
+        "CI",
+        "TRUSTED_INGRESS"
+      ],
+      "evidenceKinds": [
+        "COOKIE_CAPTURE",
+        "AUTH_NEGATIVE"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-ANDROID-01",
+      "category": "ANDROID",
+      "expectedOutcome": "VERIFY_PARTNER_BINARY_IDENTITY",
+      "description": "Partner A/B Resident and Guard APK/AAB signers, package identities, versions, ABIs and hashes",
+      "dependsOn": [
+        "INDEPENDENT_RUNNER",
+        "PARTNER_ARTIFACTS"
+      ],
+      "evidenceKinds": [
+        "APK_METADATA",
+        "ATTESTATION"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-ANDROID-02",
+      "category": "ANDROID",
+      "expectedOutcome": "NO_COINSTALL_COLLISION",
+      "description": "Default Aaraagate and partner A/B apps co-install without identity, deep-link, or audience collisions",
+      "dependsOn": [
+        "PARTNER_ARTIFACTS",
+        "TEST_DEVICE"
+      ],
+      "evidenceKinds": [
+        "DEVICE_MATRIX",
+        "USER_FLOW"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-ANDROID-03",
+      "category": "ANDROID",
+      "expectedOutcome": "DENY_IDENTITY_DOWNGRADE",
+      "description": "Reject stale/foreign packages, changed signing lineage and incompatible app updates",
+      "dependsOn": [
+        "PARTNER_ARTIFACTS",
+        "TEST_DEVICE"
+      ],
+      "evidenceKinds": [
+        "APK_METADATA",
+        "DEVICE_MATRIX"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-DATA-01",
+      "category": "MIGRATION",
+      "expectedOutcome": "REPLAY_ADDITIVE_MIGRATIONS",
+      "description": "Fresh and upgraded disposable PostgreSQL paths preserve immutable ownership and billing audit history",
+      "dependsOn": [
+        "CI",
+        "TEST_DB"
+      ],
+      "evidenceKinds": [
+        "DB_REPLAY",
+        "RESTORE_LOG"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-DATA-02",
+      "category": "MIGRATION",
+      "expectedOutcome": "PRESERVE_DATA_ON_ROLLBACK",
+      "description": "Restore prior published brand/config revision and app deployment without deleting additive data or audit history",
+      "dependsOn": [
+        "TEST_DB",
+        "PARTNER_ARTIFACTS"
+      ],
+      "evidenceKinds": [
+        "RESTORE_LOG",
+        "USER_FLOW"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-SAFETY-01",
+      "category": "SAFETY",
+      "expectedOutcome": "PRESERVE_GATE_SOS",
+      "description": "Gate approval, guard SoD, security events and SOS remain available after partner branding/rollback",
+      "dependsOn": [
+        "CI",
+        "TEST_DB"
+      ],
+      "evidenceKinds": [
+        "AUTH_NEGATIVE",
+        "USER_FLOW"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-SAFETY-02",
+      "category": "SAFETY",
+      "expectedOutcome": "PRESERVE_PAYMENT_AUDIENCES",
+      "description": "Both nonresident owner and tenant receive required dues notices; either authorized payer can pay",
+      "dependsOn": [
+        "CI",
+        "TEST_DB"
+      ],
+      "evidenceKinds": [
+        "AUTH_NEGATIVE",
+        "USER_FLOW"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-QUALITY-01",
+      "category": "QUALITY",
+      "expectedOutcome": "VERIFY_ACCESSIBILITY_PERFORMANCE",
+      "description": "Resident/Guard/Admin essential flows, accessible states and bounded performance on supported devices",
+      "dependsOn": [
+        "CI",
+        "TEST_DEVICE"
+      ],
+      "evidenceKinds": [
+        "A11Y_PERF",
+        "USER_FLOW"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-PROVENANCE-01",
+      "category": "PROVENANCE",
+      "expectedOutcome": "MEASURE_INDEPENDENT_RUNTIME",
+      "description": "Independent externally authenticated OCI registry/container/process/mount measurement and single-use challenge",
+      "dependsOn": [
+        "INDEPENDENT_RUNNER",
+        "TRUSTED_INGRESS"
+      ],
+      "evidenceKinds": [
+        "ATTESTATION",
+        "TLS_CAPTURE"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    },
+    {
+      "id": "V56-PROVENANCE-02",
+      "category": "PROVENANCE",
+      "expectedOutcome": "BIND_CANDIDATE_TO_EVIDENCE",
+      "description": "Exact candidate source SHA, protected CI, signer, binaries and owner-approved TEST scope are linked",
+      "dependsOn": [
+        "CI",
+        "INDEPENDENT_RUNNER",
+        "PARTNER_ARTIFACTS"
+      ],
+      "evidenceKinds": [
+        "CI_RUN",
+        "APK_METADATA",
+        "ATTESTATION"
+      ],
+      "executionStatus": "NOT_EXECUTED",
+      "evidenceRefs": []
+    }
+  ]
+}

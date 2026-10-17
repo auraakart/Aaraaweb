@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductFeature, ProductTier, TIER_FEATURES } from './entitlement.types';
 
@@ -6,8 +7,11 @@ import { ProductFeature, ProductTier, TIER_FEATURES } from './entitlement.types'
 export class EntitlementService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async current(societyId: string): Promise<{ productTier: ProductTier; enabledFeatures: ProductFeature[] } | null> {
-    const society = await this.prisma.society.findFirst({
+  async current(
+    societyId: string,
+    client: Pick<Prisma.TransactionClient, 'society'> = this.prisma,
+  ): Promise<{ productTier: ProductTier; enabledFeatures: ProductFeature[] } | null> {
+    const society = await client.society.findFirst({
       where: { id: societyId, status: 'ACTIVE' },
       select: { productTier: true, featureOverrides: true },
     });

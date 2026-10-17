@@ -11,7 +11,7 @@ import {
   UseGuards,
   createParamDecorator,
 } from '@nestjs/common';
-import { IsBoolean, IsIn, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsUUID, ValidateIf } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerServiceLocationType } from './consumer-service-location.service';
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
@@ -23,6 +23,12 @@ const CurrentConsumerUser = createParamDecorator((_data: unknown, ctx: Execution
 class FavoriteProviderDto {
   @IsBoolean()
   active!: boolean;
+}
+
+class TechnicianPreferenceDto {
+  @ValidateIf((_, value: unknown) => value !== null)
+  @IsUUID()
+  agentId!: string | null;
 }
 
 class ServiceHistoryQueryDto {
@@ -43,6 +49,11 @@ export class ConsumerServiceMemoryController {
     return this.memory.listFavorites(this.requireUser(userId));
   }
 
+  @Get('benefits-readiness')
+  benefitsReadiness(@CurrentConsumerUser() userId: string) {
+    return this.memory.getMyBenefitsReadiness(this.requireUser(userId));
+  }
+
   @Get('recent-providers')
   listRecentProviders(@CurrentConsumerUser() userId: string) {
     return this.memory.listRecentProviders(this.requireUser(userId));
@@ -55,6 +66,47 @@ export class ConsumerServiceMemoryController {
     @Body() body: FavoriteProviderDto,
   ) {
     return this.memory.setFavorite(this.requireUser(userId), providerId, body.active);
+  }
+
+  @Get('recurring-plans/:planId/technician-continuity')
+  technicianContinuity(
+    @CurrentConsumerUser() userId: string,
+    @Param('planId', ParseUUIDPipe) planId: string,
+  ) {
+    return this.memory.getRecurringTechnicianContinuity(this.requireUser(userId), planId);
+  }
+
+  @Get('bookings/:bookingId/technician-candidates')
+  bookingTechnicianCandidates(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ) {
+    return this.memory.getBookingTechnicianCandidates(this.requireUser(userId), bookingId);
+  }
+
+  @Get('bookings/:bookingId/technician-request-status')
+  bookingTechnicianRequestStatus(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ) {
+    return this.memory.getBookingTechnicianRequestStatus(this.requireUser(userId), bookingId);
+  }
+
+  @Get('bookings/:bookingId/technician-preference')
+  bookingTechnicianPreference(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ) {
+    return this.memory.getBookingTechnicianPreference(this.requireUser(userId), bookingId);
+  }
+
+  @Put('bookings/:bookingId/technician-preference')
+  setBookingTechnicianPreference(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: TechnicianPreferenceDto,
+  ) {
+    return this.memory.setBookingTechnicianPreference(this.requireUser(userId), bookingId, dto.agentId);
   }
 
   @Get('history')

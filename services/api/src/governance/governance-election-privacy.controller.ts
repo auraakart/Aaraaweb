@@ -38,30 +38,32 @@ export class GovernanceElectionPrivacyController{
   @Get()
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   async current(@CurrentTenant() societyId:string){
-    const rows=await this.prisma.$queryRaw<PrivacyRow[]>(Prisma.sql`
-      SELECT r."id",r."policyRevisionId",r."version",r."identitySeparationReference",r."secrecyImplementationReference",
-        r."credentialIssuanceReference",r."privilegedAuditAccessReference",r."retentionReference",r."incidentResponseReference",
-        r."createdByUserId",r."createdAt"
-      FROM "GovernanceElectionPrivacyArchitectureRevision" r
-      JOIN "GovernanceElectionPolicyRevision" p ON p."id"=r."policyRevisionId" AND p."societyId"=r."societyId"
-      WHERE r."societyId"=${societyId}::uuid AND p."enabled"=TRUE
-        AND NOT EXISTS (SELECT 1 FROM "GovernanceElectionPolicyRevision" newer WHERE newer."societyId"=p."societyId" AND newer."version">p."version")
-      ORDER BY r."version" DESC LIMIT 1
-    `);
-    return rows.length?{...rows[0],architectureConfigured:true,executionEnabled:false,castingEnabled:false}:{configured:false,architectureConfigured:false,executionEnabled:false,castingEnabled:false};
+    return this.prisma.withTenantContext(societyId, async tx=>{
+      const rows=await tx.$queryRaw<PrivacyRow[]>(Prisma.sql`
+        SELECT r."id",r."policyRevisionId",r."version",r."identitySeparationReference",r."secrecyImplementationReference",
+          r."credentialIssuanceReference",r."privilegedAuditAccessReference",r."retentionReference",r."incidentResponseReference",
+          r."createdByUserId",r."createdAt"
+        FROM "GovernanceElectionPrivacyArchitectureRevision" r
+        JOIN "GovernanceElectionPolicyRevision" p ON p."id"=r."policyRevisionId" AND p."societyId"=r."societyId"
+        WHERE r."societyId"=${societyId}::uuid AND p."enabled"=TRUE
+          AND NOT EXISTS (SELECT 1 FROM "GovernanceElectionPolicyRevision" newer WHERE newer."societyId"=p."societyId" AND newer."version">p."version")
+        ORDER BY r."version" DESC LIMIT 1
+      `);
+      return rows.length?{...rows[0],architectureConfigured:true,executionEnabled:false,castingEnabled:false}:{configured:false,architectureConfigured:false,executionEnabled:false,castingEnabled:false};
+    });
   }
 
   @Post('revisions')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
   async record(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:RecordElectionPrivacyArchitectureDto){
     const actor=this.user(userId),references=this.references(dto);
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
-      const policies=await tx.$queryRaw<Array<{id:string;version:number;createdByUserId:string}>>(Prisma.sql`
-        SELECT "id","version","createdByUserId" FROM "GovernanceElectionPolicyRevision"
-        WHERE "societyId"=${societyId}::uuid AND "enabled"=TRUE ORDER BY "version" DESC LIMIT 1
+      const policies=await tx.$queryRaw<Array<{id:string;version:number;enabled:boolean;createdByUserId:string}>>(Prisma.sql`
+        SELECT "id","version","enabled","createdByUserId" FROM "GovernanceElectionPolicyRevision"
+        WHERE "societyId"=${societyId}::uuid ORDER BY "version" DESC LIMIT 1
       `);
-      if(!policies.length)throw new ConflictException('Current enabled election policy is required');
+      if(!policies.length||!policies[0].enabled)throw new ConflictException('Current enabled election policy is required');
       const policy=policies[0];
       const procedures=await tx.$queryRaw<Array<{id:string;version:number;createdByUserId:string}>>(Prisma.sql`
         SELECT "id","version","createdByUserId" FROM "GovernanceElectionProcedureRevision"

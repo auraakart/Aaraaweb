@@ -238,6 +238,76 @@ export class CommunityServices3Service {
     `);
   }
 
+  /**
+   * Services 4.2.3: transparent society-unit participation status.
+   * Joining a campaign registers interest, not a paid/confirmed booking.
+   * Resolve current location ownership first, then scope the query by society.
+   */
+  async getCommunityDealParticipation(
+    userId: string,
+    campaignId: string,
+    locationType: ConsumerServiceLocationType,
+    locationId: string,
+  ) {
+    const location = await this.locations.resolveLocation(userId, locationType, locationId);
+    if (!location.societyId || !location.societyUnitId) {
+      throw new BadRequestException('Community deal participation requires an accessible society unit');
+    }
+    const rows = await this.prisma.$queryRaw<Array<{
+      campaignId: string;
+      status: CommunityCampaignStatus;
+      serviceDate: Date;
+      joinEndsAt: Date;
+      thresholdHomes: number;
+      maxHomes: number | null;
+      residentPricePaise: number;
+      joinedHomes: number;
+      participationStatus: 'JOINED' | 'WITHDRAWN' | null;
+    }>>(Prisma.sql`
+      SELECT c."id" AS "campaignId", c."status", c."serviceDate", c."joinEndsAt",
+        c."thresholdHomes", c."maxHomes", c."residentPricePaise",
+        (
+          SELECT COUNT(*)::int
+          FROM "CommunityServiceCampaignInterest" all_interest
+          WHERE all_interest."campaignId" = c."id"
+            AND all_interest."societyId" = c."societyId"
+            AND all_interest."status" = 'JOINED'
+        ) AS "joinedHomes",
+        own."status" AS "participationStatus"
+      FROM "CommunityServiceCampaign" c
+      LEFT JOIN "CommunityServiceCampaignInterest" own
+        ON own."campaignId" = c."id"
+        AND own."societyId" = c."societyId"
+        AND own."unitId" = ${location.societyUnitId}::uuid
+      WHERE c."id" = ${campaignId}::uuid
+        AND c."societyId" = ${location.societyId}::uuid
+      LIMIT 1
+    `);
+    const campaign = rows[0];
+    if (!campaign) throw new NotFoundException('Community service deal not found');
+    const joinedHomes = Number(campaign.joinedHomes);
+    const thresholdMet = joinedHomes >= campaign.thresholdHomes;
+    const joinedByThisHome = campaign.participationStatus === 'JOINED';
+    return {
+      campaignId: campaign.campaignId,
+      status: campaign.status,
+      serviceDate: campaign.serviceDate,
+      joinEndsAt: campaign.joinEndsAt,
+      thresholdHomes: campaign.thresholdHomes,
+      maxHomes: campaign.maxHomes,
+      residentPricePaise: campaign.residentPricePaise,
+      joinedHomes,
+      thresholdMet,
+      joinedByThisHome,
+      participationStatus: campaign.participationStatus ?? 'NOT_JOINED',
+      interestOnly: true,
+      bookingConfirmed: false,
+      paymentAuthorized: false,
+      serviceGuaranteed: false,
+      confirmationRequired: true,
+    };
+  }
+
   async joinCommunityDeal(userId: string, campaignId: string, locationType: ConsumerServiceLocationType, locationId: string) {
     const location = await this.locations.resolveLocation(userId, locationType, locationId);
     if (!location.societyId || !location.societyUnitId) throw new BadRequestException('Community deals require a society unit');
@@ -377,8 +447,10 @@ export class CommunityServices3Service {
     if (status === 'OPEN') throw new BadRequestException('Community service deals cannot be reopened');
 
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.$queryRaw<Array<{ status: CommunityCampaignStatus }>>(Prisma.sql`
-        SELECT "status"
+      const current = await tx.$queryRaw<Array<{
+        status: CommunityCampaignStatus; thresholdHomes: number; serviceDate: Date;
+      }>>(Prisma.sql`
+        SELECT "status", "thresholdHomes", "serviceDate"
         FROM "CommunityServiceCampaign"
         WHERE "id" = ${campaignId}::uuid AND "societyId" = ${societyId}::uuid
         FOR UPDATE
@@ -393,6 +465,28 @@ export class CommunityServices3Service {
       };
       if (!allowed[current[0].status].includes(status)) {
         throw new BadRequestException(`Invalid community deal transition from ${current[0].status} to ${status}`);
+      }
+
+      // Services 4.2.4: a manual lock is only a threshold-qualified interest
+      // closeout, NOT a group booking or resident payment authorization.
+      // Join/withdraw also lock the same campaign row before writing interest.
+      // Count in a *separate statement after acquiring that row lock* so a
+      // concurrent join that completed while we waited is visible.
+      if (status === 'LOCKED') {
+        if (new Date(current[0].serviceDate).getTime() <= Date.now()) {
+          throw new BadRequestException('Community deal service date has passed');
+        }
+        const counts = await tx.$queryRaw<Array<{ joinedHomes: number }>>(Prisma.sql`
+          SELECT COUNT(*)::int AS "joinedHomes"
+          FROM "CommunityServiceCampaignInterest" i
+          WHERE i."campaignId" = ${campaignId}::uuid
+            AND i."societyId" = ${societyId}::uuid
+            AND i."status" = 'JOINED'
+        `);
+        const joinedHomes = Number(counts[0]?.joinedHomes ?? 0);
+        if (!Number.isSafeInteger(joinedHomes) || joinedHomes < current[0].thresholdHomes) {
+          throw new BadRequestException('Community deal household threshold has not been met');
+        }
       }
 
       const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`

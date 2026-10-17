@@ -30,6 +30,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { WorkforceModule } from './workforce/workforce.module';
 import { SocietyWorkforceModule } from './society-workforce/society-workforce.module';
 import { BillingModule } from './billing/billing.module';
+import { BrandingModule } from './branding/branding.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { ReportsModule } from './reports/reports.module';
 import { UniversalSearchModule } from './universal-search/universal-search.module';
@@ -73,6 +74,7 @@ import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
     DocumentsModule,
     ServicesMarketplaceModule,
     BillingModule,
+    BrandingModule,
     AccountingModule,
     GovernanceModule,
     MigrationModule,

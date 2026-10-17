@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { hasSocietyLeadingKey } from './lib/tenant-index-contract.mjs';
 
 const read=(file)=>fs.readFileSync(file,'utf8');
 
@@ -69,7 +70,7 @@ for(const match of schema.matchAll(/model\s+(\w+)\s*\{([\s\S]*?)\n\}/g)){
   if(!/\bsocietyId\s+String\??/.test(body)) continue;
   tenantModels.push(name);
   assert.ok(
-    /@@(?:index|unique)\(\[\s*societyId\b/.test(body),
+    hasSocietyLeadingKey(body),
     'Tenant model '+name+' must have a society-leading index or unique key before RLS rollout.',
   );
 }

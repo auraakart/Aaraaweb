@@ -1,4 +1,4 @@
-import { Body, Controller, ExecutionContext, Param, ParseUUIDPipe, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
+import { Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsISO8601, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerRebookingService } from './consumer-rebooking.service';
@@ -12,6 +12,33 @@ class ConsumerRebookDto {
   @IsISO8601() scheduledUntil!: string;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
+}
+
+@Controller('consumer/services/recurring-plans')
+@UseGuards(BearerGuard)
+export class ConsumerRecurringBookingController {
+  constructor(private readonly rebooking: ConsumerRebookingService) {}
+
+  @Get(':planId/visits')
+  visits(@CurrentConsumerUser() userId: string, @Param('planId', ParseUUIDPipe) planId: string) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    return this.rebooking.listMatchingRecurringVisits(userId, planId);
+  }
+
+  @Post(':planId/book')
+  book(
+    @CurrentConsumerUser() userId: string,
+    @Param('planId', ParseUUIDPipe) planId: string,
+    @Body() dto: ConsumerRebookDto,
+  ) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    return this.rebooking.bookFromRecurringPlan(userId, planId, {
+      scheduledFrom: new Date(dto.scheduledFrom),
+      scheduledUntil: new Date(dto.scheduledUntil),
+      notes: dto.notes,
+      idempotencyKey: dto.idempotencyKey,
+    });
+  }
 }
 
 @Controller('consumer/services/history')

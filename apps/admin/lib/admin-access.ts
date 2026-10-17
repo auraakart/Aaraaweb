@@ -8,10 +8,11 @@ export type AdminView =
   | 'helpdesk'
   | 'notices'
   | 'billing'
+  | 'branding'
 
 const roleViews: Readonly<Record<string, readonly AdminView[]>> = {
-  SUPER_ADMIN: ['overview', 'residents', 'gates', 'workforce', 'marketplace', 'sos', 'helpdesk', 'notices', 'billing'],
-  SOCIETY_ADMIN: ['overview', 'residents', 'gates', 'workforce', 'marketplace', 'sos', 'helpdesk', 'notices', 'billing'],
+  SUPER_ADMIN: ['overview', 'residents', 'gates', 'workforce', 'marketplace', 'sos', 'helpdesk', 'notices', 'billing', 'branding'],
+  SOCIETY_ADMIN: ['overview', 'residents', 'gates', 'workforce', 'marketplace', 'sos', 'helpdesk', 'notices', 'billing', 'branding'],
   COMMITTEE_MEMBER: ['overview', 'gates', 'sos', 'helpdesk', 'notices'],
   FACILITY_MANAGER: ['overview', 'gates', 'workforce', 'marketplace', 'sos', 'helpdesk', 'notices'],
   ACCOUNTANT: ['billing'],

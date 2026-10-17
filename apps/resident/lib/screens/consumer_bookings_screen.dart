@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../widgets/consumer_booking_post_service_panel.dart';
+import '../widgets/consumer_quality_review_panel.dart';
+import '../widgets/consumer_operational_eta_panel.dart';
+import '../widgets/consumer_checkout_breakdown_panel.dart';
+import '../widgets/consumer_technician_preference_panel.dart';
+import '../widgets/consumer_technician_request_status_panel.dart';
 
 class ConsumerBookingsScreen extends StatefulWidget {
   const ConsumerBookingsScreen({super.key, required this.apiClient});
@@ -256,7 +261,7 @@ class _BookingCard extends StatelessWidget {
   }
 }
 
-class _BookingTimelineSheet extends StatelessWidget {
+class _BookingTimelineSheet extends StatefulWidget {
   const _BookingTimelineSheet({
     required this.booking,
     required this.events,
@@ -270,19 +275,31 @@ class _BookingTimelineSheet extends StatelessWidget {
   final ApiClient apiClient;
 
   @override
+  State<_BookingTimelineSheet> createState() => _BookingTimelineSheetState();
+}
+
+class _BookingTimelineSheetState extends State<_BookingTimelineSheet> {
+  int _preferenceRevision = 0;
+  bool _canEditRequest = false;
+
+  @override
   Widget build(BuildContext context) {
+    final booking = widget.booking;
+    final dispatch = widget.dispatch;
+    final events = widget.events;
+    final apiClient = widget.apiClient;
     final theme = Theme.of(context);
     final currentStatus = booking['status']?.toString() ?? 'REQUESTED';
     final dispatchStatus = dispatch?['status']?.toString();
     final agentName = dispatch?['agentDisplayName']?.toString();
     final bookingId = booking['id']?.toString() ?? '';
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.82,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: ListView(
+            children: [
             Text(booking['offeringName']?.toString() ?? 'Service', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             Text('Current status: ${currentStatus.replaceAll('_', ' ')}'),
@@ -299,6 +316,68 @@ class _BookingTimelineSheet extends StatelessWidget {
                   subtitle: Text(_dispatchMessage(dispatchStatus)),
                 ),
               ),
+            if (bookingId.isNotEmpty && ['CONFIRMED', 'IN_PROGRESS'].contains(currentStatus))
+              ConsumerOperationalEtaPanel(apiClient: apiClient, bookingId: bookingId),
+            if (bookingId.isNotEmpty)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('View quality checklist and rework'),
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context, isScrollControlled: true, showDragHandle: true,
+                  builder: (sheetContext) => SafeArea(child: SizedBox(
+                    height: MediaQuery.sizeOf(sheetContext).height * 0.78,
+                    child: ConsumerQualityReviewPanel(apiClient: apiClient, bookingId: bookingId, completed: currentStatus == 'COMPLETED'),
+                  )),
+                ),
+              ),
+            if (bookingId.isNotEmpty)
+              ConsumerTechnicianRequestStatusPanel(
+                key: ValueKey('technician-request-$bookingId-$_preferenceRevision'),
+                apiClient: apiClient,
+                bookingId: bookingId,
+                onEditabilityChanged: (allowed) {
+                  if (mounted && _canEditRequest != allowed) {
+                    setState(() => _canEditRequest = allowed);
+                  }
+                },
+              ),
+            if (bookingId.isNotEmpty &&
+                (currentStatus == 'REQUESTED' || currentStatus == 'CONFIRMED') &&
+                dispatchStatus == null && _canEditRequest)
+              ConsumerTechnicianPreferencePanel(
+                apiClient: apiClient,
+                bookingId: bookingId,
+                onSaved: () {
+                  if (mounted) {
+                    setState(() {
+                      _canEditRequest = false;
+                      _preferenceRevision++;
+                    });
+                  }
+                },
+              ),
+            if (bookingId.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('View price and quote breakdown'),
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    builder: (sheetContext) => SafeArea(
+                      child: SizedBox(
+                        height: MediaQuery.sizeOf(sheetContext).height * 0.72,
+                        child: ConsumerCheckoutBreakdownPanel(
+                          apiClient: apiClient,
+                          bookingId: bookingId,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (bookingId.isNotEmpty)
               ConsumerBookingPostServicePanel(apiClient: apiClient, bookingId: bookingId),
             const SizedBox(height: 18),
@@ -307,9 +386,9 @@ class _BookingTimelineSheet extends StatelessWidget {
             if (events.isEmpty)
               const Text('Your service request is waiting for its first fulfilment update.')
             else
-              Flexible(
-                child: ListView.separated(
+              ListView.separated(
                   shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: events.length,
                   separatorBuilder: (_, __) => const Divider(height: 20),
                   itemBuilder: (context, index) {
@@ -328,9 +407,9 @@ class _BookingTimelineSheet extends StatelessWidget {
                     );
                   },
                 ),
-              ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -34,13 +34,15 @@ export class GovernanceElectionFoundationController{
   @Get('policy')
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   async currentPolicy(@CurrentTenant() societyId:string){
-    const rows=await this.prisma.$queryRaw<PolicyRow[]>(Prisma.sql`
-      SELECT "id","version","enabled","eligibilityMode","policyReference","note","createdByUserId","createdAt"
-      FROM "GovernanceElectionPolicyRevision"
-      WHERE "societyId"=${societyId}::uuid
-      ORDER BY "version" DESC LIMIT 1
-    `);
-    return rows[0]??{configured:false,enabled:false};
+    return this.prisma.withTenantContext(societyId, async tx=>{
+      const rows=await tx.$queryRaw<PolicyRow[]>(Prisma.sql`
+        SELECT "id","version","enabled","eligibilityMode","policyReference","note","createdByUserId","createdAt"
+        FROM "GovernanceElectionPolicyRevision"
+        WHERE "societyId"=${societyId}::uuid
+        ORDER BY "version" DESC LIMIT 1
+      `);
+      return rows[0]??{configured:false,enabled:false};
+    });
   }
 
   @Post('policy-revisions')
@@ -48,7 +50,7 @@ export class GovernanceElectionFoundationController{
   async recordPolicy(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:RecordElectionPolicyDto){
     const actor=this.user(userId),reference=dto.policyReference.trim();
     if(!reference)throw new BadRequestException('Policy or bye-law reference is required');
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
       const latest=await tx.$queryRaw<Array<{version:number}>>(Prisma.sql`
         SELECT "version" FROM "GovernanceElectionPolicyRevision"
@@ -69,7 +71,7 @@ export class GovernanceElectionFoundationController{
   @Get('electorate-snapshots')
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   listSnapshots(@CurrentTenant() societyId:string){
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx=>tx.$queryRaw(Prisma.sql`
       SELECT s."id",s."policyRevisionId",p."version" AS "policyVersion",p."eligibilityMode",p."policyReference",
         s."createdByUserId",s."createdAt",COUNT(m."id")::int AS "memberCount"
       FROM "GovernanceElectorateSnapshot" s
@@ -77,33 +79,35 @@ export class GovernanceElectionFoundationController{
       LEFT JOIN "GovernanceElectorateMember" m ON m."snapshotId"=s."id" AND m."societyId"=s."societyId"
       WHERE s."societyId"=${societyId}::uuid
       GROUP BY s."id",p."id" ORDER BY s."createdAt" DESC
-    `);
+    `));
   }
 
   @Get('electorate-snapshots/:id')
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   async getSnapshot(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){
-    const snapshots=await this.prisma.$queryRaw<Array<SnapshotRow&{policyVersion:number;eligibilityMode:EligibilityMode;policyReference:string}>>(Prisma.sql`
-      SELECT s."id",s."policyRevisionId",s."createdByUserId",s."createdAt",p."version" AS "policyVersion",p."eligibilityMode",p."policyReference"
-      FROM "GovernanceElectorateSnapshot" s
-      JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=s."societyId"
-      WHERE s."id"=${id}::uuid AND s."societyId"=${societyId}::uuid LIMIT 1
-    `);
-    if(!snapshots.length)throw new BadRequestException('Electorate snapshot not found');
-    const members=await this.prisma.$queryRaw(Prisma.sql`
-      SELECT "id","unitId","userId","eligibilitySource","sourceRelationshipId","ownershipBps","occupancyRelation","createdAt"
-      FROM "GovernanceElectorateMember"
-      WHERE "snapshotId"=${id}::uuid AND "societyId"=${societyId}::uuid
-      ORDER BY "unitId","userId"
-    `);
-    return {...snapshots[0],members};
+    return this.prisma.withTenantContext(societyId, async tx=>{
+      const snapshots=await tx.$queryRaw<Array<SnapshotRow&{policyVersion:number;eligibilityMode:EligibilityMode;policyReference:string}>>(Prisma.sql`
+        SELECT s."id",s."policyRevisionId",s."createdByUserId",s."createdAt",p."version" AS "policyVersion",p."eligibilityMode",p."policyReference"
+        FROM "GovernanceElectorateSnapshot" s
+        JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=s."societyId"
+        WHERE s."id"=${id}::uuid AND s."societyId"=${societyId}::uuid LIMIT 1
+      `);
+      if(!snapshots.length)throw new BadRequestException('Electorate snapshot not found');
+      const members=await tx.$queryRaw(Prisma.sql`
+        SELECT "id","unitId","userId","eligibilitySource","sourceRelationshipId","ownershipBps","occupancyRelation","createdAt"
+        FROM "GovernanceElectorateMember"
+        WHERE "snapshotId"=${id}::uuid AND "societyId"=${societyId}::uuid
+        ORDER BY "unitId","userId"
+      `);
+      return {...snapshots[0],members};
+    });
   }
 
   @Post('electorate-snapshots')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
   async createSnapshot(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){
     const actor=this.user(userId);
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
       const policies=await tx.$queryRaw<PolicyRow[]>(Prisma.sql`
         SELECT "id","version","enabled","eligibilityMode","policyReference","note","createdByUserId","createdAt"

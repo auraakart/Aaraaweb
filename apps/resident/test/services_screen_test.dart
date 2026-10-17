@@ -85,6 +85,7 @@ void main() {
 
     expect(find.text('Insta Services'), findsOneWidget);
     expect(find.text('Insta Services near you'), findsOneWidget);
+    expect(find.text('Recurring visits'), findsOneWidget);
     expect(find.text('Service location'), findsOneWidget);
     expect(tester.takeException(), isNull);
 

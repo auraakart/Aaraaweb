@@ -8,6 +8,7 @@ export default function MarketplaceControlLayout({ children }: { children: React
       <Link href="/marketplace-control">Marketplace control</Link>
       <Link href="/marketplace-control/operations">Services operations</Link>
       <Link href="/marketplace-control/commercial">Commercial controls</Link>
+      <Link href="/platform/service-dispatch">Service dispatch</Link>
       <Link href="/platform/providers">Provider verification</Link>
       <Link href="/platform/provider-trust">Provider trust</Link>
     </nav>

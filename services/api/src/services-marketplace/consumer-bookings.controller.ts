@@ -94,6 +94,11 @@ export class ConsumerBookingsController {
     return this.dispatch.getConsumerDispatch(this.requireUser(userId), bookingId);
   }
 
+  @Get('services/bookings/:id/operational-eta')
+  getBookingOperationalEta(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
+    return this.dispatch.getConsumerOperationalEta(this.requireUser(userId), bookingId);
+  }
+
   @Get('services/bookings/:id/completion')
   getBookingCompletion(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
     return this.completion.getForConsumer(this.requireUser(userId), bookingId);
@@ -144,6 +149,11 @@ export class ConsumerBookingsController {
   @Get('services/payments')
   listPayments(@CurrentConsumerUser() userId: string) {
     return this.payments.listMine(this.requireUser(userId));
+  }
+
+  @Get('services/bookings/:id/checkout-breakdown')
+  checkoutBreakdown(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
+    return this.payments.getCheckoutBreakdown(this.requireUser(userId), bookingId);
   }
 
   @Get('services/bookings/:id/payments')

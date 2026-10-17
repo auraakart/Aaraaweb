@@ -5,6 +5,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FileSafetyModule } from '../storage/file-safety.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
+import { ServiceQualityChecklistService } from './service-quality-checklist.service';
+import { ServiceQualityEvidenceService } from './service-quality-evidence.service';
+import { AgentQualityEvidenceController, ConsumerQualityEvidenceController } from './service-quality-evidence.controller';
+import { ConsumerQualityChecklistController, ProviderQualityChecklistController } from './service-quality-checklist.controller';
 import {
   ConsumerCommunityServicesController,
   ProviderServiceExperienceController,
@@ -30,7 +34,7 @@ import { ConsumerProviderMediaController } from './consumer-provider-media.contr
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
-import { ConsumerRebookingController } from './consumer-rebooking.controller';
+import { ConsumerRebookingController, ConsumerRecurringBookingController } from './consumer-rebooking.controller';
 import { ConsumerRebookingService } from './consumer-rebooking.service';
 import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
@@ -78,6 +82,10 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesMarketplaceController,
     ServicesCommunityDealAdminController,
     ConsumerCommunityServicesController,
+    ConsumerQualityChecklistController,
+    AgentQualityEvidenceController,
+    ConsumerQualityEvidenceController,
+    ProviderQualityChecklistController,
     ProviderServiceExperienceController,
     ServiceBookingHistoryController,
     ServicesPlatformController,
@@ -94,6 +102,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerCommercialDiscoveryController,
     ConsumerServiceMemoryController,
     ConsumerRebookingController,
+    ConsumerRecurringBookingController,
     ConsumerBookingsController,
     ConsumerOffersController,
     ConsumerProviderExperienceController,
@@ -112,6 +121,8 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   providers: [
     PrismaService,
     CommunityServices3Service,
+    ServiceQualityChecklistService,
+    ServiceQualityEvidenceService,
     ServiceProviderSocietyTrustService,
     ServiceBookingAccessService,
     ServiceBookingHistoryService,
