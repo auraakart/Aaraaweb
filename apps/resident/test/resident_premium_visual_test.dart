@@ -8,6 +8,7 @@ import 'package:aaraagate_resident/screens/billing_screen.dart';
 import 'package:aaraagate_resident/screens/gate_screen.dart';
 import 'package:aaraagate_resident/screens/notices_screen.dart';
 import 'package:aaraagate_resident/theme/aaraagate_theme.dart';
+import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -55,7 +56,7 @@ Future<void> _loadSdkFonts() async {
   for (var level = 0; level < 8; level++) {
     final directory = Directory('${root.path}/bin/cache/artifacts/material_fonts');
     if (directory.existsSync()) {
-      for (final entry in [('Roboto', 'Roboto-Regular.ttf'), ('MaterialIcons', 'MaterialIcons-Regular.otf')]) {
+      for (final entry in [('Roboto', 'Roboto-Regular.ttf'), ('Ahem', 'Roboto-Regular.ttf'), ('MaterialIcons', 'MaterialIcons-Regular.otf')]) {
         final file = File('${directory.path}/${entry.$2}');
         if (file.existsSync()) {
           final loader = FontLoader(entry.$1)..addFont(file.readAsBytes().then(ByteData.sublistView));
@@ -115,6 +116,7 @@ void main() {
           await tester.pumpWidget(RepaintBoundary(
             key: boundary,
             child: MaterialApp(
+              debugShowCheckedModeBanner: false,
               theme: dark ? AaraagateTheme.dark() : AaraagateTheme.light(),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(
@@ -137,6 +139,8 @@ void main() {
             await tester.scrollUntilVisible(find.text('Pay deposit'), 240, scrollable: find.byType(Scrollable).first);
             await tester.pumpAndSettle();
             expect(find.text('Pay deposit').hitTestable(), findsOneWidget);
+            await tester.ensureVisible(find.ancestor(of: find.text('Pay deposit'), matching: find.byType(PremiumSurface)).first);
+            await tester.pumpAndSettle();
             await _capture(tester, boundary, name);
             await tester.ensureVisible(find.text('Cancel'));
             await tester.tap(find.text('Cancel'));
@@ -148,6 +152,8 @@ void main() {
             await tester.scrollUntilVisible(find.text('Pay securely'), 240, scrollable: find.byType(Scrollable).first);
             await tester.pumpAndSettle();
             expect(tester.takeException(), isNull);
+            await tester.ensureVisible(find.ancestor(of: find.text('Pay securely'), matching: find.byType(PremiumSurface)).first);
+            await tester.pumpAndSettle();
             await _capture(tester, boundary, '$name-invoice');
             await tester.scrollUntilVisible(find.text('Receipt'), 240, scrollable: find.byType(Scrollable).first);
             await tester.pumpAndSettle();
