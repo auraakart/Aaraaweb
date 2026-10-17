@@ -1,6 +1,6 @@
 # V4.99.2 — Resident premium action and reading UX
 
-Baseline: develop `b4fd6e2add33bc4dfe5af11d43cf12353c613a0f`. Status: IMPLEMENTED, protected CI pending. Root/API/Admin `4.99.2`; Resident/Guard `4.99.2+49902`. Develop integration only.
+Baseline: develop `b4fd6e2add33bc4dfe5af11d43cf12353c613a0f`. Status: MERGED to develop through [PR #1433](https://github.com/auraakart/Aaraaweb/pull/1433). Root/API/Admin `4.99.2`; Resident/Guard `4.99.2+49902`. Develop integration only.
 
 ## Audit and retained design system
 
@@ -14,7 +14,7 @@ Reference: [Flutter UI accessibility](https://docs.flutter.dev/ui/accessibility/
 
 **UX Bottleneck Addressed:** A spinner replacing the entire label hides which operation is pending. Ad hoc footer placement makes actions disappear below long content.
 
-**Design Enhancements:** `PremiumActionLabel` retains readable text beside a 20px indicator, exposes an in-progress semantic value, wraps labels, and respects reduced motion with a static hourglass. It does not add a nested action. `PremiumBottomActionBar` uses the existing surface role, 20px horizontal/12px vertical spacing and a safe area; Scaffold reserves its space rather than overlaying content. Existing 120/220ms surface/status transitions, soft shadows and refresh gestures are retained.
+**Design Enhancements:** `PremiumActionLabel` retains readable text beside a 20px indicator, exposes an in-progress semantic value, wraps labels, and respects reduced motion with a static hourglass. It also switches to static feedback while a modal route is current, preventing an indefinite spinner from running behind the payment or visitor-pass sheet. It does not add a nested action. `PremiumBottomActionBar` uses the existing surface role, 20px horizontal/12px vertical spacing and a safe area; Scaffold reserves its space rather than overlaying content. Existing 120/220ms surface/status transitions, soft shadows and refresh gestures are retained.
 
 **Code / Style Implementation:** `apps/resident/lib/widgets/premium_ui.dart`:
 
@@ -61,7 +61,8 @@ PremiumSurface(
   color: scheme.surfaceContainerLow,
   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     PremiumIdentityHeader(icon: Icons.receipt_long_outlined,
-      title: amount, supportingText: propertyAndInvoice),
+      title: _money((payment['amountPaise'] as num?)?.toInt() ?? 0),
+      supportingText: '${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}'),
     // The complete record is the action; no nested trailing button.
   ]),
 )
@@ -73,7 +74,7 @@ Payment references, idempotency, server verification, receipts, AutoPay mandate 
 
 **UX Bottleneck Addressed:** A fixed trailing action column squeezed reservation identity, time and deposit requirements. Long text made cancellation choices compete horizontally inside a non-scrolling sheet.
 
-**Design Enhancements:** Give booking identity/time full usable width, follow with fee/deposit details and an adaptive action group. Pay deposit has the existing filled primary treatment; cancellation remains secondary on the record. Waitlist identity and Leave action no longer compete in a narrow row. The cancellation sheet scrolls and stacks controls when needed; its destructive confirmation uses the existing error/onError pair. Date/time selection, fees, approval, capacity, waitlist and recovery semantics remain unchanged.
+**Design Enhancements:** Give booking identity/time full usable width, follow with fee/deposit details and an adaptive action group. Pay deposit has the existing filled primary treatment; cancellation remains secondary on the record. Waitlist identity and Leave action no longer compete in a narrow row. Recovery snackbars expose an explicit dismiss control, so an error message can be cleared before retrying an underlying booking action. The cancellation sheet scrolls and stacks controls when needed; its destructive confirmation uses the existing error/onError pair. Date/time selection, fees, approval, capacity, waitlist and recovery semantics remain unchanged.
 
 **Code / Style Implementation:** `apps/resident/lib/screens/amenities_screen.dart`:
 
@@ -110,8 +111,28 @@ bottomNavigationBar: requiresAcknowledgement
 ## Validation and limits
 
 - All 44 stable domain invariants, current release identity, maintainability, privacy/hygiene and diff checks pass locally.
-- Four new shared-component cases cover dark/light and normal/reduced motion at 320px/200% type; the existing gate concurrency test additionally verifies that Deny owns its progress indicator.
-- Sixteen actual-screen cases cover Gate, Billing, Bookings and Notice in light/dark at 390px/100% and 320px/200%. They check layout exceptions, action reachability, long labels, whole-card verified receipt access, cancellation choices and a persistent notice footer with safe-area padding. Rendered PNGs are retained under `coverage/resident-ux` in the existing Resident coverage artifact for visual review. These are presentation fixtures, not live integration evidence.
-- Existing contrast, large-text, gate mutation, billing recovery, facility booking/deposit/waitlist/cancellation and notice acknowledgement regressions remain required in protected CI.
+- Five new shared-component cases cover dark/light and normal/reduced motion at 320px/200% type plus suspension/resumption across a modal; the existing gate concurrency test additionally verifies that Deny owns its progress indicator.
+- Sixteen actual-screen cases cover Gate, Billing, Bookings and Notice in light/dark at 390px/100% and 320px/200%. They check layout exceptions, action reachability, long labels, whole-card verified receipt access, cancellation choices and a persistent notice footer with safe-area padding. Twenty rendered PNGs are retained under `coverage/resident-ux` in the [Resident coverage artifact](https://github.com/auraakart/Aaraaweb/actions/runs/39046291951/artifacts/12105468360). Representative Gate, invoice, receipt, booking and notice images were visually inspected across both themes and viewport/text settings. The capture fixture loads bundled SDK Roboto and Material Icons, explicitly supplies Roboto for otherwise unspecified button font families, and hides the debug banner; application color, spacing, shape and text-size values are retained. These are presentation fixtures, not live integration evidence.
+- Existing contrast, large-text, gate mutation, billing recovery, facility booking/deposit/waitlist/cancellation and notice acknowledgement regressions passed in protected CI.
 - No API/schema, financial authority, dependencies or five-tab navigation changes. Home/Gate/Services/Community/Profile, four Home quick actions and top-of-Home AI entry remain intact. No demo rebuild, staging/main promotion or iOS work.
 - Human usability, device/screen-reader and independently operated acceptance remain open. Tap counts remain one for gate decisions and opening receipts; required financial/cancellation consent is retained. No measured task-time improvement or competitor rating is claimed.
+
+## Protected release evidence
+
+[CI 39046291951](https://github.com/auraakart/Aaraaweb/actions/runs/39046291951) completed successfully for exact head `fb9d8d98917c428442d34b11fb089da60d3091f9`, event `pull_request`, workflow `.github/workflows/ci.yml`. Actual develop merge `669add347e2e3dbe2ce1182972d7295f01315c83` retains tested tree `533380289ce82014c0d42d21339a78818711d02f`.
+
+| Gate | Verified result |
+| --- | --- |
+| Changed Resident tests | 44 passed |
+| Resident risk regression | 66 passed and coverage gate passed |
+| Full Resident | 330 passed; analysis clean |
+| Guard | 30 risk tests, 100 full tests; analysis clean |
+| Admin | 166 browser tests, 18 canonical-session cases, build, actual SSR and TLS checks passed |
+| API | 2,440 passed with 15 existing intentional skips; 86 risk tests; dedicated database checks passed |
+| Repository / security | Structure, preflight, dependency security and required merge gates passed; all 44 local stable checks passed after final source corrections |
+
+The new Resident coverage is 21 cases: 16 actual-screen cases and five shared feedback cases. Existing gate serialization and amenity deposit-retry cases were strengthened rather than replaced.
+
+Validation found and corrected a compact receipt-test coordinate error and test-font capture configuration. Broader existing tests then exposed indefinite background progress behind a modal and a snackbar covering the relocated retry button; the shared route-aware indicator and explicit dismiss control fix those behaviours. The retry regression dismisses the visible message before using the underlying action and still asserts the same idempotency key. No assertions were suppressed, retries added, or CI gates bypassed. The final remote tree was compared with the local staged tree before validation.
+
+The Android base TEST smoke job was scope-skipped. Rendered widget evidence is not physical-device, screen-reader, iOS or independent user acceptance. Staging/main and the published demo remain unchanged.
