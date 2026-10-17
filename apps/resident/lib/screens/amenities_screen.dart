@@ -802,314 +802,181 @@ class _WaitlistCard extends StatelessWidget {
     return PremiumSurface(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         PremiumIdentityHeader(
-          icon: status == 'PROMOTED' ? Icons.event_available_rounded : Icons.hourglass_top…3449 tokens truncated…rderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-          ),
-          child: Icon(icon, color: scheme.primary, size: 24),
+          icon: status == 'PROMOTED' ? Icons.event_available_rounded : Icons.hourglass_top_rounded,
+          title: entry['amenityName']?.toString() ?? 'Amenity',
+          supportingText: detail,
         ),
-        const SizedBox(width: AaraagateTokens.space3),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (eyebrow != null) ...[
-                Text(
-                  eyebrow!,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: .2,
-                  ),
-                ),
-                const SizedBox(height: AaraagateTokens.space1),
-              ],
-              Text(
-                title,
-                style: theme.textTheme.headlineSmall,
-              ),
-              const SizedBox(height: AaraagateTokens.space1),
-              Text(
-                supportingText,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  height: 1.45,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-
-    if (action == null) return copy;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stacked = constraints.maxWidth < 420 || scale > 1.3;
-        if (stacked) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              copy,
-              const SizedBox(height: AaraagateTokens.space3),
-              Align(alignment: Alignment.centerLeft, child: action!),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: copy),
-            const SizedBox(width: AaraagateTokens.space3),
-            action!,
-          ],
-        );
-      },
+        if (onCancel != null) ...[
+          const SizedBox(height: AaraagateTokens.space2),
+          SizedBox(width: double.infinity, child: TextButton(
+            onPressed: busy ? null : onCancel, child: const Text('Leave'),
+          )),
+        ],
+      ]),
     );
   }
 }
 
-/// Consistent section heading for scan-friendly resident screens.
-/// Keeps headings quiet enough that the screen title remains dominant.
-/// Use in a scrolling page: essential copy grows with the user's text setting.
-class PremiumSectionHeader extends StatelessWidget {
-  const PremiumSectionHeader({
-    super.key,
-    required this.title,
-    this.supportingText,
-    this.trailing,
-  });
-
-  final String title;
-  final String? supportingText;
-  final Widget? trailing;
+class _BookingCard extends StatelessWidget {
+  const _BookingCard({required this.booking, required this.busy, this.onPayDeposit, this.onCancel});
+  final Map<String, dynamic> booking;
+  final bool busy;
+  final VoidCallback? onPayDeposit;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final copy = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium,
+    final scheme = theme.colorScheme;
+    final status = booking['status']?.toString() ?? 'PENDING';
+    final statusLabel = status.replaceAll('_', ' ').toLowerCase();
+    final guests=_asInt(booking['guestCount'],fallback:0);
+    final depositPaise=_asInt(booking['depositPaise'],fallback:0);
+    final depositStatus=booking['depositStatus']?.toString()??'NOT_REQUIRED';
+
+    return PremiumSurface(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        PremiumIdentityHeader(
+          icon: Icons.calendar_today_outlined,
+          title: booking['amenityName']?.toString() ?? 'Amenity',
+          supportingText: _formatApiDate(booking['startsAt']),
         ),
-        if (supportingText != null) ...[
-          const SizedBox(height: AaraagateTokens.space1),
-          Text(
-            supportingText!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              height: 1.35,
-            ),
+        const SizedBox(height: AaraagateTokens.space2),
+        Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}${guests>0?' · $guests guest${guests==1?'':'s'}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+        if (depositPaise > 0) ...[
+          const SizedBox(height: AaraagateTokens.space2),
+          Text('Refundable deposit ${_feeLabel(depositPaise)} · ${_titleCase(depositStatus.replaceAll('_',' ').toLowerCase())}${booking['depositDueAt']!=null?' · due ${_formatApiDate(booking['depositDueAt'])}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+        ],
+        if (onPayDeposit != null || onCancel != null) ...[
+          const SizedBox(height: AaraagateTokens.space3),
+          PremiumActionGroup(
+            primary: onPayDeposit != null
+                ? FilledButton(onPressed: busy ? null : onPayDeposit, child: const Text('Pay deposit'))
+                : TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
+            secondary: onPayDeposit != null && onCancel != null
+                ? TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel'))
+                : null,
           ),
         ],
-      ],
-    );
-
-    if (trailing == null) return copy;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final scale = MediaQuery.textScalerOf(context).scale(1);
-        final stacked = constraints.maxWidth < 420 || scale > 1.3;
-        if (stacked) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              copy,
-              const SizedBox(height: AaraagateTokens.space2),
-              Align(alignment: Alignment.centerLeft, child: trailing!),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: copy),
-            const SizedBox(width: AaraagateTokens.space3),
-            trailing!,
-          ],
-        );
-      },
+      ]),
     );
   }
 }
 
-class PremiumQuickAction extends StatelessWidget {
-  const PremiumQuickAction({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
+class _Meta extends StatelessWidget {
+  const _Meta({required this.icon, required this.label});
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return PremiumSurface(
-      onTap: onTap,
-      semanticLabel: label,
-      color: scheme.surfaceContainerLow,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AaraagateTokens.space3,
-        vertical: AaraagateTokens.space3,
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 76),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-              ),
-              child: Icon(icon, color: scheme.primary, size: 24),
-            ),
-            const SizedBox(width: AaraagateTokens.space3),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.labelLarge,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AaraagateStatusPill extends StatelessWidget {
-  const AaraagateStatusPill({super.key, required this.label, this.tone = AaraagateStatusTone.neutral});
-
-  final String label;
-  final AaraagateStatusTone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final colors = switch (tone) {
-      AaraagateStatusTone.info => (scheme.primaryContainer, scheme.onPrimaryContainer),
-      AaraagateStatusTone.success => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
-      AaraagateStatusTone.warning => (scheme.secondaryContainer, scheme.onSecondaryContainer),
-      AaraagateStatusTone.danger => (scheme.errorContainer, scheme.onErrorContainer),
-      AaraagateStatusTone.neutral => (scheme.surfaceContainerHigh, scheme.onSurfaceVariant),
-    };
-    return Semantics(
-      label: 'Status: $label',
-      excludeSemantics: true,
-      child: AnimatedContainer(
-        duration: AaraagateMotion.duration(context, AaraagateMotion.standard),
-        curve: AaraagateMotion.emphasized,
-        constraints: const BoxConstraints(minHeight: 28),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: colors.$1,
-          borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill),
-        ),
-        child: AnimatedSwitcher(
-          duration: AaraagateMotion.duration(context, AaraagateMotion.quick),
-          switchInCurve: AaraagateMotion.emphasized,
-          switchOutCurve: AaraagateMotion.emphasized,
-          child: Text(
-            label,
-            key: ValueKey(label),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colors.$2,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Identity stays readable while secondary status wraps below the copy.
-/// Used for arrivals and facilities instead of competing trailing columns.
-class PremiumIdentityHeader extends StatelessWidget {
-  const PremiumIdentityHeader({
-    super.key,
-    required this.icon,
-    required this.title,
-    this.supportingText,
-    this.status,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? supportingText;
-  final Widget? status;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: AaraagateTokens.iconContainer,
-          height: AaraagateTokens.iconContainer,
-          decoration: BoxDecoration(
-            color: scheme.primaryContainer,
-            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-          ),
-          child: Icon(icon, color: scheme.onPrimaryContainer),
-        ),
-        const SizedBox(width: AaraagateTokens.space3),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: theme.textTheme.titleMedium),
-              if (supportingText != null && supportingText!.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space1),
-                Text(supportingText!, style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                )),
-              ],
-              if (status != null) ...[
-                const SizedBox(height: AaraagateTokens.space2),
-                status!,
-              ],
-            ],
-          ),
-        ),
+        Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Flexible(child: Text(label, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600))),
       ],
     );
   }
 }
 
-/// Keeps primary and secondary actions usable at narrow widths or large type.
-class PremiumActionGroup extends StatelessWidget {
-  const PremiumActionGroup({super.key, required this.primary, this.secondary});
-  final Widget primary;
-  final Widget? secondary;
+bool _sameInstant(dynamic value, DateTime expected) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '');
+  return parsed != null && parsed.toUtc().isAtSameMomentAs(expected.toUtc());
+}
 
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      if (secondary == null) return SizedBox(width: double.infinity, child: primary);
-      if (constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          primary,
-          const SizedBox(height: AaraagateTokens.space2),
-          secondary!,
-        ]);
-      }
-      return Row(children: [
-        Expanded(child: secondary!),
-        const SizedBox(width: AaraagateTokens.space3),
-        Expanded(flex: 2, child: primary),
-      ]);
-    },
-  );
+bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+bool _isQuickDate(DateTime date, List<DateTime> quickDates) => quickDates.any((item) => _sameDay(item, date));
+
+String? _amenityHoursForIndiaDay(Map<String,dynamic> amenity,int isoWeekday){
+  final schedule=amenity['schedule'];
+  if(schedule is! Map)return null;
+  final weekly=schedule['weekly'];
+  if(weekly is! Map)return null;
+  const keys=['mon','tue','wed','thu','fri','sat','sun'];
+  final raw=weekly[keys[isoWeekday-1]];
+  if(raw is! List||raw.isEmpty)return 'Closed today';
+  final windows=<String>[];
+  for(final item in raw){
+    if(item is! Map)continue;
+    final start=item['start']?.toString(),end=item['end']?.toString();
+    if(start!=null&&end!=null)windows.add('$start–$end');
+  }
+  return windows.isEmpty?'Closed today':'Today ${windows.join(', ')}';
+}
+
+String? _amenityNoShowPolicyLabel(Map<String,dynamic> amenity){
+  final rules=amenity['bookingRules'];
+  if(rules is! Map) return null;
+  final count=_asInt(rules['noShowRestrictionCount'],fallback:0);
+  final lookback=_asInt(rules['noShowLookbackDays'],fallback:0);
+  final block=_asInt(rules['noShowBlockDays'],fallback:0);
+  if(count<=0||lookback<=0||block<=0) return null;
+  return '$count no-show${count==1?'':'s'} in ${lookback}d → ${block}d booking pause';
+}
+
+String? _amenityDepositPolicyLabel(Map<String,dynamic> amenity){
+  final rules=amenity['bookingRules'];
+  if(rules is! Map)return null;
+  final deposit=_asInt(rules['refundableDepositPaise'],fallback:0);
+  final window=_asInt(rules['depositPaymentWindowMinutes'],fallback:0);
+  if(deposit<=0||window<=0)return null;
+  return 'Refundable deposit ${_feeLabel(deposit)} · pay within ${window}m after confirmation';
+}
+
+Map<String,dynamic>? _nextAmenityBlackout(Map<String,dynamic> amenity){
+  final schedule=amenity['schedule'];
+  if(schedule is! Map) return null;
+  final raw=schedule['blackouts'];
+  if(raw is! List) return null;
+  final now=DateTime.now();
+  final candidates=<Map<String,dynamic>>[];
+  for(final item in raw){
+    if(item is! Map) continue;
+    final start=DateTime.tryParse(item['start']?.toString()??'');
+    final end=DateTime.tryParse(item['end']?.toString()??'');
+    if(start==null||end==null||!end.isAfter(now)) continue;
+    candidates.add(item.map((key,value)=>MapEntry(key.toString(),value)));
+  }
+  candidates.sort((a,b)=>(DateTime.tryParse(a['start']?.toString()??'')??DateTime(9999)).compareTo(DateTime.tryParse(b['start']?.toString()??'')??DateTime(9999)));
+  return candidates.isEmpty?null:candidates.first;
+}
+
+String _weekday(DateTime date) {
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return names[date.weekday - 1];
+}
+
+String _shortDate(DateTime date) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${date.day} ${months[date.month - 1]}';
+}
+
+String _titleCase(String value) => value.isEmpty ? value : '${value[0].toUpperCase()}${value.substring(1)}';
+
+int _asInt(dynamic value, {required int fallback}) {
+  if (value is int) return value;
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+String _feeLabel(dynamic feePaise) {
+  final paise = _asInt(feePaise, fallback: 0);
+  if (paise <= 0) return 'Free';
+  final rupees = paise / 100;
+  return rupees == rupees.roundToDouble() ? '₹${rupees.toInt()}' : '₹${rupees.toStringAsFixed(2)}';
+}
+
+String _formatApiDate(dynamic value) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+  return parsed == null ? 'Time unavailable' : _formatDateTime(parsed);
+}
+
+String _formatDateTime(DateTime value) {
+  final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+  final minute = value.minute.toString().padLeft(2, '0');
+  final period = value.hour >= 12 ? 'PM' : 'AM';
+  return '${value.day}/${value.month}/${value.year} · $hour:$minute $period';
 }

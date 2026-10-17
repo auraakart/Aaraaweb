@@ -15,6 +15,9 @@ class PremiumActionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    // Modal sheets can leave their parent route painted. Keep background work
+    // quiet until the route is current again instead of ticking behind a modal.
+    final animate = !reducedMotion && (ModalRoute.of(context)?.isCurrent ?? true);
     return Semantics(
       liveRegion: busy,
       value: busy ? 'In progress' : null,
@@ -26,7 +29,7 @@ class PremiumActionLabel extends StatelessWidget {
               child: SizedBox.square(
                 dimension: AaraagateTokens.space5,
                 child: busy
-                    ? reducedMotion
+                    ? !animate
                         ? const Icon(Icons.hourglass_top_rounded, size: 20)
                         : CircularProgressIndicator(
                             strokeWidth: 2,
