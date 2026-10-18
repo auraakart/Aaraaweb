@@ -719,6 +719,10 @@ jobs:
         if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
         run: flutter pub get
+      - name: Analyze resident app
+        if: needs.change-scope.outputs.run_resident == 'true'
+        working-directory: apps/resident
+        run: flutter analyze
       - name: Changed Resident tests before broad regression
         if: needs.change-scope.outputs.run_resident == 'true' && github.event_name == 'pull_request'
         env:
@@ -744,10 +748,6 @@ jobs:
       - name: Risk-weighted Resident coverage gate
         if: needs.change-scope.outputs.run_resident == 'true'
         run: node scripts/check-flutter-risk-coverage.mjs apps/resident/coverage/lcov.info resident
-      - name: Analyze resident app
-        if: needs.change-scope.outputs.run_resident == 'true'
-        working-directory: apps/resident
-        run: flutter analyze
       - name: Test resident app
         if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
@@ -756,6 +756,10 @@ jobs:
         if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard
         run: flutter pub get
+      - name: Analyze guard app
+        if: needs.change-scope.outputs.run_guard == 'true'
+        working-directory: apps/guard
+        run: flutter analyze
       - name: Changed Guard tests before broad regression
         if: needs.change-scope.outputs.run_guard == 'true' && github.event_name == 'pull_request'
         env:
@@ -775,10 +779,6 @@ jobs:
       - name: Risk-weighted Guard coverage gate
         if: needs.change-scope.outputs.run_guard == 'true'
         run: node scripts/check-flutter-risk-coverage.mjs apps/guard/coverage/lcov.info guard
-      - name: Analyze guard app
-        if: needs.change-scope.outputs.run_guard == 'true'
-        working-directory: apps/guard
-        run: flutter analyze
       - name: Test guard app
         if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard

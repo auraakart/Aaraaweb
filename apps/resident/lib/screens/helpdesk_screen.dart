@@ -239,6 +239,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 ),
                 const SizedBox(height: AaraagateTokens.space3),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: priority,
                   decoration: const InputDecoration(labelText: 'Priority'),
                   items: const [
@@ -261,7 +262,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                   ),
                 ],
                 const SizedBox(height: AaraagateTokens.space5),
-                FilledButton.icon(
+                FilledButton(
                   onPressed: submitting
                       ? null
                       : () async {
@@ -306,14 +307,11 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             }
                           }
                         },
-                  icon: submitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send_rounded),
-                  label: Text(submitting ? 'Submitting…' : 'Submit complaint'),
+                  child: PremiumActionLabel(
+                    label: 'Submit complaint',
+                    icon: Icons.send_rounded,
+                    busy: submitting,
+                  ),
                 ),
               ],
             ),
@@ -657,12 +655,13 @@ class _TicketDetailState extends State<_TicketDetail> {
               Text(reopenError!, style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
             ],
             const SizedBox(height: AaraagateTokens.space3),
-            FilledButton.icon(
+            FilledButton(
               onPressed: reopening ? null : _reopenComplaint,
-              icon: reopening
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.restart_alt_rounded),
-              label: Text(reopening ? 'Reopening…' : 'Reopen complaint'),
+              child: PremiumActionLabel(
+                label: 'Reopen complaint',
+                icon: Icons.restart_alt_rounded,
+                busy: reopening,
+              ),
             ),
           ],
           const SizedBox(height: AaraagateTokens.space6),
@@ -709,16 +708,13 @@ class _TicketDetailState extends State<_TicketDetail> {
             Text(commentError!, style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
           ],
           const SizedBox(height: AaraagateTokens.space3),
-          FilledButton.icon(
+          FilledButton(
             onPressed: submittingComment ? null : _sendComment,
-            icon: submittingComment
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send_rounded),
-            label: Text(submittingComment ? 'Sending…' : 'Send comment'),
+            child: PremiumActionLabel(
+              label: 'Send comment',
+              icon: Icons.send_rounded,
+              busy: submittingComment,
+            ),
           ),
         ],
       ),
