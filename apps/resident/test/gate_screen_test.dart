@@ -8,6 +8,7 @@ import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class _InviteRepository extends DemoResidentRepository {
   Map<String, dynamic>? invite;
@@ -373,6 +374,92 @@ void main() {
     expect(repository.cancelCalls, 1);
     expect(controller.accessRequests.single['status'], 'CANCELLED');
     controller.dispose();
+  });
+
+  testWidgets('cancel pass confirmation scrolls safely at 320px with large text', (tester) async {
+    tester.view.physicalSize = const Size(320, 540);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _InviteRepository();
+    await repository.inviteVisitor(
+      unitId: 'unit-1',
+      name: 'Priya Shah',
+      validFrom: DateTime(2026, 10, 18, 10),
+      validUntil: DateTime(2026, 10, 18, 14),
+      idempotencyKey: 'compact-cancel-pass',
+    );
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'unit-1',
+      initialEnabledFeatures: {'VISITOR_MANAGEMENT'},
+      fetchEntitlements: false,
+    )..accessRequests = await repository.accessRequests();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: const TextScaler.linear(2),
+          disableAnimations: true,
+        ),
+        child: child!,
+      ),
+      home: Scaffold(body: GateScreen(controller: controller)),
+    ));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Cancel pass'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Cancel pass'));
+    await tester.pumpAndSettle();
+    expect(find.text('This stops the visitor pass immediately. Security will no longer accept it.'), findsOneWidget);
+    expect(find.descendant(of: find.byType(AlertDialog), matching: find.byType(SingleChildScrollView)), findsOneWidget);
+    expect(repository.cancelCalls, 0);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(repository.cancelCalls, 0);
+  });
+
+  testWidgets('visitor pass QR and share action remain available at compact large text', (tester) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _InviteRepository();
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'unit-1',
+      initialEnabledFeatures: {'VISITOR_MANAGEMENT'},
+      fetchEntitlements: false,
+    )..households = [{'unitId': 'unit-1'}];
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: const TextScaler.linear(2),
+          disableAnimations: true,
+        ),
+        child: child!,
+      ),
+      home: Scaffold(body: GateScreen(controller: controller)),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Invite guest'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Guest name'), 'Priya Shah');
+    await tester.ensureVisible(find.text('Create visitor pass'));
+    await tester.tap(find.text('Create visitor pass'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Visitor pass ready'), findsOneWidget);
+    expect(find.text('TEST-PASS'), findsOneWidget);
+    expect(tester.widget<QrImageView>(find.byType(QrImageView)).size, 180);
+    await tester.ensureVisible(find.text('Share pass'));
+    expect(find.widgetWithText(FilledButton, 'Share pass'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
 }
