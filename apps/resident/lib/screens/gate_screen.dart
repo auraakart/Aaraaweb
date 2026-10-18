@@ -20,17 +20,18 @@ class GateScreen extends StatelessWidget {
     final requests = controller.accessRequests;
     final pending = requests.where((e) => e['status'] == 'PENDING').toList(growable: false);
     final inside = requests.where((e) => e['status'] == 'CHECKED_IN').length;
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space4,
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space8,
+          padding: EdgeInsets.fromLTRB(
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space3 : AaraagateTokens.space4,
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space6 : AaraagateTokens.space8,
           ),
           children: [
             PremiumPageIntro(
@@ -55,7 +56,7 @@ class GateScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: AaraagateTokens.space4),
+            SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space4),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -75,10 +76,10 @@ class GateScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: AaraagateTokens.space5),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             _GateSummary(waiting: pending.length, inside: inside, total: requests.length, strings: strings),
             if (pending.isNotEmpty) ...[
-              const SizedBox(height: AaraagateTokens.space6),
+              SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               PremiumSectionHeader(
                 title: strings.text('needsAttention'),
                 trailing: AaraagateStatusPill(
@@ -86,7 +87,7 @@ class GateScreen extends StatelessWidget {
                   tone: AaraagateStatusTone.warning,
                 ),
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               for (final request in pending) ...[
                 _AccessCard(
                   key: ValueKey(request['id']),
@@ -96,10 +97,10 @@ class GateScreen extends StatelessWidget {
                   onApprove: () => _approve(context, request),
                   onDeny: () => _deny(context, request),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               ],
             ],
-            const SizedBox(height: AaraagateTokens.space6),
+            SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
             PremiumSectionHeader(title: strings.text('recentActivity')),
             const SizedBox(height: AaraagateTokens.space2),
             if (controller.loading && requests.isEmpty)
@@ -116,7 +117,7 @@ class GateScreen extends StatelessWidget {
                   strings: strings,
                   onCancel: request['status'] == 'APPROVED' && request['subjectType'] == 'VISITOR' ? () => _cancel(context, request) : null,
                 ),
-                const SizedBox(height: AaraagateTokens.space3),
+                SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               ],
           ],
         ),
@@ -436,7 +437,7 @@ class _GateSummary extends StatelessWidget {
       color: scheme.surfaceContainerLow,
       padding: const EdgeInsets.symmetric(
         horizontal: AaraagateTokens.space2,
-        vertical: AaraagateTokens.space4,
+        vertical: MediaQuery.textScalerOf(context).scale(1) <= 1.15 ? AaraagateTokens.space2 : AaraagateTokens.space4,
       ),
       child: Row(children: [
         Expanded(child: _Metric(label: strings.text('waiting'), value: '$waiting')),
@@ -539,12 +540,14 @@ class _AccessCardState extends State<_AccessCard> {
         ? DateTime.tryParse(request['validUntil']?.toString() ?? '')
         : null;
 
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return Semantics(
       container: true,
       label: '$title, $spokenType, $spokenStatus',
       child: PremiumSurface(
         elevated: widget.prominent,
         color: widget.prominent ? scheme.surface : scheme.surfaceContainerLow,
+        padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           PremiumIdentityHeader(
             icon: icon,
@@ -556,18 +559,18 @@ class _AccessCardState extends State<_AccessCard> {
             ),
           ),
           if (approvalHint != null) ...[
-            const SizedBox(height: AaraagateTokens.space3),
+            SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
             Text(approvalHint, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ],
           if (validUntil != null) ...[
-            const SizedBox(height: AaraagateTokens.space3),
+            SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
             Text(
               strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())}),
               style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
             ),
           ],
           if (widget.onApprove != null || widget.onDeny != null || widget.onCancel != null) ...[
-            const SizedBox(height: 16),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
             LayoutBuilder(
               builder: (context, constraints) {
                 final scale = MediaQuery.textScalerOf(context).scale(1);
