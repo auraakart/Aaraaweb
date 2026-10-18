@@ -88,7 +88,7 @@ for (const route of [
   })
 }
 
- 
+
 // The dark palette is opt-in. This matrix checks remaining operational routes
 // without enabling dark mode in production or altering the authorization paths.
 for (const route of [
