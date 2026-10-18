@@ -11,19 +11,20 @@ class WorkforceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final assignments = controller.workforceAssignments;
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: controller.refreshWorkforce,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          padding: EdgeInsets.fromLTRB(compact ? 16 : 20, compact ? 12 : 16, compact ? 16 : 20, compact ? 24 : 32),
           children: [
             _WorkforceHeader(
               canAdd: controller.households.isNotEmpty,
               onAdd: () => _openAddSheet(context),
               onRefresh: controller.refreshWorkforce,
             ),
-            const SizedBox(height: AaraagateTokens.space5),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             if (controller.workforceError != null)
               _MessageCard(
                 icon: Icons.error_outline_rounded,
@@ -43,7 +44,7 @@ class WorkforceScreen extends StatelessWidget {
               )
             else
               ...assignments.map((assignment) => Padding(
-                    padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
+                    padding: EdgeInsets.only(bottom: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
                     child: _StaffCard(controller: controller, assignment: assignment),
                   )),
           ],
@@ -238,11 +239,12 @@ class _StaffCard extends StatelessWidget {
     final payments = controller.paymentsForWorkforce(assignmentId);
     final canRate = status == 'APPROVED' || status == 'SUSPENDED';
     final canDeactivate = assignment['active'] != false && status.toUpperCase() != 'SUSPENDED';
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return PremiumSurface(
       padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(compact ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -250,7 +252,7 @@ class _StaffCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  radius: 24,
+                  radius: compact ? 20 : 24,
                   child: Text(_initials(workerName?.isNotEmpty == true ? workerName! : 'Staff'), style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
                 const SizedBox(width: 12),
@@ -279,14 +281,14 @@ class _StaffCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 4 : 8),
             if (canDeactivate)
               TextButton.icon(
                 onPressed: assignmentId.isEmpty ? null : () => _confirmDeactivate(context, assignmentId),
                 icon: const Icon(Icons.person_remove_outlined),
                 label: const Text('END ASSIGNMENT'),
               ),
-            const SizedBox(height: 16),
+            SizedBox(height: compact ? 12 : 16),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -301,13 +303,13 @@ class _StaffCard extends StatelessWidget {
               ],
             ),
             if (leaves.isNotEmpty) ...[
-              const SizedBox(height: 16),
+              SizedBox(height: compact ? 12 : 16),
               ...leaves.take(2).map((leave) => _LeaveRow(
                     leave: leave,
                     onCancel: () => _confirmCancelLeave(context, leave['id']?.toString() ?? ''),
                   )),
             ],
-            const SizedBox(height: 16),
+            SizedBox(height: compact ? 12 : 16),
             PremiumActionGroup(
               inlineMinWidth: 300, primaryFlex: 1,
               primary: FilledButton.tonal(
@@ -319,7 +321,7 @@ class _StaffCard extends StatelessWidget {
                 child: const PremiumActionLabel(label: 'ADD LEAVE', icon: Icons.event_busy_outlined),
               ),
             ),
-            const SizedBox(height: AaraagateTokens.space3),
+            SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
             PremiumActionGroup(
               primary: OutlinedButton(
                 onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
