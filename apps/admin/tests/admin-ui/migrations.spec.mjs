@@ -62,3 +62,24 @@ for(const route of routes){
     })
   }
 }
+
+
+for (const route of [
+  { key: 'helpdesk', heading: 'Helpdesk operations', content: 'Lift maintenance follow-up' },
+  { key: 'finance', heading: 'Finance workspace', content: 'INV-2026-09-001' },
+]) {
+  test(`opt-in dark preview retains ${route.key} operator content and accessible surfaces`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.addInitScript(() => { document.documentElement.dataset.adminTheme = 'dark' })
+    await page.goto(`/migrations.html?route=${route.key}`)
+    await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible()
+    await expect(page.getByText(route.content, { exact: false }).first()).toBeVisible()
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(12, 25, 33)')
+    const surfaces = await page.locator('main section').all()
+    expect(surfaces.length).toBeGreaterThan(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+    expect(axe.violations).toEqual([])
+    await page.screenshot({ path: testInfo.outputPath(`admin-dark-preview-${route.key}.png`), fullPage: true })
+  })
+}
