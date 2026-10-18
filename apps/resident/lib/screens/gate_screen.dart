@@ -474,6 +474,19 @@ class _AccessCardState extends State<_AccessCard> {
     final rawType = request['subjectType']?.toString();
     final type = _label(rawType);
     final status = _label(request['status']?.toString());
+    // Announce the high-frequency gate identity in the resident's language.
+    // Preserve the displayed backend status and fallback for other types.
+    final spokenType = switch (rawType) {
+      'VISITOR' => strings.text('visitor'),
+      'CAB' => strings.text('cab'),
+      'DELIVERY' => strings.text('delivery'),
+      _ => type,
+    };
+    final spokenStatus = switch (request['status']?.toString()) {
+      'PENDING' => strings.text('waiting'),
+      'CHECKED_IN' => strings.text('inside'),
+      _ => status,
+    };
     final metadata = request['metadata'] is Map ? Map<String, dynamic>.from(request['metadata'] as Map) : const <String, dynamic>{};
     final provider = metadata['provider']?.toString();
     final vehicleNumber = metadata['vehicleNumber']?.toString();
@@ -499,7 +512,7 @@ class _AccessCardState extends State<_AccessCard> {
 
     return Semantics(
       container: true,
-      label: '$title, $type, $status',
+      label: '$title, $spokenType, $spokenStatus',
       child: PremiumSurface(
         elevated: widget.prominent,
         color: widget.prominent ? scheme.surface : scheme.surfaceContainerLow,
