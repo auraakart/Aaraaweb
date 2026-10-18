@@ -14,7 +14,14 @@ class GuardToolsScreen extends StatefulWidget {
 }
 
 class _GuardToolsScreenState extends State<GuardToolsScreen> {
+  final _search = TextEditingController();
   String query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   List<Map<String, dynamic>> get filteredUnits {
     final normalized = query.trim().toLowerCase();
@@ -126,8 +133,22 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
             Text(strings.get('unitDirectory'), style: theme.textTheme.titleLarge),
             const SizedBox(height: 10),
             TextField(
+              controller: _search,
               onChanged: (value) => setState(() => query = value),
-              decoration: InputDecoration(hintText: strings.get('searchUnit'), prefixIcon: const Icon(Icons.search_rounded), suffixIcon: query.isEmpty ? null : IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() => query = ''))),
+              decoration: InputDecoration(
+                hintText: strings.get('searchUnit'),
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: strings.get('clearSearch'),
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () {
+                          _search.clear();
+                          setState(() => query = '');
+                        },
+                      ),
+              ),
             ),
             const SizedBox(height: 10),
             if (units.isEmpty)
@@ -149,7 +170,37 @@ class _StatusRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  @override Widget build(BuildContext context) {final theme=Theme.of(context);return Row(children:[Icon(icon,size:26),const SizedBox(width:12),Expanded(child:Text(label,style:theme.textTheme.titleSmall)),Flexible(child:Text(value,textAlign:TextAlign.end,style:theme.textTheme.bodyMedium?.copyWith(fontWeight:FontWeight.w800)))]);}
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final valueStyle = theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 26),
+        const SizedBox(width: 12),
+        Expanded(
+          child: largeText
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    Text(value, style: valueStyle),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: Text(label, style: theme.textTheme.titleSmall)),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text(value, textAlign: TextAlign.end, style: valueStyle)),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
 }
 
 String _unitLabel(Map<String, dynamic> unit) {

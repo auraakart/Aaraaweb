@@ -49,5 +49,57 @@ void main() {
     await tester.scrollUntilVisible(find.text('Beta · B-202'), 300, scrollable: find.byType(Scrollable).first);
     expect(find.text('Alpha · A-101'), findsNothing);
     expect(find.text('Beta · B-202'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.byType(TextField), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byTooltip('खोज साफ़ करें'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(find.byTooltip('खोज साफ़ करें'), findsNothing);
+    await tester.scrollUntilVisible(find.text('Alpha · A-101'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Alpha · A-101'), findsOneWidget);
+    expect(find.text('Beta · B-202'), findsOneWidget);
   });
+
+  for (final dark in <bool>[false, true]) {
+    testWidgets('Guard Tools at 320dp / 200% text keeps operations and clear search readable: dark=$dark', (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = GuardController(
+        api: GuardApi(baseUrl: 'http://localhost:3000'),
+        sessions: const GuardSessionStore(),
+        offlineQueue: const OfflineActionQueue(),
+      );
+      controller.gateId = 'gate-1';
+      controller.gates = const [{'id': 'gate-1', 'name': 'Main Gate'}];
+      controller.units = const [
+        {'id': 'u1', 'number': 'A-101', 'building': {'name': 'Alpha'}},
+        {'id': 'u2', 'number': 'B-202', 'building': {'name': 'Beta'}},
+      ];
+      controller.queuedActions = 2;
+      controller.oldestQueuedMinutes = 35;
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(brightness: dark ? Brightness.dark : Brightness.light),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: GuardToolsScreen(controller: controller),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('Operations overview'), findsOneWidget);
+      expect(find.text('Offline queue'), findsOneWidget);
+      expect(find.text('Next action'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(find.byType(TextField), 280, scrollable: find.byType(Scrollable).first);
+      await tester.enterText(find.byType(TextField), 'beta');
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Clear search'), findsOneWidget);
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
