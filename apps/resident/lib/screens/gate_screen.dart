@@ -169,16 +169,18 @@ class GateScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(strings.text('cancelPass')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(strings.text('cancelPassConfirm')),
-            if (validUntil != null) ...[
-              const SizedBox(height: 8),
-              Text(strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())})),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(strings.text('cancelPassConfirm')),
+              if (validUntil != null) ...[
+                const SizedBox(height: AaraagateTokens.space2),
+                Text(strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())})),
+              ],
             ],
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -216,7 +218,12 @@ class GateScreen extends StatelessWidget {
         final theme = Theme.of(sheetContext);
         final scheme = theme.colorScheme;
         return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          padding: EdgeInsets.fromLTRB(
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space1,
+            AaraagateTokens.pageGutter,
+            MediaQuery.viewInsetsOf(sheetContext).bottom + AaraagateTokens.space6,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -227,17 +234,35 @@ class GateScreen extends StatelessWidget {
                 child: Icon(Icons.check_rounded, color: scheme.onPrimaryContainer),
               ),
               const SizedBox(height: 12),
-              Text(strings.text('visitorPassReady'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+              Text(strings.text('visitorPassReady'), style: theme.textTheme.headlineSmall),
               const SizedBox(height: 4),
               Text(visitor, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 20),
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                child: Semantics(label: strings.text('visitorQr'), child: QrImageView(data: credential, version: QrVersions.auto, size: 210)),
+                padding: const EdgeInsets.all(AaraagateTokens.space4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
+                ),
+                child: Semantics(
+                  label: strings.text('visitorQr'),
+                  child: QrImageView(
+                    data: credential,
+                    version: QrVersions.auto,
+                    size: MediaQuery.sizeOf(sheetContext).width < 360 ? 180 : 210,
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
-              SelectableText(credential, textAlign: TextAlign.center, style: theme.textTheme.titleSmall?.copyWith(fontFamily: 'monospace', fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+              SelectableText(
+                credential,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
               if (validUntil != null) ...[
                 const SizedBox(height: 8),
                 Text(strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())}), style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
