@@ -239,7 +239,8 @@ void main() {
       ];
 
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: GateScreen(controller: controller))));
-    await tester.tap(find.byTooltip('Invite guest'));
+    expect(find.text('No QR needed for deliveries. Security will request your approval when the rider arrives.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Create visitor QR pass'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextFormField, 'Guest name'), 'Priya Shah');
@@ -450,7 +451,7 @@ void main() {
       home: Scaffold(body: GateScreen(controller: controller)),
     ));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Invite guest'));
+    await tester.tap(find.byTooltip('Create visitor QR pass'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Guest name'), 'Priya Shah');
     await tester.ensureVisible(find.text('Create visitor pass'));
