@@ -87,3 +87,35 @@ for (const route of [
     await page.screenshot({ path: testInfo.outputPath(`admin-dark-preview-${route.key}.png`), fullPage: true })
   })
 }
+
+ 
+// The dark palette is opt-in. This matrix checks remaining operational routes
+// without enabling dark mode in production or altering the authorization paths.
+for (const route of [
+  { key: 'privacy', title: 'Privacy request operations', ready: 'Request a copy of account data' },
+  { key: 'facilities', title: 'Facilities operations', ready: 'Operations summary' },
+  { key: 'documents', title: 'Society document repository', ready: 'Community maintenance policy' },
+  { key: 'occupancy', title: 'Move-in & move-out', ready: 'MOVE OUT' },
+  { key: 'governance', title: 'Governance workspace', ready: 'September committee review' },
+]) {
+  test(`opt-in Admin dark preview preserves ${route.key} operational content, contrast and layout`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto(`/migrations.html?route=${route.key}`)
+    await expect(page.getByRole('heading', { level: 1, name: route.title, exact: true })).toBeVisible()
+    await expect(page.getByText(route.ready, { exact: false }).first()).toBeVisible()
+    await page.evaluate(() => { document.documentElement.dataset.adminTheme = 'dark' })
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(12, 25, 33)')
+    if (route.key === 'facilities') {
+      const panel = page.getByRole('heading', { name: 'Operations summary' }).locator('..')
+      expect(await panel.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(20, 39, 48)')
+    }
+    if (route.key === 'occupancy') {
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--warning-soft').trim())).toBe('#463719')
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await expect(page.getByRole('main')).toHaveCount(1)
+    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+    expect(axe.violations).toEqual([])
+    await page.screenshot({ path: testInfo.outputPath(`admin-dark-preview-${route.key}.png`), fullPage: true })
+  })
+}
