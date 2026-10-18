@@ -1,101 +1,215 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 
-class WorkforceAttendanceSheet extends StatelessWidget {
-  const WorkforceAttendanceSheet({super.key, required this.controller, required this.assignmentId});
+class WorkforceAttendanceSheet extends StatefulWidget {
+  const WorkforceAttendanceSheet({
+    super.key,
+    required this.controller,
+    required this.assignmentId,
+    this.clock,
+  });
   final ResidentDataController controller;
   final String assignmentId;
+  final DateTime Function()? clock;
+
+  @override
+  State<WorkforceAttendanceSheet> createState() => _WorkforceAttendanceSheetState();
+}
+
+class _WorkforceAttendanceSheetState extends State<WorkforceAttendanceSheet> {
+  // Keep a full year of completed months available, in addition to this month.
+  static const _historyMonths = 12;
+  late DateTime _today;
+  late DateTime _currentMonth;
+  late DateTime _selectedMonth;
+  late Future<Map<String, dynamic>> _attendance;
+
+  @override
+  void initState() {
+    super.initState();
+    final indiaNow = (widget.clock?.call() ?? DateTime.now())
+        .toUtc().add(const Duration(hours: 5, minutes: 30));
+    _today = DateTime(indiaNow.year, indiaNow.month, indiaNow.day);
+    _currentMonth = DateTime(_today.year, _today.month);
+    _selectedMonth = _currentMonth;
+    _attendance = _loadMonth();
+  }
+
+  @override
+  void didUpdateWidget(covariant WorkforceAttendanceSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller || oldWidget.assignmentId != widget.assignmentId) {
+      _attendance = _loadMonth();
+    }
+  }
+
+  Future<Map<String, dynamic>> _loadMonth() async {
+    final lastDay = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
+    // Render the whole current month, but never count future days as evidence gaps.
+    return widget.controller.workforceAttendance(
+      widget.assignmentId,
+      from: _selectedMonth,
+      to: lastDay.isAfter(_today) ? _today : lastDay,
+    );
+  }
+
+  void _selectMonth(DateTime month) {
+    if (month == _selectedMonth) return;
+    setState(() {
+      _selectedMonth = month;
+      _attendance = _loadMonth();
+    });
+  }
+
+  void _retry() => setState(() { _attendance = _loadMonth(); });
 
   @override
   Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+    final oldestMonth = DateTime(_currentMonth.year, _currentMonth.month - _historyMonths);
     return SafeArea(
       child: FractionallySizedBox(
         heightFactor: .88,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: FutureBuilder<Map<String, dynamic>>(
-            future: controller.workforceAttendance(assignmentId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(snapshot.error.toString(), textAlign: TextAlign.center),
-                ));
-              }
-              final data = snapshot.data ?? const <String, dynamic>{};
-              final summary = data['summary'] is Map
-                  ? Map<String, dynamic>.from(data['summary'] as Map)
-                  : const <String, dynamic>{};
-              final days = data['days'] is List
-                  ? (data['days'] as List).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
-                  : <Map<String, dynamic>>[];
-              final leaves = data['leaves'] is List
-                  ? (data['leaves'] as List).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
-                  : <Map<String, dynamic>>[];
-              final schedule = data['schedule'] is Map
-                  ? Map<String, dynamic>.from(data['schedule'] as Map)
-                  : const <String, dynamic>{};
-              return ListView(
-                children: [
-                  const Text('Attendance register', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 4),
-                  Text('${data['from'] ?? ''} to ${data['to'] ?? ''}', style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Attendance register', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                Row(children: [
+                  IconButton(
+                    tooltip: 'Previous month',
+                    onPressed: _selectedMonth.isAfter(oldestMonth)
+                        ? () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month - 1))
+                        : null,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<DateTime>(
+                        key: const ValueKey('attendance-month-selector'),
+                        value: _selectedMonth,
+                        isExpanded: true,
+                        itemHeight: null,
+                        borderRadius: BorderRadius.circular(12),
+                        hint: const Text('Attendance month'),
+                        items: List.generate(_historyMonths + 1, (index) {
+                          final month = DateTime(_currentMonth.year, _currentMonth.month - index);
+                          return DropdownMenuItem(
+                            value: month,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Text(localizations.formatMonthYear(month)),
+                            ),
+                          );
+                        }),
+                        onChanged: (month) { if (month != null) _selectMonth(month); },
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Next month',
+                    onPressed: _selectedMonth.isBefore(_currentMonth)
+                        ? () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month + 1))
+                        : null,
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
+                ]),
+              ]),
+            ),
+            Expanded(
+              child: FutureBuilder<Map<String, dynamic>>(
+                // A new month must never display a previous month's pending data.
+                key: ValueKey('${widget.assignmentId}:$_selectedMonth'),
+                future: _attendance,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading attendance'));
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        const Text('Could not load attendance for this month.', textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(onPressed: _retry, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+                      ]),
+                    ));
+                  }
+                  final data = snapshot.data ?? const <String, dynamic>{};
+                  final summary = data['summary'] is Map
+                      ? Map<String, dynamic>.from(data['summary'] as Map)
+                      : const <String, dynamic>{};
+                  final days = _maps(data['days']);
+                  final leaves = _maps(data['leaves']);
+                  final schedule = data['schedule'] is Map
+                      ? Map<String, dynamic>.from(data['schedule'] as Map)
+                      : const <String, dynamic>{};
+                  return ListView(
+                    key: ValueKey('attendance-content-$_selectedMonth'),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                     children: [
-                      Chip(avatar: const Icon(Icons.event_available_outlined, size: 18), label: Text('${summary['presentDays'] ?? 0} present days')),
-                      Chip(avatar: const Icon(Icons.event_repeat_outlined, size: 18), label: Text('${summary['expectedScheduleDays'] ?? 0} scheduled days')),
-                      Chip(avatar: const Icon(Icons.help_outline_rounded, size: 18), label: Text('${summary['scheduledEvidenceGapDays'] ?? 0} evidence gaps')),
-                      Chip(avatar: const Icon(Icons.door_front_door_outlined, size: 18), label: Text('${summary['totalVisits'] ?? 0} visits')),
-                      Chip(avatar: const Icon(Icons.event_busy_outlined, size: 18), label: Text('${summary['leavePeriods'] ?? 0} leave periods')),
+                      if (_selectedMonth == _currentMonth) ...[
+                        Text('Records through ${localizations.formatShortDate(_today)} (IST)', style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(height: 12),
+                      ],
+                      Wrap(
+                        spacing: 20,
+                        runSpacing: 10,
+                        children: [
+                          Text('${summary['presentDays'] ?? 0} present days'),
+                          Text('${summary['expectedScheduleDays'] ?? 0} scheduled days'),
+                          Text('${summary['scheduledEvidenceGapDays'] ?? 0} evidence gaps'),
+                          Text('${summary['totalVisits'] ?? 0} visits'),
+                          Text('${summary['leavePeriods'] ?? 0} leave periods'),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _AttendanceCalendar(
+                        month: _selectedMonth,
+                        today: _today,
+                        attendanceDays: days,
+                        leaves: leaves,
+                        schedule: schedule,
+                      ),
+                      const SizedBox(height: 20),
+                      if (days.isEmpty)
+                        const Text('No gate attendance evidence exists for this month.')
+                      else
+                        ...days.map((day) {
+                          final date = day['date']?.toString().split('T').first ?? 'Date';
+                          final minutes = int.tryParse('${day['minutesInside'] ?? 0}') ?? 0;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.event_available_outlined),
+                            title: Text(date, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Text(
+                              'In ${_clock(day['firstEntryAt'])} · Out ${day['openVisit'] == true ? 'Still inside' : _clock(day['lastExitAt'])} · ${minutes ~/ 60}h ${minutes % 60}m',
+                            ),
+                            trailing: Text('${day['visitCount'] ?? 1}×'),
+                          );
+                        }),
+                      const Divider(height: 28),
+                      Text(
+                        data['boundary']?.toString() ?? 'Attendance is derived from gate records.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  _AttendanceCalendar(
-                    from: data['from']?.toString(),
-                    to: data['to']?.toString(),
-                    attendanceDays: days,
-                    leaves: leaves,
-                    schedule: schedule,
-                  ),
-                  const SizedBox(height: 16),
-                  if (days.isEmpty)
-                    const Card(child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text('No gate attendance evidence exists for this period.'),
-                    ))
-                  else
-                    ...days.map((day) {
-                      final date = day['date']?.toString().split('T').first ?? 'Date';
-                      final minutes = int.tryParse('${day['minutesInside'] ?? 0}') ?? 0;
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.event_available_outlined),
-                        title: Text(date, style: const TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text(
-                          'In ${_clock(day['firstEntryAt'])} · Out ${day['openVisit'] == true ? 'Still inside' : _clock(day['lastExitAt'])} · ${minutes ~/ 60}h ${minutes % 60}m',
-                        ),
-                        trailing: Text('${day['visitCount'] ?? 1}×'),
-                      );
-                    }),
-                  const Divider(height: 28),
-                  Text(
-                    data['boundary']?.toString() ?? 'Attendance is derived from gate records.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  static List<Map<String, dynamic>> _maps(dynamic value) => value is List
+      ? value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+      : <Map<String, dynamic>>[];
 
   static String _clock(dynamic value) {
     if (value == null) return '—';
@@ -108,112 +222,100 @@ class WorkforceAttendanceSheet extends StatelessWidget {
 
 class _AttendanceCalendar extends StatelessWidget {
   const _AttendanceCalendar({
-    required this.from,
-    required this.to,
+    required this.month,
+    required this.today,
     required this.attendanceDays,
     required this.leaves,
     required this.schedule,
   });
 
-  final String? from;
-  final String? to;
+  final DateTime month;
+  final DateTime today;
   final List<Map<String, dynamic>> attendanceDays;
   final List<Map<String, dynamic>> leaves;
   final Map<String, dynamic> schedule;
 
   static const _weekdayNames = <int, String>{
-    DateTime.monday: 'MONDAY',
-    DateTime.tuesday: 'TUESDAY',
-    DateTime.wednesday: 'WEDNESDAY',
-    DateTime.thursday: 'THURSDAY',
-    DateTime.friday: 'FRIDAY',
-    DateTime.saturday: 'SATURDAY',
-    DateTime.sunday: 'SUNDAY',
+    DateTime.monday: 'MONDAY', DateTime.tuesday: 'TUESDAY',
+    DateTime.wednesday: 'WEDNESDAY', DateTime.thursday: 'THURSDAY',
+    DateTime.friday: 'FRIDAY', DateTime.saturday: 'SATURDAY', DateTime.sunday: 'SUNDAY',
   };
 
   @override
   Widget build(BuildContext context) {
-    final start = DateTime.tryParse(from ?? '');
-    final end = DateTime.tryParse(to ?? '');
-    if (start == null || end == null || end.isBefore(start)) return const SizedBox.shrink();
-
-    final present = attendanceDays
-        .map((day) => day['date']?.toString().split('T').first)
-        .whereType<String>()
-        .toSet();
-    final scheduledDays = (schedule['days'] is List)
-        ? (schedule['days'] as List)
-            .whereType<String>()
-            .map((day) => day.toUpperCase())
-            .toSet()
+    final localizations = MaterialLocalizations.of(context);
+    final colors = Theme.of(context).colorScheme;
+    final present = attendanceDays.map((day) => day['date']?.toString().split('T').first).whereType<String>().toSet();
+    final scheduledDays = schedule['days'] is List
+        ? (schedule['days'] as List).whereType<String>().map((day) => day.toUpperCase()).toSet()
         : <String>{};
-    final hasExplicitSchedule = scheduledDays.isNotEmpty;
-    final dates = <DateTime>[];
-    for (var cursor = DateTime(start.year, start.month, start.day);
-        !cursor.isAfter(DateTime(end.year, end.month, end.day)) && dates.length < 31;
-        cursor = cursor.add(const Duration(days: 1))) {
-      dates.add(cursor);
+    final dayCount = DateTime(month.year, month.month + 1, 0).day;
+    // Material's weekday index is Sunday=0; DateTime's is Monday=1.
+    final offset = (month.weekday % 7 - localizations.firstDayOfWeekIndex + 7) % 7;
+    final cellCount = ((offset + dayCount + 6) ~/ 7) * 7;
+
+    Widget dayCell(int day) {
+      final date = DateTime(month.year, month.month, day);
+      final dateKey = '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+      final future = date.isAfter(today);
+      final onLeave = leaves.any((leave) {
+        final starts = leave['startsOn']?.toString().split('T').first;
+        final ends = leave['endsOn']?.toString().split('T').first;
+        return starts != null && ends != null && dateKey.compareTo(starts) >= 0 && dateKey.compareTo(ends) <= 0;
+      });
+      final isPresent = !future && present.contains(dateKey);
+      final scheduled = !future && scheduledDays.contains(_weekdayNames[date.weekday]);
+      final state = isPresent ? 'P' : onLeave ? 'L' : scheduled ? 'E' : '—';
+      final detail = isPresent ? 'Gate presence recorded'
+          : onLeave ? 'Recorded leave'
+          : future ? 'Upcoming day'
+          : scheduled ? 'Expected schedule day; no gate evidence' : 'No attendance inference';
+      final background = isPresent ? colors.primaryContainer : onLeave ? colors.secondaryContainer : colors.surfaceContainerLow;
+      final foreground = isPresent ? colors.onPrimaryContainer : onLeave ? colors.onSecondaryContainer : colors.onSurfaceVariant;
+      return Padding(
+        padding: const EdgeInsets.all(2),
+        child: Semantics(
+          key: ValueKey('attendance-day-$dateKey'),
+          label: '${localizations.formatFullDate(date)}: $detail',
+          excludeSemantics: true,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 56),
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: background,
+              border: date == today ? Border.all(color: colors.primary) : null,
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('$day', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: foreground, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(state, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: foreground)),
+            ]),
+          ),
+        ),
+      );
     }
-
-    bool leaveOn(String key) => leaves.any((leave) {
-      final starts = leave['startsOn']?.toString().split('T').first;
-      final ends = leave['endsOn']?.toString().split('T').first;
-      return starts != null && ends != null && key.compareTo(starts) >= 0 && key.compareTo(ends) <= 0;
-    });
-
-    String key(DateTime date) =>
-        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Monthly attendance view', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        Text('Monthly attendance view', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        Text(
-          'P = gate presence · L = recorded leave · E = scheduled day with no gate evidence · — = no attendance inference',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: dates.map((date) {
-            final dateKey = key(date);
-            final onLeave = leaveOn(dateKey);
-            final isPresent = present.contains(dateKey);
-            final scheduled = hasExplicitSchedule && scheduledDays.contains(_weekdayNames[date.weekday]);
-            final state = isPresent ? 'P' : onLeave ? 'L' : scheduled ? 'E' : '—';
-            final detail = isPresent
-                ? 'Gate presence recorded'
-                : onLeave
-                    ? 'Recorded leave'
-                    : scheduled
-                        ? 'Expected schedule day; no gate evidence'
-                        : 'No attendance inference';
-            return Semantics(
-              label: '${date.day}/${date.month}: $detail',
-              child: Container(
-                width: 46,
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(10),
-                  color: isPresent
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : onLeave
-                          ? Theme.of(context).colorScheme.secondaryContainer
-                          : Theme.of(context).colorScheme.surfaceContainerLow,
-                ),
-                child: Column(
-                  children: [
-                    Text('${date.day}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 2),
-                    Text(state, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900)),
-                  ],
-                ),
-              ),
-            );
-          }).toList(growable: false),
+        Text('P = gate presence · L = recorded leave · E = scheduled day with no gate evidence · — = no attendance inference or upcoming day', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 12),
+        Table(
+          key: const ValueKey('attendance-calendar'),
+          children: [
+            TableRow(children: List.generate(7, (column) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Center(child: Text(localizations.narrowWeekdays[(localizations.firstDayOfWeekIndex + column) % 7], style: Theme.of(context).textTheme.labelMedium)),
+            ))),
+            for (var row = 0; row < cellCount ~/ 7; row++)
+              TableRow(children: List.generate(7, (column) {
+                final day = row * 7 + column - offset + 1;
+                return day < 1 || day > dayCount ? const SizedBox.shrink() : dayCell(day);
+              })),
+          ],
         ),
       ],
     );

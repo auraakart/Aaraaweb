@@ -80,15 +80,20 @@ class _ResidentRequestsScreenState extends State<ResidentRequestsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space4, AaraagateTokens.pageGutter, AaraagateTokens.space8),
           children: [
-            Text('Resident requests', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: AaraagateTokens.space1),
-            Text('Request society-issued letters and permissions through the existing audited helpdesk workflow.', style: theme.textTheme.bodyLarge),
+            const PremiumPageIntro(
+              icon: Icons.description_outlined,
+              title: 'Resident requests',
+              supportingText: 'Request society-issued letters or permissions and follow their review in Helpdesk.',
+            ),
             const SizedBox(height: AaraagateTokens.space4),
             PremiumSurface(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text('New request', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: AaraagateTokens.space3),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _kind,
                     decoration: const InputDecoration(labelText: 'Request type', border: OutlineInputBorder()),
                     items: _types.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
@@ -107,10 +112,13 @@ class _ResidentRequestsScreenState extends State<ResidentRequestsScreen> {
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  FilledButton.icon(
+                  FilledButton(
                     onPressed: _busy ? null : _submit,
-                    icon: const Icon(Icons.description_outlined),
-                    label: Text(_busy ? 'SUBMITTING…' : 'SUBMIT REQUEST'),
+                    child: PremiumActionLabel(
+                      label: 'Submit request',
+                      icon: Icons.description_outlined,
+                      busy: _busy,
+                    ),
                   ),
                 ],
               ),
@@ -129,13 +137,27 @@ class _ResidentRequestsScreenState extends State<ResidentRequestsScreen> {
                 child: Column(
                   children: [
                     for (var index = 0; index < _requests.length; index++) ...[
-                      ListTile(
-                        leading: const Icon(Icons.description_outlined),
-                        title: Text(_requests[index]['title']?.toString() ?? 'Resident request', style: const TextStyle(fontWeight: FontWeight.w700)),
-                        subtitle: Text(
-                          '${(_requests[index]['status']?.toString() ?? 'OPEN').replaceAll('_', ' ')} · ${_requests[index]['description'] ?? ''}',
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                      Padding(
+                        padding: const EdgeInsets.all(AaraagateTokens.space4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _requests[index]['title']?.toString() ?? 'Resident request',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: AaraagateTokens.space2),
+                            AaraagateStatusPill(
+                              label: (_requests[index]['status']?.toString() ?? 'OPEN').replaceAll('_', ' '),
+                            ),
+                            if ((_requests[index]['description']?.toString() ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: AaraagateTokens.space2),
+                              Text(
+                                _requests[index]['description'].toString(),
+                                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       if (index < _requests.length - 1) const Divider(height: 1),

@@ -581,7 +581,7 @@ void main() {
     final assignmentId = controller.workforceAssignments.first['id']!.toString();
     final attendance = await controller.workforceAttendance(assignmentId);
     expect(attendance['summary'], isA<Map>());
-    expect(Map<String, dynamic>.from(attendance['summary'] as Map)['presentDays'], 22);
+    expect(Map<String, dynamic>.from(attendance['summary'] as Map)['presentDays'], (attendance['days'] as List).length);
 
     final before = controller.paymentsForWorkforce(assignmentId).length;
     await controller.recordWorkforcePayment(

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/billing_screen.dart';
+import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,6 +48,21 @@ class _BillingRepository extends ResidentRepository {
   Future<Map<String, dynamic>> maintenanceReceipt(String paymentId) async {
     receiptCalls++;
     return {'receiptNumber': 'AGR-12345678', 'societyName': 'Aaraagate Heights', 'buildingName': 'A Block', 'unitNumber': '101', 'invoiceNumber': '202609-A101', 'amountPaise': 125000, 'status': 'CAPTURED'};
+  }
+}
+
+
+class _PendingBillingRepository extends _BillingRepository {
+  final pendingOrder = Completer<Map<String, dynamic>>();
+
+  @override
+  Future<Map<String, dynamic>> createMaintenancePayment({
+    required String invoiceId,
+    required String idempotencyKey,
+  }) {
+    paymentCalls++;
+    paymentAttemptKeys.add(idempotencyKey);
+    return pendingOrder.future;
   }
 }
 
@@ -107,6 +124,62 @@ void main() {
     expect(repository.paymentCalls, 1);
     expect(find.text('Secure payment order ready'), findsOneWidget);
   });
+
+
+  for (final brightness in [Brightness.light, Brightness.dark]) {
+    for (final action in ['Pay next due', 'Pay securely']) {
+      testWidgets('billing retains $action during in-flight payment at compact large text: $brightness', (tester) async {
+        tester.view.physicalSize = const Size(320, 780);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final repository = _PendingBillingRepository();
+        await tester.pumpWidget(MaterialApp(
+          theme: ThemeData(brightness: brightness),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(2),
+              disableAnimations: true,
+            ),
+            child: child!,
+          ),
+          home: BillingScreen(repository: repository),
+        ));
+        await tester.pumpAndSettle();
+
+        if (action == 'Pay securely') {
+          await tester.scrollUntilVisible(
+            find.text(action),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+        }
+        await tester.ensureVisible(find.text(action));
+        await tester.pumpAndSettle();
+        expect(find.text(action).hitTestable(), findsOneWidget);
+        await tester.tap(find.text(action));
+        await tester.pump();
+
+        expect(repository.paymentCalls, 1);
+        expect(find.text(action), findsOneWidget);
+        final labels = tester.widgetList<PremiumActionLabel>(find.byType(PremiumActionLabel)).toList();
+        expect(labels.singleWhere((label) => label.label == action).busy, isTrue);
+        expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, action)).onPressed, isNull);
+        expect(tester.takeException(), isNull);
+
+        repository.pendingOrder.complete({
+          'id': 'payment-pending',
+          'providerOrderId': 'order-pending',
+          'status': 'CREATED',
+        });
+        await tester.pumpAndSettle();
+        expect(find.text('Secure payment order ready'), findsOneWidget);
+        expect(repository.paymentCalls, 1);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   testWidgets('payment retry reuses the same idempotency key after a lost response', (tester) async {
     final repository = _RetryBillingRepository();

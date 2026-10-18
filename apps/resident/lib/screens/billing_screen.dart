@@ -540,17 +540,12 @@ class _SummaryCard extends StatelessWidget {
             const SizedBox(height: AaraagateTokens.space4),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: FilledButton(
                 onPressed: busy ? null : onPayNext,
-                icon: Icon(
-                  busy ? Icons.hourglass_top_rounded : Icons.lock_outline_rounded,
-                ),
-                label: Text(
-                  busy
-                      ? 'Preparing payment…'
-                      : overdue
-                          ? 'Pay overdue bill'
-                          : 'Pay next due',
+                child: PremiumActionLabel(
+                  label: overdue ? 'Pay overdue bill' : 'Pay next due',
+                  icon: Icons.lock_outline_rounded,
+                  busy: busy,
                 ),
               ),
             ),
@@ -742,7 +737,7 @@ class _InvoiceCard extends StatelessWidget {
           child: FilledButton(
             onPressed: busy ? null : onPay,
             child: PremiumActionLabel(
-              label: busy ? 'Preparing payment…' : 'Pay securely',
+              label: 'Pay securely',
               icon: Icons.lock_outline_rounded,
               busy: busy,
             ),

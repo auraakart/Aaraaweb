@@ -64,6 +64,7 @@ class VehiclesScreen extends StatelessWidget {
               ),
               const SizedBox(height: AaraagateTokens.space3),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: type,
                 decoration: const InputDecoration(labelText: 'Vehicle type'),
                 items: const [
@@ -80,15 +81,13 @@ class VehiclesScreen extends StatelessWidget {
               const SizedBox(height: AaraagateTokens.space3),
               TextField(controller: color, decoration: const InputDecoration(labelText: 'Colour (optional)')),
               const SizedBox(height: AaraagateTokens.space3),
-              const PremiumSurface(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.verified_user_outlined, size: 20),
-                    SizedBox(width: AaraagateTokens.space2),
-                    Expanded(child: Text('The vehicle becomes active only after Society Admin approval.')),
-                  ],
-                ),
+              const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.verified_user_outlined, size: 20),
+                  SizedBox(width: AaraagateTokens.space2),
+                  Expanded(child: Text('The vehicle becomes active only after Society Admin approval.')),
+                ],
               ),
             ]),
           ),
@@ -164,8 +163,6 @@ class VehiclesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final vehicles = _vehicles;
     final pending = _pending;
     final parkingSlots = _parkingSlots;
@@ -217,21 +214,14 @@ class VehiclesScreen extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: AaraagateTokens.iconContainer,
-                          height: AaraagateTokens.iconContainer,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
-                          child: Icon(twoWheeler ? Icons.two_wheeler_rounded : Icons.directions_car_rounded, color: scheme.onPrimaryContainer),
-                        ),
-                        const SizedBox(width: AaraagateTokens.space3),
                         Expanded(
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: theme.textTheme.titleMedium),
-                            const SizedBox(height: AaraagateTokens.space1),
-                            Text(_details(vehicle, parkingSlots[vehicleId]), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                          ]),
+                          child: PremiumIdentityHeader(
+                            icon: twoWheeler ? Icons.two_wheeler_rounded : Icons.directions_car_rounded,
+                            title: vehicle['plateNumber']?.toString() ?? 'Vehicle',
+                            supportingText: _details(vehicle, parkingSlots[vehicleId]),
+                          ),
                         ),
+                        const SizedBox(width: AaraagateTokens.space2),
                         IconButton(
                           icon: const Icon(Icons.delete_outline_rounded),
                           tooltip: 'Request vehicle removal',
@@ -274,25 +264,14 @@ class _PendingVehicleRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final payload = request['payload'] is Map ? request['payload'] as Map : const {};
     final adding = request['type'] == 'VEHICLE_ADD';
     return PremiumSurface(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.schedule_rounded),
-          const SizedBox(width: AaraagateTokens.space3),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(payload['plateNumber']?.toString() ?? 'Vehicle change', style: theme.textTheme.titleSmall),
-              const SizedBox(height: AaraagateTokens.space1),
-              Text(adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval', style: theme.textTheme.bodySmall),
-            ]),
-          ),
-          const SizedBox(width: AaraagateTokens.space2),
-          const AaraagateStatusPill(label: 'Pending', tone: AaraagateStatusTone.warning),
-        ],
+      child: PremiumIdentityHeader(
+        icon: Icons.schedule_rounded,
+        title: payload['plateNumber']?.toString() ?? 'Vehicle change',
+        supportingText: adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval',
+        status: const AaraagateStatusPill(label: 'Pending', tone: AaraagateStatusTone.warning),
       ),
     );
   }
