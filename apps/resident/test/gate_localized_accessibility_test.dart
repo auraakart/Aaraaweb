@@ -53,7 +53,22 @@ void main() {
 
         expect(find.text(strings.text('gateTitle')), findsOneWidget);
         expect(find.text(strings.text('inviteGuest')), findsOneWidget);
+        // At 200% type, the lower lazy-list sections are not built
+        // until they enter the viewport. Scroll rather than assuming
+        // offscreen widgets exist or disabling hit-test checks.
+        await tester.scrollUntilVisible(
+          find.text(strings.text('needsAttention')),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
         expect(find.text(strings.text('needsAttention')), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text(strings.text('allowEntry')),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
         expect(find.text(strings.text('allowEntry')), findsOneWidget);
         expect(find.text(strings.text('deny')), findsOneWidget);
         final spoken = tester.widgetList<Semantics>(find.byType(Semantics))
