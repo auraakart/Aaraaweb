@@ -17,3 +17,8 @@ The existing opt-in `data-admin-theme="dark"` palette and shared Admin primitive
 
 ## Acceptance boundary
 Require CI Admin browser validation, route/permission regression, lint, build and protected merge gates. The two selected operational routes are not comprehensive admin-wide dark acceptance; role-restricted, partner, governance, lower-end devices, multilingual and human-operated screen-reader acceptance remain outstanding. No staging/main changes or product-wide 9/10 claim.
+
+## Browser-discovered Finance contrast gap and correction
+The first protected Playwright run exposed a dark-preview status-selector collision: the drawer uses `.open` for its expanded state, so dark error status selectors must be scoped to actual `.badge.open` components. A second run revealed Finance's remaining inline white cards; light text on these cards failed automated WCAG AA contrast.
+
+Use existing `--surface`, `--line`, `--admin-subtle-surface`, and warning-surface tokens in the Finance presentation-only style constants. Preserve their original light-mode values as CSS variable fallbacks, with no calculation, reconciliation or permission changes. Keep the dark browser accessibility assertion and add a computed-surface invariant for the receivables section. Do not disable or weaken axe checks.

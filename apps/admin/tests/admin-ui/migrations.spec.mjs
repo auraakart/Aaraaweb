@@ -77,6 +77,10 @@ for (const route of [
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(12, 25, 33)')
     const surfaces = await page.locator('main section').all()
     expect(surfaces.length).toBeGreaterThan(0)
+    if (route.key === 'finance') {
+      const receivables = page.getByRole('heading', { name: 'Receivables summary' }).locator('..')
+      expect(await receivables.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(20, 39, 48)')
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
     expect(axe.violations).toEqual([])

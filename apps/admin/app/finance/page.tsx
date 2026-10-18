@@ -180,17 +180,17 @@ export default function FinanceWorkspace(){
 }
 
 function Metric({label,value}:{label:string;value:string}){return <div style={metric}><small>{label}</small><div style={{fontSize:23,fontWeight:800,marginTop:4}}>{value}</div></div>}
-const panel:React.CSSProperties={marginTop:20,padding:20,border:'1px solid #dbe7ea',borderRadius:16,background:'white'}
+const panel:React.CSSProperties={marginTop:20,padding:20,border:'1px solid var(--line, #dbe7ea)',borderRadius:16,background:'var(--surface, white)'}
 const metricGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginTop:20}
-const metric:React.CSSProperties={padding:16,border:'1px solid #dbe7ea',borderRadius:14,background:'white'}
+const metric:React.CSSProperties={padding:16,border:'1px solid var(--line, #dbe7ea)',borderRadius:14,background:'var(--surface, white)'}
 const sectionHeader:React.CSSProperties={display:'flex',justifyContent:'space-between',alignItems:'end',gap:12,flexWrap:'wrap'}
-const row:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',padding:'10px 0',borderBottom:'1px solid #eef2f3',flexWrap:'wrap'}
+const row:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--line, #eef2f3)',flexWrap:'wrap'}
 const table:React.CSSProperties={width:'100%',borderCollapse:'collapse',marginTop:12}
 const right:React.CSSProperties={textAlign:'right'}
-const notice:React.CSSProperties={marginTop:18,padding:12,border:'1px solid #f59e0b',borderRadius:10,background:'#fffbeb'}
-const attentionLink:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',padding:'14px 16px',border:'1px solid #dbe7ea',borderRadius:14,textDecoration:'none',color:'inherit',background:'#f8fbfc'}
+const notice:React.CSSProperties={marginTop:18,padding:12,border:'1px solid #f59e0b',borderRadius:10,background:'var(--admin-warning-surface, #fffbeb)'}
+const attentionLink:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',padding:'14px 16px',border:'1px solid var(--line, #dbe7ea)',borderRadius:14,textDecoration:'none',color:'inherit',background:'var(--admin-subtle-surface, #f8fbfc)'}
 const resolutionGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,260px),1fr))',gap:10,marginTop:14}
-const resolutionLink:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',padding:'12px 14px',border:'1px solid #bfd8dd',borderRadius:12,textDecoration:'none',color:'inherit',background:'#f4fafb'}
+const resolutionLink:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',padding:'12px 14px',border:'1px solid var(--line, #bfd8dd)',borderRadius:12,textDecoration:'none',color:'inherit',background:'var(--admin-subtle-surface, #f4fafb)'}
 const twoCol:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,340px),1fr))',gap:24}
 
 const formGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,180px),1fr))',gap:10,alignItems:'end',marginTop:14}
