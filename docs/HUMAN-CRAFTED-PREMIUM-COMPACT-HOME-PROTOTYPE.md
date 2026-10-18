@@ -1,6 +1,6 @@
 # Premium Compact UI — Resident Home Prototype
 
-**Date:** 2026-10-18  
+**Date:** 2026-10-18
 **Scope:** Reviewable `develop`-only Resident Home presentation slice; no main/staging promotion.
 
 ## Problem and design rationale
