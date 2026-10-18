@@ -35,9 +35,6 @@ void main() {
           },
         ];
         addTearDown(controller.dispose);
-        final semantics = tester.ensureSemantics();
-        addTearDown(semantics.dispose);
-
         await tester.pumpWidget(MaterialApp(
           theme: dark ? AaraagateTheme.dark() : AaraagateTheme.light(),
           builder: (context, child) => MediaQuery(
