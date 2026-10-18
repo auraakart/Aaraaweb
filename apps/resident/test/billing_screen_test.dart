@@ -127,48 +127,58 @@ void main() {
 
 
   for (final brightness in [Brightness.light, Brightness.dark]) {
-    testWidgets('billing keeps both payment action names during in-flight checkout at compact large text: $brightness', (tester) async {
-      tester.view.physicalSize = const Size(320, 780);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    for (final action in ['Pay next due', 'Pay securely']) {
+      testWidgets('billing retains $action during in-flight payment at compact large text: $brightness', (tester) async {
+        tester.view.physicalSize = const Size(320, 780);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final repository = _PendingBillingRepository();
-      await tester.pumpWidget(MaterialApp(
-        theme: ThemeData(brightness: brightness),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: const TextScaler.linear(2),
-            disableAnimations: true,
+        final repository = _PendingBillingRepository();
+        await tester.pumpWidget(MaterialApp(
+          theme: ThemeData(brightness: brightness),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(2),
+              disableAnimations: true,
+            ),
+            child: child!,
           ),
-          child: child!,
-        ),
-        home: BillingScreen(repository: repository),
-      ));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Pay next due'));
-      await tester.pump();
+          home: BillingScreen(repository: repository),
+        ));
+        await tester.pumpAndSettle();
 
-      expect(repository.paymentCalls, 1);
-      expect(find.text('Pay next due'), findsOneWidget);
-      expect(find.text('Pay securely'), findsOneWidget);
-      final labels = tester.widgetList<PremiumActionLabel>(find.byType(PremiumActionLabel)).toList();
-      expect(labels.singleWhere((label) => label.label == 'Pay next due').busy, isTrue);
-      expect(labels.singleWhere((label) => label.label == 'Pay securely').busy, isTrue);
-      expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Pay next due')).onPressed, isNull);
-      expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Pay securely')).onPressed, isNull);
-      expect(tester.takeException(), isNull);
+        if (action == 'Pay securely') {
+          await tester.scrollUntilVisible(
+            find.text(action),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+        }
+        await tester.ensureVisible(find.text(action));
+        await tester.pumpAndSettle();
+        expect(find.text(action).hitTestable(), findsOneWidget);
+        await tester.tap(find.text(action));
+        await tester.pump();
 
-      repository.pendingOrder.complete({
-        'id': 'payment-pending',
-        'providerOrderId': 'order-pending',
-        'status': 'CREATED',
+        expect(repository.paymentCalls, 1);
+        expect(find.text(action), findsOneWidget);
+        final labels = tester.widgetList<PremiumActionLabel>(find.byType(PremiumActionLabel)).toList();
+        expect(labels.singleWhere((label) => label.label == action).busy, isTrue);
+        expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, action)).onPressed, isNull);
+        expect(tester.takeException(), isNull);
+
+        repository.pendingOrder.complete({
+          'id': 'payment-pending',
+          'providerOrderId': 'order-pending',
+          'status': 'CREATED',
+        });
+        await tester.pumpAndSettle();
+        expect(find.text('Secure payment order ready'), findsOneWidget);
+        expect(repository.paymentCalls, 1);
+        expect(tester.takeException(), isNull);
       });
-      await tester.pumpAndSettle();
-      expect(find.text('Secure payment order ready'), findsOneWidget);
-      expect(repository.paymentCalls, 1);
-      expect(tester.takeException(), isNull);
-    });
+    }
   }
 
   testWidgets('payment retry reuses the same idempotency key after a lost response', (tester) async {
