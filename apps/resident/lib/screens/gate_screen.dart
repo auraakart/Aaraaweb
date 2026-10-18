@@ -435,7 +435,7 @@ class _GateSummary extends StatelessWidget {
     final scheme = theme.colorScheme;
     return PremiumSurface(
       color: scheme.surfaceContainerLow,
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: AaraagateTokens.space2,
         vertical: MediaQuery.textScalerOf(context).scale(1) <= 1.15 ? AaraagateTokens.space2 : AaraagateTokens.space4,
       ),
