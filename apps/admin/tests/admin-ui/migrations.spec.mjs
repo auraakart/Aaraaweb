@@ -70,10 +70,10 @@ for (const route of [
 ]) {
   test(`opt-in dark preview retains ${route.key} operator content and accessible surfaces`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 900 })
-    await page.addInitScript(() => { document.documentElement.dataset.adminTheme = 'dark' })
     await page.goto(`/migrations.html?route=${route.key}`)
     await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible()
     await expect(page.getByText(route.content, { exact: false }).first()).toBeVisible()
+    await page.evaluate(() => { document.documentElement.dataset.adminTheme = 'dark' })
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(12, 25, 33)')
     const surfaces = await page.locator('main section').all()
     expect(surfaces.length).toBeGreaterThan(0)

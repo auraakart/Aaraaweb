@@ -37,20 +37,20 @@
   background: var(--surface);
   color: var(--ink);
 }
-:root[data-admin-theme='dark'] .urgent,
-:root[data-admin-theme='dark'] .open,
+:root[data-admin-theme='dark'] .badge.urgent,
+:root[data-admin-theme='dark'] .badge.open,
 :root[data-admin-theme='dark'] .error {
   background: var(--admin-danger-surface);
   color: var(--danger);
 }
-:root[data-admin-theme='dark'] .in_progress,
-:root[data-admin-theme='dark'] .draft,
-:root[data-admin-theme='dark'] .high {
+:root[data-admin-theme='dark'] .badge.in_progress,
+:root[data-admin-theme='dark'] .badge.draft,
+:root[data-admin-theme='dark'] .badge.high {
   background: var(--admin-warning-surface);
   color: var(--warning);
 }
-:root[data-admin-theme='dark'] .resolved,
-:root[data-admin-theme='dark'] .published {
+:root[data-admin-theme='dark'] .badge.resolved,
+:root[data-admin-theme='dark'] .badge.published {
   background: var(--accent);
   color: var(--brand-ink);
 }

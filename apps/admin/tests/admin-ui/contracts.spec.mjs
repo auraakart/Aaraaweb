@@ -134,6 +134,7 @@ test('opt-in admin dark preview keeps shared and legacy surfaces legible without
   })
   expect(colours.body.bg).toBe('rgb(12, 25, 33)')
   expect(colours.queue.bg).toBe('rgb(20, 39, 48)')
+  // The drawer's .open interaction state must never inherit a danger badge background.
   expect(colours.drawer.bg).toBe('rgb(20, 39, 48)')
   expect(colours.drawerLink.bg).toBe('rgb(12, 25, 33)')
   expect(colours.input.bg).toBe('rgb(20, 39, 48)')
