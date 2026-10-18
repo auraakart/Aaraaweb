@@ -259,13 +259,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   @override Widget build(BuildContext context){
     final theme=Theme.of(context), scheme=theme.colorScheme;
+    final compact=MediaQuery.textScalerOf(context).scale(1)<=1.15;
     final notices=widget.controller.notices.take(3).toList();
     final openTickets=_tickets.where((t)=>!{'RESOLVED','CLOSED'}.contains((t['status']?.toString()??'').toUpperCase())).take(2).toList();
     return SafeArea(child:RefreshIndicator(onRefresh:() async{await widget.controller.load();await _load();},child:ListView(
-      physics:const AlwaysScrollableScrollPhysics(),padding:const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter,AaraagateTokens.space4,AaraagateTokens.pageGutter,AaraagateTokens.space8),children:[
+      physics:const AlwaysScrollableScrollPhysics(),padding:EdgeInsets.fromLTRB(compact?AaraagateTokens.space4:AaraagateTokens.pageGutter,compact?AaraagateTokens.space3:AaraagateTokens.space4,compact?AaraagateTokens.space4:AaraagateTokens.pageGutter,compact?AaraagateTokens.space6:AaraagateTokens.space8),children:[
       Text('Community',style:theme.textTheme.headlineSmall),
       const SizedBox(height:AaraagateTokens.space1),Text('Society updates, meetings, documents and polls with your access rules applied.',style:theme.textTheme.bodyLarge?.copyWith(color:scheme.onSurfaceVariant)),
-      const SizedBox(height:AaraagateTokens.space4),
+      SizedBox(height:compact?AaraagateTokens.space3:AaraagateTokens.space4),
       _CommunityShortcutBar(
         onOpenUpdates:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>NoticesScreen(controller:widget.controller))),
         onOpenPolls:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityPollsScreen(repository:widget.controller.repository))),
@@ -274,7 +275,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         onOpenCircles:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityCirclesScreen(repository:widget.controller.repository))),
         onOpenDirectory:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentDirectoryScreen(repository:widget.controller.repository))),
       ),
-      const SizedBox(height:AaraagateTokens.space4),
+      SizedBox(height:compact?AaraagateTokens.space3:AaraagateTokens.space4),
       PremiumSurface(
         color:scheme.primaryContainer.withValues(alpha: .45),
         child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -287,7 +288,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ])),
         ]),
       ),
-      const SizedBox(height:AaraagateTokens.space4),
+      SizedBox(height:compact?AaraagateTokens.space3:AaraagateTokens.space4),
       PremiumSurface(
         padding:EdgeInsets.zero,
         child:_Tile(
@@ -298,25 +299,25 @@ class _CommunityScreenState extends State<CommunityScreen> {
           onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentRequestsScreen(controller:widget.controller))),
         ),
       ),
-      if(loading)...[const SizedBox(height:AaraagateTokens.space4),const AppStateCard(icon:Icons.sync_rounded,message:'Loading community hub…',loading:true)],
-      if(error!=null)...[const SizedBox(height:AaraagateTokens.space4),AppStateCard(icon:Icons.error_outline_rounded,message:error!,actionLabel:'Retry',onAction:_load)],
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Latest updates',supportingText:'Recent updates published for your society.'),const SizedBox(height:AaraagateTokens.space3),
+      if(loading)...[SizedBox(height:compact?AaraagateTokens.space3:AaraagateTokens.space4),const AppStateCard(icon:Icons.sync_rounded,message:'Loading community hub…',loading:true)],
+      if(error!=null)...[SizedBox(height:compact?AaraagateTokens.space3:AaraagateTokens.space4),AppStateCard(icon:Icons.error_outline_rounded,message:error!,actionLabel:'Retry',onAction:_load)],
+      SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Latest updates',supportingText:'Recent updates published for your society.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),
       if(notices.isEmpty)const AppStateCard(icon:Icons.campaign_outlined,message:'No current notices.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<notices.length;i++)...[_Tile(icon:Icons.campaign_outlined,title:notices[i]['title']?.toString()??'Society notice',subtitle:notices[i]['requiresAcknowledgement']==true?(notices[i]['acknowledgedAt']!=null?'Acknowledged':'Acknowledgement requested'):'Published update'),if(i<notices.length-1)Divider(height:1,color:scheme.outlineVariant)]])),
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Meetings & decisions',supportingText:'Community-visible governance meetings and closure information.'),const SizedBox(height:AaraagateTokens.space3),
+      SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Meetings & decisions',supportingText:'Community-visible governance meetings and closure information.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),
       if(meetings.isEmpty)const AppStateCard(icon:Icons.groups_outlined,message:'No community-visible meetings.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<meetings.take(3).length;i++)...[_Tile(icon:Icons.groups_outlined,title:meetings[i]['title']?.toString()??'Society meeting',subtitle:_meetingSubtitle(meetings[i])),if(i<meetings.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Society documents',supportingText:'Published documents authorized for your current relationship and property.'),const SizedBox(height:AaraagateTokens.space3),
+      SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Society documents',supportingText:'Published documents authorized for your current relationship and property.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),
       if(societyDocuments.isEmpty)const AppStateCard(icon:Icons.folder_open_outlined,message:'No published society documents available.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<societyDocuments.take(5).length;i++)...[_Tile(icon:Icons.description_outlined,title:societyDocuments[i]['title']?.toString()??'Society document',subtitle:_documentSubtitle(societyDocuments[i]),actionLabel:'Open document',onAction:()=>_openSocietyDocument(societyDocuments[i]['id'].toString())),if(i<societyDocuments.take(5).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Governance references',supportingText:'Meeting-related document references published through governance workflows.'),const SizedBox(height:AaraagateTokens.space3),
+      SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Governance references',supportingText:'Meeting-related document references published through governance workflows.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),
       if(governanceDocuments.isEmpty)const AppStateCard(icon:Icons.folder_open_outlined,message:'No governance references available.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<governanceDocuments.take(3).length;i++)...[_Tile(icon:Icons.description_outlined,title:_label(governanceDocuments[i]['kind']?.toString()??'Document'),subtitle:governanceDocuments[i]['note']?.toString()??'Governance document'),if(i<governanceDocuments.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Community events',supportingText:'Upcoming non-statutory society activities with privacy-preserving RSVP.'),const SizedBox(height:AaraagateTokens.space3),
+      SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Community events',supportingText:'Upcoming non-statutory society activities with privacy-preserving RSVP.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),
       PremiumSurface(padding:EdgeInsets.zero,child:_Tile(icon:Icons.event_available_outlined,title:'Events & RSVP',subtitle:'See upcoming activities, capacity and your response.',actionLabel:'View events',onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityEventsScreen(repository:widget.controller.repository))))),
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Community circles',supportingText:'Opt-in circles for resident interests and coordination without exposing a member roster.'),const SizedBox(height:AaraagateTokens.space3),
+      SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Community circles',supportingText:'Opt-in circles for resident interests and coordination without exposing a member roster.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),
       PremiumSurface(padding:EdgeInsets.zero,child:_Tile(icon:Icons.groups_2_outlined,title:'Opt-in circles',subtitle:'Join society-managed groups, read member-anonymous posts and leave at any time.',actionLabel:'View circles',onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityCirclesScreen(repository:widget.controller.repository))))),
-      const SizedBox(height:AaraagateTokens.space4),
+      SizedBox(height:compact?AaraagateTokens.space3:AaraagateTokens.space4),
       PremiumSurface(padding:EdgeInsets.zero,child:_Tile(icon:Icons.people_alt_outlined,title:'Resident directory',subtitle:'Optional resident profiles and controlled contact requests without exposing phone, email or unit details.',actionLabel:'Open directory',onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentDirectoryScreen(repository:widget.controller.repository))))),
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Polls',supportingText:'Current non-statutory community participation.'),const SizedBox(height:AaraagateTokens.space3),
+      SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Polls',supportingText:'Current non-statutory community participation.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),
       if(polls.isEmpty)const AppStateCard(icon:Icons.how_to_vote_outlined,message:'No community polls open.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<polls.take(3).length;i++)...[_Tile(icon:Icons.how_to_vote_outlined,title:polls[i]['question']?.toString()??polls[i]['title']?.toString()??'Community poll',subtitle:_pollSubtitle(polls[i]),actionLabel:polls[i]['myOptionId']!=null||(polls[i]['status']?.toString()??'OPEN').toUpperCase()=='CLOSED'?'Review':'Respond',onAction:()=>_openPoll(polls[i])),if(i<polls.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
-      if(openTickets.isNotEmpty)...[const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Your open helpdesk',supportingText:'Requests from this selected property.'),const SizedBox(height:AaraagateTokens.space3),PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<openTickets.length;i++)...[_Tile(icon:Icons.support_agent_outlined,title:openTickets[i]['title']?.toString()??'Helpdesk request',subtitle:_label(openTickets[i]['status']?.toString()??'Open')),if(i<openTickets.length-1)Divider(height:1,color:scheme.outlineVariant)]]))]
+      if(openTickets.isNotEmpty)...[SizedBox(height:compact?AaraagateTokens.space4:AaraagateTokens.space6),const PremiumSectionHeader(title:'Your open helpdesk',supportingText:'Requests from this selected property.'),SizedBox(height:compact?AaraagateTokens.space2:AaraagateTokens.space3),PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<openTickets.length;i++)...[_Tile(icon:Icons.support_agent_outlined,title:openTickets[i]['title']?.toString()??'Helpdesk request',subtitle:_label(openTickets[i]['status']?.toString()??'Open')),if(i<openTickets.length-1)Divider(height:1,color:scheme.outlineVariant)]]))]
     ])));
   }
   static String _meetingSubtitle(Map<String,dynamic> m){final status=_label(m['status']?.toString()??'Scheduled');final at=DateTime.tryParse(m['scheduledAt']?.toString()??'')?.toLocal();return at==null?status:'$status · ${at.day.toString().padLeft(2,'0')}/${at.month.toString().padLeft(2,'0')}/${at.year}';}
@@ -391,8 +392,9 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space3),
+      padding: EdgeInsets.symmetric(horizontal: compact ? AaraagateTokens.space3 : AaraagateTokens.space4, vertical: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
       child: LayoutBuilder(builder: (context, constraints) {
         final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
         final stacked = constraints.maxWidth < 360 || largeText;
