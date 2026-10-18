@@ -82,6 +82,12 @@ void main() {
         expect(inset.left, scale == 1 ? 16 : 20);
         expect(inset.top, scale == 1 ? 12 : 16);
         expect(find.text('Insta Services'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('What do you need help with?'),
+          160,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
         expect(find.text('What do you need help with?'), findsOneWidget);
         await tester.scrollUntilVisible(
           find.text('AC service'),
