@@ -275,6 +275,44 @@ void main() {
     expect(find.textContaining('reset/replacement boundaries'), findsOneWidget);
   });
 
+  for (final scale in <double>[1, 2]) {
+    testWidgets('billing uses compact gutters and accessible fallback at scale=$scale', (tester) async {
+      tester.view.physicalSize = const Size(320, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = _BillingRepository();
+      await tester.pumpWidget(MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(scale),
+            disableAnimations: true,
+          ),
+          child: child!,
+        ),
+        home: BillingScreen(repository: repository),
+      ));
+      await tester.pumpAndSettle();
+      final page = tester.widget<ListView>(find.byType(ListView).first);
+      final padding = page.padding! as EdgeInsets;
+      expect(padding.left, scale == 1 ? 16 : 20);
+      expect(padding.right, scale == 1 ? 16 : 20);
+      expect(find.text('Pay next due'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Pay securely'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Pay securely').hitTestable(), findsOneWidget);
+      expect(
+        tester.getSize(find.widgetWithText(FilledButton, 'Pay securely')).height,
+        greaterThanOrEqualTo(48),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
 }
 
 class _BillingRepositoryWithPayment extends _BillingRepository {
@@ -320,41 +358,4 @@ class _BillingRepositoryWithUtility extends _BillingRepository {
       'consumptionSincePrevious': null,
     },
   ];
-  for (final scale in <double>[1, 2]) {
-    testWidgets('billing uses compact gutters and accessible fallback at scale=$scale', (tester) async {
-      tester.view.physicalSize = const Size(320, 780);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final repository = _BillingRepository();
-      await tester.pumpWidget(MaterialApp(
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(scale),
-            disableAnimations: true,
-          ),
-          child: child!,
-        ),
-        home: BillingScreen(repository: repository),
-      ));
-      await tester.pumpAndSettle();
-      final page = tester.widget<ListView>(find.byType(ListView).first);
-      final padding = page.padding! as EdgeInsets;
-      expect(padding.left, scale == 1 ? 16 : 20);
-      expect(padding.right, scale == 1 ? 16 : 20);
-      expect(find.text('Pay next due'), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.text('Pay securely'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Pay securely').hitTestable(), findsOneWidget);
-      expect(
-        tester.getSize(find.widgetWithText(FilledButton, 'Pay securely')).height,
-        greaterThanOrEqualTo(48),
-      );
-      expect(tester.takeException(), isNull);
-    });
-  }
 }
