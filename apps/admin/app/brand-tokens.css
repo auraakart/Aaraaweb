@@ -123,6 +123,9 @@ select:focus {
   --admin-success-surface: #174636;
   --admin-success-ink: #b7f9d9;
   --admin-warning-surface: #463719;
+  --warning-soft: #463719;
+  --warning-ink: #f3cc72;
+  --warning-line: #99772c;
   --admin-danger-surface: #482829;
   --danger: #ffaaa6;
   --warning: #f3cc72;
