@@ -7,3 +7,50 @@
 .nav button, .signOut,.buttons button,.toolbar button, .relationshipCard > button, .primary,.choices button { min-height: 48px; border-radius: 12px; padding: 12px 16px; }
 .nav { gap: 8px; }
 @media (max-width: 680px) { .nav { flex-wrap: wrap; } }
+
+/* Opt-in legacy dark preview. These are the legacy shell's light-only
+   surfaces, not a global admin dark-mode activation. The light palette and
+   the existing society/partner brand colours remain untouched. */
+:root[data-admin-theme='dark'] .sidebar,
+:root[data-admin-theme='dark'] .metric,
+:root[data-admin-theme='dark'] .panel,
+:root[data-admin-theme='dark'] .notice,
+:root[data-admin-theme='dark'] .actions button,
+:root[data-admin-theme='dark'] .row,
+:root[data-admin-theme='dark'] .loginCard,
+:root[data-admin-theme='dark'] .choices button,
+:root[data-admin-theme='dark'] .buttons button,
+:root[data-admin-theme='dark'] .toolbar button,
+:root[data-admin-theme='dark'] .relationshipCard > button {
+  background: var(--surface);
+  color: var(--ink);
+}
+:root[data-admin-theme='dark'] .row:hover,
+:root[data-admin-theme='dark'] .row.selected,
+:root[data-admin-theme='dark'] .nav button:hover,
+:root[data-admin-theme='dark'] .nav button.active {
+  background: var(--accent);
+}
+:root[data-admin-theme='dark'] input:not([type='checkbox']):not([type='radio']),
+:root[data-admin-theme='dark'] textarea,
+:root[data-admin-theme='dark'] select {
+  background: var(--surface);
+  color: var(--ink);
+}
+:root[data-admin-theme='dark'] .badge.urgent,
+:root[data-admin-theme='dark'] .badge.open,
+:root[data-admin-theme='dark'] .error {
+  background: var(--admin-danger-surface);
+  color: var(--danger);
+}
+:root[data-admin-theme='dark'] .badge.in_progress,
+:root[data-admin-theme='dark'] .badge.draft,
+:root[data-admin-theme='dark'] .badge.high {
+  background: var(--admin-warning-surface);
+  color: var(--warning);
+}
+:root[data-admin-theme='dark'] .badge.resolved,
+:root[data-admin-theme='dark'] .badge.published {
+  background: var(--accent);
+  color: var(--brand-ink);
+}
