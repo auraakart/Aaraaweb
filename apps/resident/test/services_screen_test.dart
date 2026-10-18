@@ -38,6 +38,68 @@ void main() {
         home: Scaffold(body: ServicesScreen(controller: controller, consumerApiClient: api ?? _ServiceApi())),
       );
 
+  for (final dark in <bool>[false, true]) {
+    for (final scale in <double>[1, 2]) {
+      testWidgets('Services compact density keeps marketplace and categories accessible: dark=$dark scale=$scale', (tester) async {
+        tester.view.physicalSize = const Size(320, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final controller = _NoReloadController(DemoResidentRepository())
+          ..serviceCategories = [
+            {'id': 'cat-ac', 'name': 'AC'},
+          ]
+          ..serviceOfferings = [
+            {
+              'id': 'offering-ac',
+              'categoryId': 'cat-ac',
+              'name': 'AC service',
+              'description': 'Routine AC check and cleaning',
+              'pricePaise': 69900,
+              'provider': {'businessName': 'CoolCare'},
+            },
+          ];
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(MaterialApp(
+          theme: dark ? ThemeData.dark() : ThemeData.light(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(scale),
+              disableAnimations: true,
+            ),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: ServicesScreen(controller: controller, consumerApiClient: _ServiceApi()),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        final list = tester.widget<ListView>(find.byType(ListView).first);
+        final inset = list.padding! as EdgeInsets;
+        expect(inset.left, scale == 1 ? 16 : 20);
+        expect(inset.top, scale == 1 ? 12 : 16);
+        expect(find.text('Insta Services'), findsOneWidget);
+        expect(find.text('What do you need help with?'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('AC service'),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('AC service').hitTestable(), findsOneWidget);
+        final surface = find.ancestor(
+          of: find.text('AC service'),
+          matching: find.byType(InkWell),
+        ).first;
+        expect(tester.getSize(surface).height, greaterThanOrEqualTo(48));
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   testWidgets('home services intro remains usable with large accessibility text', (tester) async {
     final controller = ResidentDataController(DemoResidentRepository())
       ..serviceCategories = [
