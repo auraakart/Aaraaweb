@@ -70,8 +70,10 @@ void main() {
             await tester.tap(find.text('Change active gate'));
             await tester.pumpAndSettle();
           }
-          final picker = tester.widget<DropdownButtonFormField<String>>(
-            find.byType(DropdownButtonFormField<String>).first,
+          // The form field accepts isExpanded but only its inner button
+          // exposes the configured value as a readable widget property.
+          final picker = tester.widget<DropdownButton<String>>(
+            find.byType(DropdownButton<String>).first,
           );
           expect(picker.isExpanded, isTrue);
           expect(tester.takeException(), isNull);
