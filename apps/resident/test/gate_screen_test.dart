@@ -410,6 +410,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Cancel pass'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('Cancel pass'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel pass').hitTestable(), findsOneWidget);
     await tester.tap(find.text('Cancel pass'));
     await tester.pumpAndSettle();
     expect(find.text('This stops the visitor pass immediately. Security will no longer accept it.'), findsOneWidget);
