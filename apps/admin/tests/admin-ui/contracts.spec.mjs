@@ -106,3 +106,90 @@ test('legacy operational controls and navigation honor reduced motion', async ({
   expect(await navigation.evaluate(el => getComputedStyle(el).transform)).toBe('none')
   expect((await navigation.boundingBox()).height).toBeGreaterThanOrEqual(48)
 })
+
+
+test('opt-in admin dark preview keeps shared and legacy surfaces legible without changing workflows', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 960, height: 900 })
+  await page.evaluate(() => { document.documentElement.dataset.adminTheme = 'dark' })
+  await expect(page.getByRole('heading', { name: 'Admin component reference' })).toBeVisible()
+  const colours = await page.evaluate(() => {
+    const computed = selector => {
+      const element = document.querySelector(selector)
+      if (!element) throw new Error('Missing admin fixture selector: ' + selector)
+      const s = getComputedStyle(element)
+      return { bg: s.backgroundColor, text: s.color }
+    }
+    const drawer = document.createElement('aside')
+    drawer.className = 'managementNavPanel open'
+    drawer.innerHTML = '<div class="managementNavHeader"><strong>Workspaces</strong></div><div class="managementNavLinks"><a href="#workspace">Helpdesk</a></div>'
+    document.body.append(drawer)
+    return {
+      body: computed('body'),
+      queue: computed('[aria-label="Prioritized queue"]'),
+      drawer: computed('.managementNavPanel'),
+      drawerLink: computed('.managementNavLinks a'),
+      input: computed('input:not([type="checkbox"])'),
+      action: computed('button[type="submit"]'),
+    }
+  })
+  expect(colours.body.bg).toBe('rgb(12, 25, 33)')
+  expect(colours.queue.bg).toBe('rgb(20, 39, 48)')
+  // The drawer's .open interaction state must never inherit a danger badge background.
+  expect(colours.drawer.bg).toBe('rgb(20, 39, 48)')
+  expect(colours.drawerLink.bg).toBe('rgb(12, 25, 33)')
+  expect(colours.input.bg).toBe('rgb(20, 39, 48)')
+  await expect(page.getByRole('button', { name: 'Save assignment' })).toBeEnabled()
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+  expect(axe.violations).toEqual([])
+  await page.screenshot({ path: testInfo.outputPath('admin-core-dark-preview.png'), fullPage: true })
+})
+
+
+test('opt-in dark preview preserves legacy operational surfaces and status meaning', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 850 })
+  await page.evaluate(() => {
+    document.documentElement.dataset.adminTheme = 'dark'
+    const fixture = document.createElement('section')
+    fixture.id = 'legacy-dark-surface-check'
+    fixture.innerHTML = `
+      <div class="panel"><button class="row">Household request</button></div>
+      <div class="choices"><button>Choose reviewer</button></div>
+      <div class="toolbar"><button>Apply filter</button></div>
+      <div class="buttons"><button>Review request</button></div>
+      <label>Reference <input aria-label="Legacy reference" value="AGR-2026"></label>
+      <label>State <select aria-label="Legacy state"><option>Open</option></select></label>
+      <span class="badge urgent">Urgent</span>
+      <span class="badge in_progress">In progress</span>
+      <span class="badge resolved">Resolved</span>
+    `
+    document.body.append(fixture)
+  })
+  const colours = await page.evaluate(() => {
+    const resolve = selector => {
+      const el = document.querySelector('#legacy-dark-surface-check ' + selector)
+      if (!el) throw new Error('Missing legacy selector: ' + selector)
+      const value = getComputedStyle(el)
+      return { background: value.backgroundColor, color: value.color }
+    }
+    return {
+      panel: resolve('.panel'),
+      row: resolve('.row'),
+      choice: resolve('.choices button'),
+      input: resolve('input'),
+      select: resolve('select'),
+      urgent: resolve('.urgent'),
+      inProgress: resolve('.in_progress'),
+      resolved: resolve('.resolved'),
+    }
+  })
+  for (const name of ['panel', 'row', 'choice', 'input', 'select']) {
+    expect(colours[name].background).toBe('rgb(20, 39, 48)')
+  }
+  expect(colours.urgent.background).toBe('rgb(72, 40, 41)')
+  expect(colours.inProgress.background).toBe('rgb(70, 55, 25)')
+  expect(colours.resolved.background).toBe('rgb(23, 61, 71)')
+  expect(colours.urgent.color).not.toBe(colours.inProgress.color)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.getByRole('button', { name: 'Choose reviewer' }).click()
+  await expect(page.getByRole('button', { name: 'Choose reviewer' })).toBeEnabled()
+})

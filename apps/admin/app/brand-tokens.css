@@ -25,7 +25,7 @@
 }
 
 .brand {
-  color: var(--brand);
+  color: var(--brand-ink, var(--brand));
   letter-spacing: -0.02em;
 }
 
@@ -91,9 +91,43 @@ select:focus {
 .resolved,
 .published {
   background: var(--accent);
-  color: var(--brand);
+  color: var(--brand-ink, var(--brand));
 }
 
 .progress {
   background: var(--brand);
+}
+
+/* Opt-in admin dark-surface preview, intentionally not activated globally.
+   Promote only after legacy routes and operator themes pass contrast/UX review.
+   Brand deep and bright values are unchanged; semantic surfaces adapt. */
+:root[data-admin-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0c1921;
+  --surface: #142730;
+  --ink: #edf9fa;
+  --ink-soft: #c6dfe4;
+  --muted: #aac5cb;
+  --line: #334b54;
+  --line-strong: #718b94;
+  --brand-ink: #74e0e7;
+  --accent: #173d47;
+  --accent-strong: #286573;
+  --focus-ring: #74e0e7;
+  --neutral-soft: #1c333c;
+  --admin-subtle-surface: #1b3039;
+  --admin-control-line: #8ca5ad;
+  --admin-on-brand: #fff;
+  --admin-on-danger: #142730;
+  --admin-link-ink: #74e0e7;
+  --admin-success-surface: #174636;
+  --admin-success-ink: #b7f9d9;
+  --admin-warning-surface: #463719;
+  --warning-soft: #463719;
+  --warning-ink: #f3cc72;
+  --warning-line: #99772c;
+  --admin-danger-surface: #482829;
+  --danger: #ffaaa6;
+  --warning: #f3cc72;
+  --shadow-soft: 0 12px 30px rgb(0 0 0 / 22%);
 }

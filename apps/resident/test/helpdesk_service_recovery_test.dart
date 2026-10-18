@@ -3,6 +3,7 @@ import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/helpdesk_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _HelpdeskRepository extends ResidentRepository {
@@ -149,6 +150,44 @@ void main(){
     expect(find.textContaining('Retry will reuse this comment submission'),findsNothing);
 
     controller.dispose();
+  });
+
+  testWidgets('Helpdesk complaint form retains full labels at compact width and 200% text', (tester) async {
+    tester.view.physicalSize = const Size(320, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _HelpdeskRepository();
+    final controller = ResidentDataController(
+      repository, activeUnitId: 'unit-1', fetchEntitlements: false,
+    )..households = [{'id': 'house-1', 'unitId': 'unit-1'}];
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: const TextScaler.linear(2),
+          disableAnimations: true,
+        ),
+        child: child!,
+      ),
+      home: HelpdeskScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New complaint').first);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Submit complaint'), 200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Submit complaint'), findsOneWidget);
+    expect(find.byType(PremiumActionLabel), findsOneWidget);
+    expect(tester.widget<DropdownButton<String>>(
+      find.byType(DropdownButton<String>),
+    ).isExpanded, isTrue);
+    expect(tester.takeException(), isNull);
   });
 
 }
