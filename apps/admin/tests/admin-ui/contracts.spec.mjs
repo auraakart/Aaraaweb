@@ -106,3 +106,39 @@ test('legacy operational controls and navigation honor reduced motion', async ({
   expect(await navigation.evaluate(el => getComputedStyle(el).transform)).toBe('none')
   expect((await navigation.boundingBox()).height).toBeGreaterThanOrEqual(48)
 })
+
+
+test('opt-in admin dark preview keeps shared and legacy surfaces legible without changing workflows', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 960, height: 900 })
+  await page.evaluate(() => { document.documentElement.dataset.adminTheme = 'dark' })
+  await expect(page.getByRole('heading', { name: 'Admin component reference' })).toBeVisible()
+  const colours = await page.evaluate(() => {
+    const computed = selector => {
+      const element = document.querySelector(selector)
+      if (!element) throw new Error('Missing admin fixture selector: ' + selector)
+      const s = getComputedStyle(element)
+      return { bg: s.backgroundColor, text: s.color }
+    }
+    const drawer = document.createElement('aside')
+    drawer.className = 'managementNavPanel open'
+    drawer.innerHTML = '<div class="managementNavHeader"><strong>Workspaces</strong></div><div class="managementNavLinks"><a href="#workspace">Helpdesk</a></div>'
+    document.body.append(drawer)
+    return {
+      body: computed('body'),
+      queue: computed('[aria-label="Prioritized queue"]'),
+      drawer: computed('.managementNavPanel'),
+      drawerLink: computed('.managementNavLinks a'),
+      input: computed('input:not([type="checkbox"])'),
+      action: computed('button[type="submit"]'),
+    }
+  })
+  expect(colours.body.bg).toBe('rgb(12, 25, 33)')
+  expect(colours.queue.bg).toBe('rgb(20, 39, 48)')
+  expect(colours.drawer.bg).toBe('rgb(20, 39, 48)')
+  expect(colours.drawerLink.bg).toBe('rgb(12, 25, 33)')
+  expect(colours.input.bg).toBe('rgb(20, 39, 48)')
+  await expect(page.getByRole('button', { name: 'Save assignment' })).toBeEnabled()
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+  expect(axe.violations).toEqual([])
+  await page.screenshot({ path: testInfo.outputPath('admin-core-dark-preview.png'), fullPage: true })
+})
