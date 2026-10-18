@@ -39,12 +39,41 @@ class GateScreen extends StatelessWidget {
               supportingText: strings.text('gateSubtitle'),
               action: Tooltip(
                 message: strings.text('inviteGuest'),
-                child: FilledButton.tonalIcon(
-                  onPressed: () => _invite(context),
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: Text(strings.text('inviteGuest')),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width - 2 * AaraagateTokens.pageGutter,
+                  ),
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _invite(context),
+                    icon: const Icon(Icons.qr_code_rounded),
+                    label: Text(
+                      strings.text('inviteGuest'),
+                      textAlign: TextAlign.center,
+                      softWrap: true,
+                    ),
+                  ),
                 ),
               ),
+            ),
+            const SizedBox(height: AaraagateTokens.space4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.local_shipping_outlined,
+                  size: 21,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AaraagateTokens.space2),
+                Expanded(
+                  child: Text(
+                    strings.text('deliveryNoQr'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: AaraagateTokens.space5),
             _GateSummary(waiting: pending.length, inside: inside, total: requests.length, strings: strings),
