@@ -15,7 +15,7 @@
   overflow-wrap: anywhere;
 }
 .shell *, .shell *::before, .shell *::after { box-sizing: border-box; }
-.shell a { color: var(--admin-action-brand); text-underline-offset: 3px; }
+.shell a { color: var(--admin-link-ink, var(--admin-action-brand)); text-underline-offset: 3px; }
 .shell a:focus-visible, .button:focus-visible, .control:focus-visible {
   outline: 3px solid var(--admin-focus, var(--brand, #05879a));
   outline-offset: 3px;
