@@ -50,6 +50,13 @@ void main() {
 
         expect(find.text(strings.text('gateTitle')), findsOneWidget);
         expect(find.text(strings.text('inviteGuest')), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text(strings.text('deliveryNoQr')),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text(strings.text('deliveryNoQr')), findsOneWidget);
         // At 200% type, the lower lazy-list sections are not built
         // until they enter the viewport. Scroll rather than assuming
         // offscreen widgets exist or disabling hit-test checks.

@@ -95,7 +95,13 @@ void main() {
           expect(tester.takeException(), isNull);
           final name = '$screen-${dark ? 'dark' : 'light'}-${compact ? '320-200' : '390-100'}';
           if (screen == 'gate') {
-            await tester.ensureVisible(find.text('Deny'));
+            // The Gate's new delivery guidance can move pending actions below
+            // the initial 320px / 200% viewport. Build lazy list items by scrolling.
+            await tester.scrollUntilVisible(
+              find.text('Deny'),
+              180,
+              scrollable: find.byType(Scrollable).first,
+            );
             await tester.pumpAndSettle();
             expect(find.text('Allow entry').hitTestable(), findsOneWidget);
           } else if (screen == 'bookings') {
