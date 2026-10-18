@@ -13,5 +13,8 @@ The previous continuation inspected Guard tools while its search-clear and statu
 - Expand both active-gate dropdowns, retaining full gate values, route callbacks, and the same backend selection contract while rendering long names safely inside available width.
 - Add four narrow light/dark, gate-selected/unselected widget cases asserting the full identity and both selector modes without layout exceptions.
 
+## CI root-cause correction
+The first candidate failed the existing V4.81.2 architecture budget: `guard_operations_screen.dart` grew to 394 lines against the enforced 360-line limit. Extract the shift summary into `guard_shift_summary.dart` rather than increasing that limit. The parent screen now has 342 lines. No check or test is weakened.
+
 ## Safety and validation
 No Gate permission, guard identity, society tenancy, offline sync, API, backend, brand tokens, theme, navigation, authorization or arrival/visitor flows are changed. Full Flutter/analyzer, targeted Guard tests, risk-weighted regression and repository merge gates are required before integration into `develop`. No staging/main commits or APK publication. Automated widget tests do not replace on-device TalkBack and multilingual operator acceptance.
