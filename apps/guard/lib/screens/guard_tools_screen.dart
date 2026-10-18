@@ -45,7 +45,12 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: c.languageCode,
+              isExpanded: true,
               decoration: InputDecoration(labelText: strings.get('language'), prefixIcon: const Icon(Icons.translate_rounded)),
+              selectedItemBuilder: (context) => guardLanguages.map((language) => Align(
+                alignment: Alignment.centerLeft,
+                child: Text(language.nativeLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+              )).toList(),
               items: guardLanguages.map((language) => DropdownMenuItem(
                 value: language.code,
                 child: Text('${language.nativeLabel} · ${language.label}'),

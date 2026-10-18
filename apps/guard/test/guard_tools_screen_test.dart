@@ -88,8 +88,12 @@ void main() {
         home: GuardToolsScreen(controller: controller),
       ));
       await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(find.text('Operations overview'), 180, scrollable: find.byType(Scrollable).first);
       expect(find.text('Operations overview'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Offline queue'), 180, scrollable: find.byType(Scrollable).first);
       expect(find.text('Offline queue'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Next action'), 180, scrollable: find.byType(Scrollable).first);
       expect(find.text('Next action'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.scrollUntilVisible(find.byType(TextField), 280, scrollable: find.byType(Scrollable).first);
