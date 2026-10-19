@@ -5,6 +5,7 @@ import '../widgets/guard_operation_ui.dart';
 import '../widgets/guard_field_section_header.dart';
 import '../widgets/guard_field_attention_header.dart';
 import '../widgets/guard_field_handover_card.dart';
+import '../widgets/guard_field_action_card.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -27,10 +28,37 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
       if(error!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:theme.colorScheme.errorContainer,borderRadius:BorderRadius.circular(12)),child:Text(error!)),
       _metrics(),const SizedBox(height:12),_attentionNow(),const SizedBox(height:18),
-      _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x)=>Card(child:ListTile(leading:const Icon(Icons.schedule_rounded),title:Text('${x['subjectName']??'Visitor'} · ${x['buildingName']??''} ${x['unitNumber']??''}',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text('${x['minutesInside']??0} min inside'),trailing:FilledButton.tonal(onPressed:busy?null:()=>run(()=>client.escalateOverstay(x['id'].toString()).then((_){})),child:const Text('ESCALATE'))))),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
+      _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x) => GuardFieldActionCard(
+        icon: Icons.schedule_rounded,
+        title: "${x['subjectName'] ?? 'Visitor'} · ${x['buildingName'] ?? ''} ${x['unitNumber'] ?? ''}",
+        subtitle: "${x['minutesInside'] ?? 0} min inside",
+        actionLabel: 'ESCALATE',
+        strongTitle: true,
+        onPressed: busy ? null : () => run(
+          () => client.escalateOverstay(x['id'].toString()).then((_) {}),
+        ),
+      )),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
       const SizedBox(height:18),_heading('Watchlist',Icons.policy_outlined),...watchlist.take(20).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
       const SizedBox(height:18),_sectionHeader('Material & move passes',Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x)=>Card(child:ListTile(title:Text('${x['referenceCode']} · ${x['movementType']}'),subtitle:Text('${x['subjectName']} · ${x['itemDescription']}'),trailing:x['status']=='OPEN'?FilledButton(onPressed:busy?null:()=>run(()=>client.processPass(x['id'].toString()).then((_){})),child:const Text('PROCESS')):Text(x['status']?.toString()??'')))),if(passes.isEmpty)_empty('No gate passes recorded.'),
-      const SizedBox(height:18),_heading('Patrol checkpoints',Icons.qr_code_scanner_rounded),...checkpoints.map((x){final status=patrolStatus.firstWhere((s)=>s['id']==x['id'],orElse:()=>const <String,dynamic>{});final stale=status['stale']==true;final age=status['hoursSinceLastScan'];return Card(child:ListTile(title:Text('${x['code']} · ${x['name']}'),subtitle:Text('${x['location']?.toString()??'Checkpoint'} · ${status['lastScannedAt']==null?'Never scanned':stale?'Coverage overdue · ${age??'?'}h since scan':'Coverage current · ${age??0}h since scan'}'),trailing:FilledButton.tonal(onPressed:busy?null:()=>run(()=>client.scanCheckpoint(x['id'].toString(),gateId:widget.controller.gateId).then((_){})),child:Text(stale?'SCAN NOW':'SCAN'))));}),if(checkpoints.isEmpty)_empty('No active patrol checkpoints configured.'),
+      const SizedBox(height:18),_heading('Patrol checkpoints',Icons.qr_code_scanner_rounded),...checkpoints.map((x) {
+        final status = patrolStatus.firstWhere(
+          (s) => s['id'] == x['id'],
+          orElse: () => const <String, dynamic>{},
+        );
+        final stale = status['stale'] == true;
+        final age = status['hoursSinceLastScan'];
+        return GuardFieldActionCard(
+          title: "${x['code']} · ${x['name']}",
+          subtitle: "${x['location']?.toString() ?? 'Checkpoint'} · ${status['lastScannedAt'] == null ? 'Never scanned' : stale ? 'Coverage overdue · ${age ?? '?'}h since scan' : 'Coverage current · ${age ?? 0}h since scan'}",
+          actionLabel: stale ? 'SCAN NOW' : 'SCAN',
+          onPressed: busy ? null : () => run(
+            () => client.scanCheckpoint(
+              x['id'].toString(),
+              gateId: widget.controller.gateId,
+            ).then((_) {}),
+          ),
+        );
+      }),if(checkpoints.isEmpty)_empty('No active patrol checkpoints configured.'),
       const SizedBox(height:18),_sectionHeader('Shift handover',Icons.handshake_outlined,TextButton.icon(onPressed:busy?null:_createHandover,icon:const Icon(Icons.note_add_rounded),label:const Text('HAND OVER'))),...handovers.take(20).map((x)=>_handoverTile(x)),if(handovers.isEmpty)_empty('No shift handovers recorded.'),
       const SizedBox(height:18),_sectionHeader('Incidents',Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(30).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),if(incidents.isEmpty)_empty('No incidents recorded.'),
     ]))));
