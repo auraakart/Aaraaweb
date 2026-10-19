@@ -11,6 +11,7 @@ import '../widgets/guard_field_pass_dialog.dart';
 import '../widgets/guard_field_incident_dialog.dart';
 import '../widgets/guard_field_handover_dialog.dart';
 import '../widgets/guard_field_info_card.dart';
+import '../widgets/guard_field_metric.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -30,7 +31,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
 
   @override Widget build(BuildContext context){
     final theme=Theme.of(context);
-    return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
+    return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(tooltip:'Refresh field operations',onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
       if(error!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:theme.colorScheme.errorContainer,borderRadius:BorderRadius.circular(12)),child:Text(error!)),
       _metrics(),const SizedBox(height:12),_attentionNow(),const SizedBox(height:18),
       _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x) => GuardFieldActionCard(
@@ -124,7 +125,8 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     );
   }
   Widget _attentionChip(IconData icon,String label)=>Chip(avatar:Icon(icon,size:18),label:Text(label,style:const TextStyle(fontWeight:FontWeight.w700)));
-  Widget _metric(String label,dynamic value)=>SizedBox(width:128,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:Theme.of(context).textTheme.labelMedium),Text('${value??0}',style:Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w900))]));
+  Widget _metric(String label, dynamic value) =>
+      GuardFieldMetric(label: label, value: value);
   Widget _heading(String text,IconData icon)=>GuardFieldSectionHeader(title:text,icon:icon);
   Widget _sectionHeader(String text,IconData icon,Widget action)=>GuardFieldSectionHeader(title:text,icon:icon,action:action);
   Widget _tile(String title, String subtitle, IconData icon) =>
