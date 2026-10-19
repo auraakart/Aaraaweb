@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/guard_operations_client.dart';
 import '../guard_controller.dart';
 import '../widgets/guard_operation_ui.dart';
+import '../widgets/guard_field_section_header.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -77,8 +78,8 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   }
   Widget _attentionChip(IconData icon,String label)=>Chip(avatar:Icon(icon,size:18),label:Text(label,style:const TextStyle(fontWeight:FontWeight.w700)));
   Widget _metric(String label,dynamic value)=>SizedBox(width:128,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:Theme.of(context).textTheme.labelMedium),Text('${value??0}',style:Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w900))]));
-  Widget _heading(String text,IconData icon)=>_sectionHeader(text,icon,const SizedBox.shrink());
-  Widget _sectionHeader(String text,IconData icon,Widget action)=>Row(children:[Icon(icon),const SizedBox(width:8),Expanded(child:Text(text,style:Theme.of(context).textTheme.titleLarge)),action]);
+  Widget _heading(String text,IconData icon)=>GuardFieldSectionHeader(title:text,icon:icon);
+  Widget _sectionHeader(String text,IconData icon,Widget action)=>GuardFieldSectionHeader(title:text,icon:icon,action:action);
   Widget _tile(String title,String subtitle,IconData icon)=>Card(child:ListTile(leading:Icon(icon),title:Text(title,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(subtitle)));
   Widget _empty(String text)=>Padding(padding:const EdgeInsets.symmetric(vertical:12),child:Text(text,style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant)));
   Widget _handoverTile(Map<String,dynamic> x){
