@@ -58,7 +58,16 @@ void main() {
           ));
           await tester.pumpAndSettle();
 
-          expect(find.text('Tower A / 1001 · Anand Krishnamurthy Ramanathan'), findsOneWidget);
+          // The 200% title/instructions can push the parcel card below the
+          // first viewport; ListView builds that row only after scrolling.
+          final parcelIdentity = find.text('Tower A / 1001 · Anand Krishnamurthy Ramanathan');
+          await tester.scrollUntilVisible(
+            parcelIdentity,
+            180,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
+          expect(parcelIdentity, findsOneWidget);
           expect(find.text('TRACK-2026-1001'), findsOneWidget);
           expect(find.text('OVERDUE'), overdue ? findsOneWidget : findsNothing);
           expect(tester.takeException(), isNull);
