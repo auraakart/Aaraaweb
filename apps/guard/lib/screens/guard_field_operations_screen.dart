@@ -4,6 +4,7 @@ import '../guard_controller.dart';
 import '../widgets/guard_operation_ui.dart';
 import '../widgets/guard_field_section_header.dart';
 import '../widgets/guard_field_attention_header.dart';
+import '../widgets/guard_field_handover_card.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -83,18 +84,16 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   Widget _sectionHeader(String text,IconData icon,Widget action)=>GuardFieldSectionHeader(title:text,icon:icon,action:action);
   Widget _tile(String title,String subtitle,IconData icon)=>Card(child:ListTile(leading:Icon(icon),title:Text(title,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(subtitle)));
   Widget _empty(String text)=>Padding(padding:const EdgeInsets.symmetric(vertical:12),child:Text(text,style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant)));
-  Widget _handoverTile(Map<String,dynamic> x){
-    final items=(x['openItems'] is List)?(x['openItems'] as List).map((e)=>e.toString()).where((e)=>e.trim().isNotEmpty).toList():<String>[];
-    final status=x['status']?.toString()??'';
-    final outgoing=x['outgoingGuardName']?.toString()??'Outgoing guard';
-    final gate=x['gateName']?.toString();
-    return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Row(children:[Expanded(child:Text('$outgoing${gate==null?'':' · $gate'}',style:const TextStyle(fontWeight:FontWeight.w800))),Text(status)]),
-      const SizedBox(height:6),Text(x['summary']?.toString()??''),
-      if(items.isNotEmpty)...[const SizedBox(height:8),...items.take(6).map((item)=>Padding(padding:const EdgeInsets.only(bottom:3),child:Text('• $item')))],
-      if(status=='OPEN')Align(alignment:Alignment.centerRight,child:FilledButton.tonal(onPressed:busy?null:()=>run(()=>client.acknowledgeShiftHandover(x['id'].toString()).then((_){})),child:const Text('ACKNOWLEDGE'))),
-    ])));
-  }
+  Widget _handoverTile(Map<String, dynamic> handover) =>
+      GuardFieldHandoverCard(
+        handover: handover,
+        busy: busy,
+        onAcknowledge: () => run(
+          () => client
+              .acknowledgeShiftHandover(handover['id'].toString())
+              .then((_) {}),
+        ),
+      );
 
   Future<void> _createIncident()async{final result=await showDialog<Map<String,String>>(context:context,builder:(context)=>const _IncidentDialog());if(result==null)return;final refs=(result['mediaRefs']??'').split('\n').map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList(growable:false);await run(()=>client.createIncident(severity:result['severity']!,category:result['category']!,title:result['title']!,description:result['description'],gateId:widget.controller.gateId,mediaRefs:refs).then((_){}));}
   Future<void> _createPass()async{final result=await showDialog<Map<String,String>>(context:context,builder:(context)=>const _PassDialog());if(result==null)return;await run(()=>client.createPass(referenceCode:result['referenceCode']!,movementType:result['movementType']!,subjectName:result['subjectName']!,itemDescription:result['itemDescription']!,vehicleNumber:result['vehicleNumber'],gateId:widget.controller.gateId).then((_){}));}
