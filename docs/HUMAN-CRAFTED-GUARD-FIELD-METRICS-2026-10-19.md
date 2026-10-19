@@ -15,3 +15,6 @@ The Field Operations overview summarizes Overstays, Watchlist, Open passes, Inci
 
 ## Constraints and validation
 Keep the existing theme, all callbacks, data and role permissions. Require changed Guard tests, Flutter analyzer, risk-weighted Guard regression/coverage, full Flutter suite and all mandatory PR gates before merge to `develop`. Device TalkBack, localization and physical-user acceptance remain unverified; no staging/main or APK change.
+
+## CI failure and fix (PR #1482)
+The initial Guard metrics test suite failed 8/8 cases with `A SemanticsHandle was active at the end of the test`. The tests called `tester.ensureSemantics()` and registered `semantics.dispose` with `addTearDown`, but Flutter's end-of-test semantic-handle verification occurs before that teardown. Dispose the handle explicitly at the end of each test body, immediately after the assertions. The resulting coverage-artifact failure is secondary to the aborted test step; no product implementation, visual styling or test assertions were changed. Require a completely green new CI run on the corrected PR head before merging.

@@ -16,7 +16,6 @@ void main() {
             addTearDown(tester.view.resetPhysicalSize);
             addTearDown(tester.view.resetDevicePixelRatio);
             final semantics = tester.ensureSemantics();
-            addTearDown(semantics.dispose);
 
             await tester.pumpWidget(MaterialApp(
               theme: dark
@@ -72,6 +71,9 @@ void main() {
               );
             }
             expect(tester.takeException(), isNull);
+            // Flutter verifies semantics handles before addTearDown callbacks.
+            // Dispose within the test body, not during test teardown.
+            semantics.dispose();
           },
         );
       }
