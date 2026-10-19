@@ -3,6 +3,7 @@ import '../data/guard_operations_client.dart';
 import '../guard_controller.dart';
 import '../widgets/guard_operation_ui.dart';
 import '../widgets/guard_field_section_header.dart';
+import '../widgets/guard_field_attention_header.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -58,7 +59,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
       semanticLabel: urgent==0?'Gate attention queue is clear':'$urgent gate attention items',
       color: urgent==0?scheme.primaryContainer.withValues(alpha: .28):scheme.errorContainer.withValues(alpha: .40),
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[Icon(urgent==0?Icons.verified_outlined:Icons.notification_important_outlined,color:urgent==0?scheme.primary:scheme.error),const SizedBox(width:10),Expanded(child:Text(urgent==0?'Attention queue clear':'Attention now',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))),GuardStatusPill(label:urgent==0?'CLEAR':'$urgent OPEN',tone:urgent==0?GuardStatusTone.ready:GuardStatusTone.waiting)]),
+        GuardFieldAttentionHeader(urgent: urgent),
         const SizedBox(height:8),
         Text(urgent==0?'No overstays, ageing resident approvals, active deny-watchlist records, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
         const SizedBox(height:6),Text('Operating mode: ${operatingMode.replaceAll('_',' ')} · advisory only',style:theme.textTheme.labelMedium?.copyWith(fontWeight:FontWeight.w800)),
