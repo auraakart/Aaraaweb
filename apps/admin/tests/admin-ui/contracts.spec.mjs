@@ -193,3 +193,31 @@ test('opt-in dark preview preserves legacy operational surfaces and status meani
   await page.getByRole('button', { name: 'Choose reviewer' }).click()
   await expect(page.getByRole('button', { name: 'Choose reviewer' })).toBeEnabled()
 })
+
+test('V4.99.3 mobile Admin navigation keeps role links visible by scrolling instead of wrapping', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 })
+  await page.goto('/')
+  await page.evaluate(() => {
+    const aside = document.createElement('aside')
+    aside.className = 'sidebar'
+    aside.innerHTML = '<nav class="nav" aria-label="Admin sections">' +
+      ['Overview', 'Residents', 'Gates', 'Workforce', 'Marketplace', 'SOS', 'Helpdesk', 'Notices', 'Billing', 'Branding']
+        .map((name, index) => '<button type="button"' + (index === 0 ? ' class="active" aria-current="page"' : '') + '>' + name + '</button>')
+        .join('') + '</nav>'
+    document.body.append(aside)
+  })
+  const nav = page.getByRole('navigation', { name: 'Admin sections' })
+  const links = nav.getByRole('button')
+  await expect(links).toHaveCount(10)
+  await expect(nav.getByRole('button', { name: 'Overview' })).toHaveAttribute('aria-current', 'page')
+  const before = await nav.evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth, wrap: getComputedStyle(el).flexWrap }))
+  expect(before.scroll).toBeGreaterThan(before.client)
+  expect(before.wrap).toBe('nowrap')
+  const first = await links.first().boundingBox()
+  const last = await links.last().boundingBox()
+  expect(Math.abs(first.y - last.y)).toBeLessThan(8)
+  await links.last().focus()
+  expect(await nav.evaluate(el => el.scrollLeft)).toBeGreaterThan(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await expect(links.last()).toBeFocused()
+})
