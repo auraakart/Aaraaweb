@@ -35,3 +35,11 @@ UX review starting score: 8.1/10 **provisional expert estimate**, not measured u
 **Evidence:** add a Playwright mobile layout/keyboard test at 320px alongside pre-existing Admin axe, dark preview, reduced-motion, session and role regression suites. Require CI and visual review before considering completion; Playwright fixture tests do not constitute a physical-device or screen-reader certification.
 
 **Version management:** keep current `4.99.2` package manifests until the V4.99.3 release identity is reconciled as its own gated release slice, avoiding premature staging/main commits.
+
+## Slice V4.99.3.2 — Admin active-navigation contrast
+
+**Source-level issue:** the later `admin-shell.css` overrides legacy active-navigation text with `color:var(--brand)` regardless of light/dark mode, despite `brand-tokens.css` defining theme-specific readable ink. The inherited light accent/brand combination is approximately 3.61:1 and dark accent/brand approximately 2.75:1, below the 4.5:1 normal-text target. The opt-in Admin dark preview should not force a global mode activation.
+
+**Change:** use the pre-existing `--ink` design token for the active Admin navigation label while retaining `--brand` for its selected indicator and leaving society/partner colors unchanged. Existing navigation state, buttons and routes are unchanged.
+
+**Acceptance:** Playwright checks active text/background contrast >=4.5:1, preserved `aria-current`, and no viewport horizontal overflow in light and opt-in dark at 390px. Keep the full Admin CI/access tests and shared dark preview checks as regression gates. This is an incremental contrast slice, **not** certification that all Admin routes are dark-mode complete.

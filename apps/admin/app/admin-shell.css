@@ -4,7 +4,7 @@
 .society{margin:24px 0 20px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--neutral-soft);box-shadow:none}
 .society strong{font-size:14px;line-height:1.35}.society span{margin-top:2px;letter-spacing:.04em}
 .nav{gap:4px}.nav button,.signOut{min-height:44px;padding:11px 12px;border-radius:12px;transition:background 140ms ease,color 140ms ease,transform 140ms ease}
-.nav button:hover{transform:translateX(2px)}.nav button.active{background:var(--accent);color:var(--brand);box-shadow:inset 3px 0 0 var(--brand)}
+.nav button:hover{transform:translateX(2px)}.nav button.active{background:var(--accent);color:var(--ink);box-shadow:inset 3px 0 0 var(--brand)}
 .signOut{border-top:1px solid var(--line);border-radius:0;margin:16px 4px 0;padding-top:16px;color:var(--muted)}
 .content{margin-left:272px;width:calc(100% - 272px);padding:40px clamp(24px,4vw,56px) 56px;max-width:1600px}
 .content>header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:26px;padding-bottom:18px;border-bottom:1px solid var(--line)}
