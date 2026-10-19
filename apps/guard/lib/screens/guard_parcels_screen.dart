@@ -332,6 +332,9 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final selected = widget.recipients.firstWhere((row) => _keyFor(row) == _key);
+    final recipientLabel = '${selected.buildingLabel} · ${selected.unitNumber} · ${selected.name}';
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -347,6 +350,15 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
           )).toList(),
           onChanged: (value) { if (value != null) setState(() => _key = value); },
         ),
+        if (largeText) ...[
+          const SizedBox(height: 8),
+          Text('Selected resident & unit', style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            recipientLabel,
+            key: const ValueKey('parcel-selected-recipient'),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
         const SizedBox(height: 12),
         TextField(controller: _courier, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Courier / provider', prefixIcon: Icon(Icons.local_shipping_outlined))),
         const SizedBox(height: 12),
@@ -354,7 +366,26 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
         const SizedBox(height: 12),
         TextField(controller: _notes, maxLines: 2, decoration: const InputDecoration(labelText: 'Notes', prefixIcon: Icon(Icons.notes_rounded))),
         const SizedBox(height: 20),
-        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _submit, icon: const Icon(Icons.notifications_active_outlined), label: const Text('Receive & notify resident'))),
+        SizedBox(
+          key: const ValueKey('parcel-intake-submit'),
+          width: double.infinity,
+          child: largeText
+              ? FilledButton(
+                  onPressed: _submit,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.notifications_active_outlined),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Receive & notify resident')),
+                    ],
+                  ),
+                )
+              : FilledButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.notifications_active_outlined),
+                  label: const Text('Receive & notify resident'),
+                ),
+        ),
       ]),
     );
   }
