@@ -15,3 +15,6 @@ The Overstays and Patrol checkpoints sections still use ListTile trailing action
 
 ## Gates and exclusions
 Require protected Flutter analyzer, changed Guard tests, risk-weighted Guard regression and coverage, full Flutter job and mandatory merge gates before integrating `develop`. This is not physical-device, TalkBack, multilingual or real security-operator acceptance. No staging/main or APK changes.
+
+## CI contract reconciliation
+V4.48's historical source check was coupled to the literal `Text('ESCALATE')` in the old monolithic Guard screen. It failed after the UI was extracted even though the action remained bound. The validation now accepts the historical inline label **or** an extracted `actionLabel` when `GuardFieldActionCard` renders it through its enabled/disabled `onPressed` callback. Patrol SCAN/SCAN NOW receives the same protection; existing overdue/patrol intelligence tokens, backend contracts, and other V4.48 checks are unchanged. This repairs the quality gate instead of bypassing it.
