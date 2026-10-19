@@ -6,6 +6,7 @@ import '../widgets/guard_field_section_header.dart';
 import '../widgets/guard_field_attention_header.dart';
 import '../widgets/guard_field_handover_card.dart';
 import '../widgets/guard_field_action_card.dart';
+import '../widgets/guard_field_pass_card.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -39,7 +40,19 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
         ),
       )),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
       const SizedBox(height:18),_heading('Watchlist',Icons.policy_outlined),...watchlist.take(20).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
-      const SizedBox(height:18),_sectionHeader('Material & move passes',Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x)=>Card(child:ListTile(title:Text('${x['referenceCode']} · ${x['movementType']}'),subtitle:Text('${x['subjectName']} · ${x['itemDescription']}'),trailing:x['status']=='OPEN'?FilledButton(onPressed:busy?null:()=>run(()=>client.processPass(x['id'].toString()).then((_){})),child:const Text('PROCESS')):Text(x['status']?.toString()??'')))),if(passes.isEmpty)_empty('No gate passes recorded.'),
+      const SizedBox(height:18),_sectionHeader('Material & move passes',Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x) => GuardFieldPassCard(
+        title: '${x['referenceCode']} · ${x['movementType']}',
+        subtitle: '${x['subjectName']} · ${x['itemDescription']}',
+        status: x['status']?.toString() ?? '',
+        action: x['status'] == 'OPEN'
+            ? FilledButton(
+                onPressed: busy ? null : () => run(
+                  () => client.processPass(x['id'].toString()).then((_) {}),
+                ),
+                child: const Text('PROCESS'),
+              )
+            : null,
+      )),if(passes.isEmpty)_empty('No gate passes recorded.'),
       const SizedBox(height:18),_heading('Patrol checkpoints',Icons.qr_code_scanner_rounded),...checkpoints.map((x) {
         final status = patrolStatus.firstWhere(
           (s) => s['id'] == x['id'],
