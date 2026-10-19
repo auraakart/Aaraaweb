@@ -562,8 +562,22 @@ void main() {
           ));
           await tester.pumpAndSettle();
 
+          // Large text can move the retry card below the initial viewport.
+          // Verify it and the retained history by scrolling the real Gate list.
+          await tester.scrollUntilVisible(
+            find.text('Could not load access activity.'),
+            160,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
           expect(find.text('Could not load access activity.'), findsOneWidget);
-          expect(find.text('Try again'), findsOneWidget);
+          expect(find.text('Retry'), findsOneWidget);
+          await tester.scrollUntilVisible(
+            find.text('Verified Guest'),
+            160,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
           expect(find.text('Verified Guest'), findsOneWidget);
           expect(find.text('No gate activity yet. Create a visitor pass when you need one.'), findsNothing);
           expect(tester.takeException(), isNull);
@@ -583,7 +597,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('Could not load access activity.'), findsOneWidget);
-    expect(find.text('Try again'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
     expect(find.text('No gate activity yet. Create a visitor pass when you need one.'), findsNothing);
     expect(tester.takeException(), isNull);
   });
