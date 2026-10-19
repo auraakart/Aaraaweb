@@ -143,4 +143,3 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   Future<void> _createPass()async{final result=await showDialog<Map<String,String>>(context:context,builder:(context)=>const GuardFieldPassDialog());if(result==null)return;await run(()=>client.createPass(referenceCode:result['referenceCode']!,movementType:result['movementType']!,subjectName:result['subjectName']!,itemDescription:result['itemDescription']!,vehicleNumber:result['vehicleNumber'],gateId:widget.controller.gateId).then((_){}));}
   Future<void> _createHandover()async{final result=await showDialog<Map<String,dynamic>>(context:context,builder:(context)=>const GuardFieldHandoverDialog());if(result==null)return;await run(()=>client.createShiftHandover(summary:result['summary'] as String,openItems:(result['openItems'] as List<String>),gateId:widget.controller.gateId).then((_){}));}
 }
-
