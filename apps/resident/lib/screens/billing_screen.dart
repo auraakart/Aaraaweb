@@ -181,6 +181,8 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   Future<void> _preparePayment(Map<String, dynamic> invoice) async {
+    // Keep checkout single-flight, even if a callback runs before rebuild.
+    if (payingInvoiceId != null) return;
     final id = invoice['id'].toString();
     if (widget.activeUnitId != null && invoice['unitId']?.toString() != widget.activeUnitId) {
       setState(() => error = 'This invoice is outside the active property context.');
@@ -250,6 +252,7 @@ class _BillingScreenState extends State<BillingScreen> {
                 nextInvoice: outstanding.isEmpty ? null : outstanding.first,
                 busy: outstanding.isNotEmpty &&
                     payingInvoiceId == outstanding.first['id']?.toString(),
+                paymentLocked: payingInvoiceId != null,
                 onPayNext: outstanding.isEmpty
                     ? null
                     : () => _preparePayment(outstanding.first),
@@ -262,7 +265,13 @@ class _BillingScreenState extends State<BillingScreen> {
                 ),
                 const SizedBox(height: AaraagateTokens.space2),
                 for (final invoice in outstanding) ...[
-                  _InvoiceCard(invoice: invoice, busy: payingInvoiceId == invoice['id']?.toString(), onPay: () => _preparePayment(invoice)),
+                  _InvoiceCard(
+                    invoice: invoice,
+                    busy: payingInvoiceId == invoice['id']?.toString(),
+                    onPay: payingInvoiceId == null
+                        ? () => _preparePayment(invoice)
+                        : null,
+                  ),
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
               ] else ...[
@@ -452,12 +461,14 @@ class _SummaryCard extends StatelessWidget {
     this.nextInvoice,
     this.onPayNext,
     this.busy = false,
+    this.paymentLocked = false,
   });
   final List<Map<String, dynamic>> outstanding;
   final Map<String, dynamic>? summary;
   final Map<String, dynamic>? nextInvoice;
   final VoidCallback? onPayNext;
   final bool busy;
+  final bool paymentLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -543,7 +554,7 @@ class _SummaryCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: busy ? null : onPayNext,
+                onPressed: busy || paymentLocked ? null : onPayNext,
                 child: PremiumActionLabel(
                   label: overdue ? 'Pay overdue bill' : 'Pay next due',
                   icon: Icons.lock_outline_rounded,

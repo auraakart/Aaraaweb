@@ -66,6 +66,24 @@ class _PendingBillingRepository extends _BillingRepository {
   }
 }
 
+class _TwoInvoicePendingBillingRepository extends _PendingBillingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> maintenanceInvoices() async => [
+    {
+      'id': 'invoice-1', 'invoiceNumber': '202609-A101',
+      'billingPeriod': '2026-09', 'amountPaise': 125000,
+      'dueDate': '2026-09-30', 'status': 'ISSUED',
+      'buildingName': 'A Block', 'unitNumber': '101',
+    },
+    {
+      'id': 'invoice-2', 'invoiceNumber': '202610-A101',
+      'billingPeriod': '2026-10', 'amountPaise': 90000,
+      'dueDate': '2026-10-31', 'status': 'ISSUED',
+      'buildingName': 'A Block', 'unitNumber': '101',
+    },
+  ];
+}
+
 class _RetryBillingRepository extends _BillingRepository {
   bool failFirst = true;
 
@@ -180,6 +198,46 @@ void main() {
       });
     }
   }
+
+  testWidgets('other invoice Pay actions stay disabled during an active order', (tester) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _TwoInvoicePendingBillingRepository();
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, 'Pay securely'), findsNWidgets(2));
+    await tester.tap(find.text('Pay next due'));
+    await tester.pump();
+
+    expect(repository.paymentCalls, 1);
+    expect(tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Pay next due'),
+    ).onPressed, isNull);
+    final buttons = tester.widgetList<FilledButton>(
+      find.widgetWithText(FilledButton, 'Pay securely'),
+    ).toList();
+    expect(buttons, hasLength(2));
+    for (final button in buttons) {
+      expect(button.onPressed, isNull);
+    }
+    final labels = tester.widgetList<PremiumActionLabel>(
+      find.byType(PremiumActionLabel),
+    ).where((label) => label.label == 'Pay securely').toList();
+    expect(labels, hasLength(2));
+    expect(labels.where((label) => label.busy), hasLength(1));
+    expect(tester.takeException(), isNull);
+
+    repository.pendingOrder.complete({
+      'id': 'payment-pending', 'providerOrderId': 'order-pending', 'status': 'CREATED',
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Secure payment order ready'), findsOneWidget);
+    expect(repository.paymentCalls, 1);
+  });
 
   testWidgets('payment retry reuses the same idempotency key after a lost response', (tester) async {
     final repository = _RetryBillingRepository();
