@@ -239,7 +239,7 @@ for (const dark of [false, true]) {
       return { foreground: style.color, background: style.backgroundColor }
     })
     const luminance = cssColor => {
-      const values = cssColor.match(/[\\d.]+/g)?.slice(0, 3).map(Number)
+      const values = cssColor.match(/\d+/g)?.slice(0, 3).map(Number)
       if (!values || values.length !== 3) throw new Error('Unresolved active-navigation color: ' + cssColor)
       const linear = values.map(value => {
         const s = value / 255
