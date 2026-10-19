@@ -62,6 +62,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
       final status = ticket['status']?.toString().toUpperCase();
       return status != 'RESOLVED' && status != 'CLOSED' && status != 'CANCELLED';
     }).length;
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Helpdesk')),
@@ -69,11 +70,11 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AaraagateTokens.pageGutter,
+          padding: EdgeInsets.fromLTRB(
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
             AaraagateTokens.space3,
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space8,
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space6 : AaraagateTokens.space8,
           ),
           children: [
             PremiumPageIntro(
@@ -88,7 +89,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 label: const Text('New complaint'),
               ),
             ),
-            const SizedBox(height: AaraagateTokens.space5),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             if (_loading && _tickets.isEmpty)
               const AppStateCard(
                 icon: Icons.sync_rounded,
@@ -110,7 +111,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
             else
               for (final ticket in _tickets) ...[
                 _TicketCard(ticket: ticket, onTap: () => _openTicket(ticket)),
-                const SizedBox(height: AaraagateTokens.space3),
+                SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               ],
           ],
         ),
@@ -360,17 +361,19 @@ class _TicketCard extends StatelessWidget {
     final sla = ticket['computedSlaState']?.toString() ?? ticket['slaState']?.toString() ?? 'UNTRACKED';
     final building = ticket['buildingName']?.toString();
     final unit = ticket['unitNumber']?.toString();
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return PremiumSurface(
       onTap: onTap,
       semanticLabel: 'Open complaint ${ticket['title'] ?? 'Complaint'}, ${_displayLabel(status)}',
       color: scheme.surfaceContainerLow,
+      padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: AaraagateTokens.iconContainer,
-            height: AaraagateTokens.iconContainer,
+            width: compact ? 40 : AaraagateTokens.iconContainer,
+            height: compact ? 40 : AaraagateTokens.iconContainer,
             decoration: BoxDecoration(
               color: _priorityTone(priority) == AaraagateStatusTone.danger
                   ? scheme.errorContainer
@@ -390,7 +393,7 @@ class _TicketCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(ticket['title']?.toString() ?? 'Complaint', style: theme.textTheme.titleMedium),
-                const SizedBox(height: AaraagateTokens.space2),
+                SizedBox(height: compact ? AaraagateTokens.space1 : AaraagateTokens.space2),
                 Wrap(
                   spacing: AaraagateTokens.space2,
                   runSpacing: AaraagateTokens.space2,
@@ -403,13 +406,13 @@ class _TicketCard extends StatelessWidget {
                   ],
                 ),
                 if (building != null || unit != null) ...[
-                  const SizedBox(height: AaraagateTokens.space2),
+                  SizedBox(height: compact ? AaraagateTokens.space1 : AaraagateTokens.space2),
                   Text(
                     [building, unit].where((value) => value != null && value.trim().isNotEmpty).join(' · '),
                     style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ],
-                const SizedBox(height: AaraagateTokens.space2),
+                SizedBox(height: compact ? AaraagateTokens.space1 : AaraagateTokens.space2),
                 AaraagateStatusPill(label: 'SLA ${_displayLabel(sla)}', tone: _slaTone(sla)),
               ],
             ),

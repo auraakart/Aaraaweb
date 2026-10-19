@@ -97,6 +97,18 @@ void main() {
           final name = 'craft-$screen-${dark ? 'dark' : 'light'}-${size.$1.toInt()}-${size.$3}';
           await captureResidentScreen(tester, boundary, name);
           expect(tester.takeException(), isNull);
+          if (screen == 'staff' || screen == 'helpdesk' || screen == 'community' || screen == 'profile') {
+            final page = tester.widget<ListView>(find.byType(ListView).first);
+            final padding = page.padding! as EdgeInsets;
+            expect(padding.left, size.$3 == 1 ? 16 : 20);
+            expect(padding.right, size.$3 == 1 ? 16 : 20);
+          }
+          if (screen == 'community') {
+            expect(find.byKey(const ValueKey('community-shortcuts-bar')), findsOneWidget);
+          }
+          if (screen == 'profile') {
+            expect(find.text('Home & profile'), findsOneWidget);
+          }
           if (screen == 'home') {
             // All four approved quick actions retain their original destinations.
             for (final label in ['Staff', 'Billing', 'Amenities', 'Helpdesk']) {

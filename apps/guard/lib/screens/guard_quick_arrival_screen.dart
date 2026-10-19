@@ -33,6 +33,28 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
   List<GuardUnitSummary> get units {final q=search.text.trim().toLowerCase();final all=widget.controller.unitModels;if(q.isEmpty)return all.take(30).toList();return all.where((u)=>u.label.toLowerCase().contains(q)).take(30).toList();}
   List<String> get providers=>subjectType=='DELIVERY'?deliveryProviders:cabProviders;
 
+  Widget _arrivalTypeSelector(BuildContext context) {
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    return SegmentedButton<String>(
+      showSelectedIcon: !largeText,
+      segments: largeText
+          ? const [
+              ButtonSegment(value: 'DELIVERY', label: Text('Delivery')),
+              ButtonSegment(value: 'CAB', label: Text('Cab')),
+            ]
+          : const [
+              ButtonSegment(value: 'DELIVERY', label: Text('Delivery'), icon: Icon(Icons.delivery_dining_rounded)),
+              ButtonSegment(value: 'CAB', label: Text('Cab'), icon: Icon(Icons.local_taxi_rounded)),
+            ],
+      selected: {subjectType},
+      onSelectionChanged: (value) => setState(() {
+        subjectType = value.first;
+        provider = '';
+        name.clear();
+      }),
+    );
+  }
+
   Future<void> _loadRecent() async {
     final session=widget.controller.session;
     if(session==null)return;
@@ -66,12 +88,12 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
       Wrap(spacing:8,runSpacing:8,children:recent.take(6).map((item){final unit=widget.controller.unitModels.firstWhere((u)=>u.id==item.unitId);final label='${item.provider??item.name} · ${unit.label}';return ActionChip(avatar:Icon(item.subjectType=='CAB'?Icons.local_taxi_rounded:Icons.delivery_dining_rounded,size:18),label:Text(label),onPressed:()=>_applyRecent(item));}).toList()),
       const SizedBox(height:18),
     ],
-    SegmentedButton<String>(segments:const [ButtonSegment(value:'DELIVERY',label:Text('Delivery'),icon:Icon(Icons.delivery_dining_rounded)),ButtonSegment(value:'CAB',label:Text('Cab'),icon:Icon(Icons.local_taxi_rounded))],selected:{subjectType},onSelectionChanged:(value)=>setState((){subjectType=value.first;provider='';name.clear();})),
+    _arrivalTypeSelector(context),
     const SizedBox(height:12),OutlinedButton.icon(onPressed:busy||listening?null:_captureVoice,icon:Icon(listening?Icons.hearing_rounded:Icons.mic_rounded),label:Text(listening?'LISTENING…':'VOICE QUICK FILL')),
     if(voiceStatus!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text(voiceStatus!,style:Theme.of(context).textTheme.bodySmall)),
     const SizedBox(height:14),Text('Provider',style:Theme.of(context).textTheme.titleMedium),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:providers.map((p)=>ChoiceChip(label:Text(p),selected:provider==p,onSelected:(_)=>setState((){provider=p;name.text=p;}))).toList()),
     const SizedBox(height:18),TextField(controller:search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(labelText:'Find building / unit',prefixIcon:Icon(Icons.search_rounded))),const SizedBox(height:8),
-    if(unitId==null)...units.map((u)=>Card(child:ListTile(dense:true,title:Text(u.label,style:const TextStyle(fontWeight:FontWeight.w800)),onTap:()=>setState(()=>unitId=u.id)))) else Card(child:ListTile(leading:const Icon(Icons.apartment_rounded),title:Text(widget.controller.unitModels.firstWhere((u)=>u.id==unitId).label),trailing:IconButton(icon:const Icon(Icons.close_rounded),onPressed:()=>setState(()=>unitId=null)))),
+    if(unitId==null)...units.map((u)=>Card(child:ListTile(dense:true,title:Text(u.label,style:const TextStyle(fontWeight:FontWeight.w800)),onTap:()=>setState(()=>unitId=u.id)))) else Card(child:ListTile(leading:const Icon(Icons.apartment_rounded),title:Text(widget.controller.unitModels.firstWhere((u)=>u.id==unitId).label),trailing:IconButton(tooltip:'Change destination',icon:const Icon(Icons.close_rounded),onPressed:()=>setState(()=>unitId=null)))),
     const SizedBox(height:12),TextField(controller:name,onChanged:(_)=>setState((){}),textInputAction:TextInputAction.next,decoration:const InputDecoration(labelText:'Person / provider name')),TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone (optional)')),TextField(controller:vehicle,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Vehicle (optional)')),TextField(controller:note,decoration:const InputDecoration(labelText:'Note (optional)')),
     if(error!=null)Padding(padding:const EdgeInsets.only(top:10),child:Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error))),const SizedBox(height:16),FilledButton.icon(onPressed:busy||unitId==null||name.text.trim().isEmpty?null:_submit,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(64)),icon:const Icon(Icons.send_rounded),label:Text(busy?'SENDING…':'REQUEST APPROVAL',style:const TextStyle(fontWeight:FontWeight.w900))),
   ])));
