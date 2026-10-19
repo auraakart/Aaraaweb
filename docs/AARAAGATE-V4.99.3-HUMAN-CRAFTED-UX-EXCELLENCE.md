@@ -43,3 +43,11 @@ UX review starting score: 8.1/10 **provisional expert estimate**, not measured u
 **Change:** use the pre-existing `--ink` design token for the active Admin navigation label while retaining `--brand` for its selected indicator and leaving society/partner colors unchanged. Existing navigation state, buttons and routes are unchanged.
 
 **Acceptance:** Playwright checks active text/background contrast >=4.5:1, preserved `aria-current`, and no viewport horizontal overflow in light and opt-in dark at 390px. Keep the full Admin CI/access tests and shared dark preview checks as regression gates. This is an incremental contrast slice, **not** certification that all Admin routes are dark-mode complete.
+
+## Slice V4.99.3.3a — Resident Helpdesk form guidance and voice safety
+
+**Observed source issue:** the complaint form's title and description carry server-facing minima (3 and 5 characters), but the fields do not communicate these requirements before submission. More importantly, Submit is enabled while dictation is still active; a late speech transcript can change title/description while the request is already being submitted.
+
+**Change:** retain the original field labels and add short required-length hints; disable Submit while microphone capture is active (it is already disabled while submitting); announce existing validation/retry text via an accessible live region without clearing draft values. Preserve existing safe idempotency-key reuse after ambiguous submission failure, voice/manual editing, priority, category, authorization and server contracts.
+
+**Test:** use an injected pending `ResidentSpeech` test double to prove that Submit is unavailable during listening, becomes available after voice completion, and required helper text is present. Keep the established full Helpdesk recovery and 320dp/200% regression gates. Physical screen-reader testing and full Home/Billing/Gate task timing remain open.

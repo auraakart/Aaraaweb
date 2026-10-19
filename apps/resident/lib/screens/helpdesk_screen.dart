@@ -170,7 +170,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 const SizedBox(height: AaraagateTokens.space5),
                 TextField(
                   controller: title,
-                  decoration: const InputDecoration(labelText: 'Issue title'),
+                  decoration: const InputDecoration(
+                     labelText: 'Issue title',
+                     helperText: 'Required · at least 3 characters',
+                   ),
                   textInputAction: TextInputAction.next,
                   maxLength: 120,
                 ),
@@ -227,7 +230,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 const SizedBox(height: AaraagateTokens.space2),
                 TextField(
                   controller: description,
-                  decoration: const InputDecoration(labelText: 'Describe the issue'),
+                  decoration: const InputDecoration(
+                     labelText: 'Describe the issue',
+                     helperText: 'Required · at least 5 characters',
+                   ),
                   minLines: 4,
                   maxLines: 6,
                   maxLength: 2000,
@@ -257,14 +263,21 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 ),
                 if (validationMessage != null) ...[
                   const SizedBox(height: AaraagateTokens.space3),
-                  Text(
-                    validationMessage!,
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      validationMessage!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
                   ),
                 ],
                 const SizedBox(height: AaraagateTokens.space5),
                 FilledButton(
-                  onPressed: submitting
+                  // Voice capture must finish before a draft can be submitted.
+                  // Otherwise a late transcript can mutate a pending request.
+                  onPressed: submitting || listening
                       ? null
                       : () async {
                           final cleanTitle = title.text.trim();
