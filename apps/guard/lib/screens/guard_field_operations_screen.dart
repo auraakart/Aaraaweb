@@ -9,6 +9,7 @@ import '../widgets/guard_field_action_card.dart';
 import '../widgets/guard_field_pass_card.dart';
 import '../widgets/guard_field_pass_dialog.dart';
 import '../widgets/guard_field_incident_dialog.dart';
+import '../widgets/guard_field_handover_dialog.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -140,8 +141,6 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
 
   Future<void> _createIncident()async{final result=await showDialog<Map<String,String>>(context:context,builder:(context)=>const GuardFieldIncidentDialog());if(result==null)return;final refs=(result['mediaRefs']??'').split('\n').map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList(growable:false);await run(()=>client.createIncident(severity:result['severity']!,category:result['category']!,title:result['title']!,description:result['description'],gateId:widget.controller.gateId,mediaRefs:refs).then((_){}));}
   Future<void> _createPass()async{final result=await showDialog<Map<String,String>>(context:context,builder:(context)=>const GuardFieldPassDialog());if(result==null)return;await run(()=>client.createPass(referenceCode:result['referenceCode']!,movementType:result['movementType']!,subjectName:result['subjectName']!,itemDescription:result['itemDescription']!,vehicleNumber:result['vehicleNumber'],gateId:widget.controller.gateId).then((_){}));}
-  Future<void> _createHandover()async{final result=await showDialog<Map<String,dynamic>>(context:context,builder:(context)=>const _HandoverDialog());if(result==null)return;await run(()=>client.createShiftHandover(summary:result['summary'] as String,openItems:(result['openItems'] as List<String>),gateId:widget.controller.gateId).then((_){}));}
+  Future<void> _createHandover()async{final result=await showDialog<Map<String,dynamic>>(context:context,builder:(context)=>const GuardFieldHandoverDialog());if(result==null)return;await run(()=>client.createShiftHandover(summary:result['summary'] as String,openItems:(result['openItems'] as List<String>),gateId:widget.controller.gateId).then((_){}));}
 }
 
-class _HandoverDialog extends StatefulWidget{const _HandoverDialog();@override State<_HandoverDialog> createState()=>_HandoverDialogState();}
-class _HandoverDialogState extends State<_HandoverDialog>{final summary=TextEditingController(),items=TextEditingController();@override void dispose(){summary.dispose();items.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Shift handover'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:summary,maxLines:4,decoration:const InputDecoration(labelText:'Shift summary',hintText:'What should the incoming guard know?')),TextField(controller:items,maxLines:5,decoration:const InputDecoration(labelText:'Open items',hintText:'One pending item per line'))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('CANCEL')),FilledButton(onPressed:()=>summary.text.trim().length<3?null:Navigator.pop(context,{'summary':summary.text.trim(),'openItems':items.text.split('\n').map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList()}),child:const Text('HAND OVER'))]);}
