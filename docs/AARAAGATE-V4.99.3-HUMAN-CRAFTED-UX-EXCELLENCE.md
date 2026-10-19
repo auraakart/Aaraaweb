@@ -70,3 +70,11 @@ UX review starting score: 8.1/10 **provisional expert estimate**, not measured u
 
 ### PR #1489 initial CI correction
 The first five new tests failed (12 existing Gate cases passed) because test assertions expected Helpdesk's English “Try again” text while Gate localization intentionally uses “Retry”. At 320dp/200% text the error notice also started beyond the lazy ListView's initial build viewport, making a direct `find.text` assertion premature. Keep the production fix unchanged; assert the real Gate translation and scroll to the recovery notice and preserved history in the same ListView. The coverage-upload failure was downstream of the test failure. Require a new green CI run for the corrected PR head; do not bypass gates.
+
+## Slice V4.99.3.4a — Guard attention ordering and safe recovery
+
+**Observed source problems:** Field Operations put its routine summary metrics above urgent gate attention, requiring guards to scan counts before seeing the safety queue. It also exposed raw Dart/network exceptions directly on screen and had no error-specific retry control. An ambiguous mutation error must never be treated as permission to repeat that mutation automatically.
+
+**Change:** show the already computed `Attention now` / `Attention queue clear` summary before metrics. Replace raw errors with separate, actionable user copy for refresh failures versus uncertain action outcomes. Extract `GuardFieldRecoveryNotice`, with existing warning surface, full-width 56dp-minimum `Refresh status` action and large-text wrapping. The retry **only calls `load()` to re-read authoritative status**; it never automatically repeats an escalation, checkpoint scan, handover, move pass or incident command. Retain all API calls, summary counters, existing sections, action disablement, input forms and established theme colors.
+
+**Tests:** five targeted Guard widget tests across light/dark and 390dp/100% / 320dp/200% text plus disabled retry state, in addition to required Guard behavior/coverage and full Flutter CI. Source review verifies existing attention/metrics content unchanged beyond ordering. No physical guard or TalkBack testing is claimed.
