@@ -10,6 +10,7 @@ import '../widgets/guard_field_pass_card.dart';
 import '../widgets/guard_field_pass_dialog.dart';
 import '../widgets/guard_field_incident_dialog.dart';
 import '../widgets/guard_field_handover_dialog.dart';
+import '../widgets/guard_field_info_card.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -126,7 +127,8 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   Widget _metric(String label,dynamic value)=>SizedBox(width:128,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:Theme.of(context).textTheme.labelMedium),Text('${value??0}',style:Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w900))]));
   Widget _heading(String text,IconData icon)=>GuardFieldSectionHeader(title:text,icon:icon);
   Widget _sectionHeader(String text,IconData icon,Widget action)=>GuardFieldSectionHeader(title:text,icon:icon,action:action);
-  Widget _tile(String title,String subtitle,IconData icon)=>Card(child:ListTile(leading:Icon(icon),title:Text(title,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(subtitle)));
+  Widget _tile(String title, String subtitle, IconData icon) =>
+      GuardFieldInfoCard(title: title, subtitle: subtitle, icon: icon);
   Widget _empty(String text)=>Padding(padding:const EdgeInsets.symmetric(vertical:12),child:Text(text,style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant)));
   Widget _handoverTile(Map<String, dynamic> handover) =>
       GuardFieldHandoverCard(
