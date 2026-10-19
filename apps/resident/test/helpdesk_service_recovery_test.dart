@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/helpdesk_screen.dart';
+import 'package:aaraagate_resident/voice/resident_speech.dart';
 import 'package:flutter/material.dart';
 import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,6 +61,17 @@ class _HelpdeskRepository extends ResidentRepository {
     commentCalls++;
     commentKeys.add(idempotencyKey);
     if(failFirstComment && commentCalls==1) throw StateError('transport lost after commit');
+  }
+}
+
+class _HeldResidentSpeech implements ResidentSpeech {
+  final pendingTranscript = Completer<String?>();
+  @override
+  Future<String?> listenOnce({required String languageCode}) =>
+      pendingTranscript.future;
+  @override
+  Future<void> stop() async {
+    if (!pendingTranscript.isCompleted) pendingTranscript.complete();
   }
 }
 
@@ -187,6 +201,39 @@ void main(){
     expect(tester.widget<DropdownButton<String>>(
       find.byType(DropdownButton<String>),
     ).isExpanded, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('complaint draft explains required fields and cannot submit mid-dictation', (tester) async {
+    final repository = _HelpdeskRepository();
+    final controller = ResidentDataController(
+      repository, activeUnitId: 'unit-1', fetchEntitlements: false,
+    )..households = [{'id': 'house-1', 'unitId': 'unit-1'}];
+    addTearDown(controller.dispose);
+    final speech = _HeldResidentSpeech();
+
+    await tester.pumpWidget(MaterialApp(
+      home: HelpdeskScreen(controller: controller, speech: speech),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New complaint').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Required · at least 3 characters'), findsOneWidget);
+    expect(find.text('Required · at least 5 characters'), findsOneWidget);
+    await tester.tap(find.text('Speak'));
+    await tester.pump();
+
+    final submit = find.ancestor(
+      of: find.text('Submit complaint'),
+      matching: find.byType(FilledButton),
+    );
+    expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+    expect(find.textContaining('Listening'), findsWidgets);
+
+    speech.pendingTranscript.complete(null);
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
     expect(tester.takeException(), isNull);
   });
 
