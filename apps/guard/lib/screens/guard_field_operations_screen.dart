@@ -12,6 +12,7 @@ import '../widgets/guard_field_incident_dialog.dart';
 import '../widgets/guard_field_handover_dialog.dart';
 import '../widgets/guard_field_info_card.dart';
 import '../widgets/guard_field_metric.dart';
+import '../widgets/guard_field_recovery_notice.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -26,14 +27,13 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   List<Map<String,dynamic>> overstays=const [],watchlist=const [],passes=const [],checkpoints=const [],patrolStatus=const [],incidents=const [],handovers=const [];
 
   @override void initState(){super.initState();load();}
-  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.patrolStatus(),client.incidents(),client.shiftHandovers(),client.commandSummary()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;patrolStatus=values[5] as List<Map<String,dynamic>>;incidents=values[6] as List<Map<String,dynamic>>;handovers=values[7] as List<Map<String,dynamic>>;command=values[8] as Map<String,dynamic>;error=null;});}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
-  Future<void> run(Future<void> Function() action)async{setState(()=>busy=true);try{await action();await load();}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>busy=false);}}
+  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.patrolStatus(),client.incidents(),client.shiftHandovers(),client.commandSummary()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;patrolStatus=values[5] as List<Map<String,dynamic>>;incidents=values[6] as List<Map<String,dynamic>>;handovers=values[7] as List<Map<String,dynamic>>;command=values[8] as Map<String,dynamic>;error=null;});}catch(_){if(mounted)setState(()=>error='Field operations could not be refreshed. Check your connection and try again.');}finally{if(mounted)setState(()=>loading=false);}}
+  Future<void> run(Future<void> Function() action)async{setState(()=>busy=true);try{await action();await load();}catch(_){if(mounted)setState(()=>error='The action status could not be confirmed. Refresh the latest status before trying again.');}finally{if(mounted)setState(()=>busy=false);}}
 
   @override Widget build(BuildContext context){
-    final theme=Theme.of(context);
     return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(tooltip:'Refresh field operations',onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
-      if(error!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:theme.colorScheme.errorContainer,borderRadius:BorderRadius.circular(12)),child:Text(error!)),
-      _metrics(),const SizedBox(height:12),_attentionNow(),const SizedBox(height:18),
+      if(error!=null)GuardFieldRecoveryNotice(message:error!,onRefresh:busy?null:load),
+      _attentionNow(),const SizedBox(height:12),_metrics(),const SizedBox(height:18),
       _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x) => GuardFieldActionCard(
         icon: Icons.schedule_rounded,
         title: "${x['subjectName'] ?? 'Visitor'} · ${x['buildingName'] ?? ''} ${x['unitNumber'] ?? ''}",
