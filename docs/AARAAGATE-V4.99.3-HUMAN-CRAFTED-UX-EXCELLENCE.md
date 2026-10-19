@@ -51,3 +51,11 @@ UX review starting score: 8.1/10 **provisional expert estimate**, not measured u
 **Change:** retain the original field labels and add short required-length hints; disable Submit while microphone capture is active (it is already disabled while submitting); announce existing validation/retry text via an accessible live region without clearing draft values. Preserve existing safe idempotency-key reuse after ambiguous submission failure, voice/manual editing, priority, category, authorization and server contracts.
 
 **Test:** use an injected pending `ResidentSpeech` test double to prove that Submit is unavailable during listening, becomes available after voice completion, and required helper text is present. Keep the established full Helpdesk recovery and 320dp/200% regression gates. Physical screen-reader testing and full Home/Billing/Gate task timing remain open.
+
+## Slice V4.99.3.3b — Resident Billing single-flight payment preparation
+
+**Source-level issue:** the Billing summary and each outstanding invoice have independent Pay buttons. During an in-flight payment order, only the selected invoice's button previously disabled; tapping another invoice could start a second network payment preparation simultaneously. This added resident uncertainty and could create competing order attempts even with per-invoice idempotency keys.
+
+**Change:** maintain one active payment preparation per Billing screen. Disable all other invoice/summary Pay buttons until the selected order returns, retaining the selected busy indicator and other labels. An early guard protects callbacks invoked before rebuild. Preserve existing payment modal, error recovery, server verification, per-invoice idempotency keys, gateway contracts, authorization and property scope.
+
+**Test:** use two issued invoices and a held order to verify summary and both invoice Pay controls disable, only the selected invoice displays progress, and exactly one payment preparation call occurs. Require the existing large-text, dark/light and retry tests plus protected full Resident validation.
