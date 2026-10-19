@@ -221,3 +221,35 @@ test('V4.99.3 mobile Admin navigation keeps role links visible by scrolling inst
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await expect(links.last()).toBeFocused()
 })
+
+for (const dark of [false, true]) {
+  test(`V4.99.3 active Admin navigation is readable in dark=${dark}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 840 })
+    await page.goto('/')
+    await page.evaluate(darkMode => {
+      document.documentElement.dataset.adminTheme = darkMode ? 'dark' : 'light'
+      const aside = document.createElement('aside')
+      aside.className = 'sidebar'
+      aside.innerHTML = '<nav class="nav" aria-label="Admin sections"><button type="button" class="active" aria-current="page">Overview</button><button type="button">Residents</button></nav>'
+      document.body.append(aside)
+    }, dark)
+    const active = page.getByRole('navigation', { name: 'Admin sections' }).getByRole('button', { name: 'Overview' })
+    const colors = await active.evaluate(el => {
+      const style = getComputedStyle(el)
+      return { foreground: style.color, background: style.backgroundColor }
+    })
+    const luminance = cssColor => {
+      const values = cssColor.match(/\d+/g)?.slice(0, 3).map(Number)
+      if (!values || values.length !== 3) throw new Error('Unresolved active-navigation color: ' + cssColor)
+      const linear = values.map(value => {
+        const s = value / 255
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+    }
+    const a = luminance(colors.foreground), b = luminance(colors.background)
+    expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5)
+    await expect(active).toHaveAttribute('aria-current', 'page')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}
