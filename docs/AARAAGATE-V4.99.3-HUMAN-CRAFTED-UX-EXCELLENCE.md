@@ -59,3 +59,14 @@ UX review starting score: 8.1/10 **provisional expert estimate**, not measured u
 **Change:** maintain one active payment preparation per Billing screen. Disable all other invoice/summary Pay buttons until the selected order returns, retaining the selected busy indicator and other labels. An early guard protects callbacks invoked before rebuild. Preserve existing payment modal, error recovery, server verification, per-invoice idempotency keys, gateway contracts, authorization and property scope.
 
 **Test:** use two issued invoices and a held order to verify summary and both invoice Pay controls disable, only the selected invoice displays progress, and exactly one payment preparation call occurs. Require the existing large-text, dark/light and retry tests plus protected full Resident validation.
+
+## Slice V4.99.3.3c — Gate refresh recovery retains visible history
+
+**Observed source issue:** Gate rendered an access-error card with an `else if` that replaced all previously loaded nonpending access cards, even though the controller still retained their latest locally available state. Pending decisions stayed visible, but residents lost their activity context until the next successful refresh.
+
+**Change:** keep the localized retry/error card and render the controller's existing nonpending history below it. Show the ordinary empty state only when there is no history and no load error; maintain the pre-existing initial spinner. Do not invent refreshed data or change gate status, commands, validation, authorization, callbacks, translations, lifecycle or request IDs.
+
+**Tests:** five widget cases validate light/dark at standard 390dp and 320dp/200% text, plus the empty-error fallback. Preserve all existing Gate mutation concurrency, authoritative reload, visitor pass, short cab/delivery approval, and locale tests in CI. Cached access entries are not claimed to be newly verified; physical-device and screen-reader acceptance remain separate.
+
+### PR #1489 initial CI correction
+The first five new tests failed (12 existing Gate cases passed) because test assertions expected Helpdesk's English “Try again” text while Gate localization intentionally uses “Retry”. At 320dp/200% text the error notice also started beyond the lazy ListView's initial build viewport, making a direct `find.text` assertion premature. Keep the production fix unchanged; assert the real Gate translation and scroll to the recovery notice and preserved history in the same ListView. The coverage-upload failure was downstream of the test failure. Require a new green CI run for the corrected PR head; do not bypass gates.

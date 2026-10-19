@@ -105,11 +105,19 @@ class GateScreen extends StatelessWidget {
             const SizedBox(height: AaraagateTokens.space2),
             if (controller.loading && requests.isEmpty)
               AppStateCard(icon: Icons.sync_rounded, message: strings.text('loadingActivity'), loading: true)
-            else if (controller.accessError != null)
-              AppStateCard(icon: Icons.cloud_off_outlined, message: strings.text('loadFailed'), actionLabel: strings.text('retry'), onAction: controller.load)
-            else if (requests.isEmpty)
-              AppStateCard(icon: Icons.shield_outlined, message: strings.text('emptyActivity'))
-            else
+            else ...[
+              // A failed refresh must not replace previously loaded history.
+              // The error makes the freshness boundary explicit; retained
+              // cards continue to use the existing request data and actions.
+              if (controller.accessError != null)
+                AppStateCard(
+                  icon: Icons.cloud_off_outlined,
+                  message: strings.text('loadFailed'),
+                  actionLabel: strings.text('retry'),
+                  onAction: controller.load,
+                ),
+              if (requests.isEmpty && controller.accessError == null)
+                AppStateCard(icon: Icons.shield_outlined, message: strings.text('emptyActivity')),
               for (final request in requests.where((e) => e['status'] != 'PENDING')) ...[
                 _AccessCard(
                   key: ValueKey(request['id']),
@@ -119,6 +127,7 @@ class GateScreen extends StatelessWidget {
                 ),
                 SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               ],
+            ],
           ],
         ),
       ),
