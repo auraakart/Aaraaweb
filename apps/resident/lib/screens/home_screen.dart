@@ -55,6 +55,8 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Compact only at standard text sizes; generous layout stays available for accessibility.
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     final pending = controller.firstPendingAccess;
     final hasQuickActions = showStaff || showBilling || showAmenities || showHelpdesk;
     final highlights = ResidentHomeHighlights.build(
@@ -81,11 +83,11 @@ class HomeScreen extends StatelessWidget {
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AaraagateTokens.pageGutter,
+          padding: EdgeInsets.fromLTRB(
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
             AaraagateTokens.space3,
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space8,
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space6 : AaraagateTokens.space8,
           ),
           children: [
             if (societyLogoBytes != null) ...[
@@ -120,60 +122,67 @@ class HomeScreen extends StatelessWidget {
                 summary: _assistantSummary(pending, highlights),
                 onTap: () => onOpenAi(_assistantPrompt(pending, highlights)),
               ),
-              const SizedBox(height: AaraagateTokens.space5),
+              SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             ],
             if (hasQuickActions) ...[
               const PremiumSectionHeader(
                 title: 'Quick actions',
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final scale = MediaQuery.textScalerOf(context).scale(1);
-                  final columns = constraints.maxWidth >= 720 && scale < 1.3
+                  final compactGrid = residentCompactHomeQuickActionColumns(
+                    maxWidth: constraints.maxWidth,
+                    textScale: scale,
+                  ) == 4;
+                  final columns = compactGrid
                       ? 4
-                      : residentQuickActionColumns(maxWidth: constraints.maxWidth, textScale: scale);
-                  const gap = AaraagateTokens.space3;
+                      : constraints.maxWidth >= 720 && scale < 1.3
+                          ? 4
+                          : residentQuickActionColumns(maxWidth: constraints.maxWidth, textScale: scale);
+                  final gap = compactGrid ? AaraagateTokens.space2 : AaraagateTokens.space3;
                   final itemWidth = (constraints.maxWidth - gap * (columns - 1)) / columns;
                   return Wrap(
+                    key: const ValueKey('home-quick-actions'),
                     spacing: gap,
                     runSpacing: gap,
                     children: [
                       if (showStaff)
                         SizedBox(
                           width: itemWidth,
-                          child: PremiumQuickAction(
+                          child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.badge_outlined,
                             label: 'Staff',
                             onTap: onOpenStaff,
-                          ),
+                          ) : PremiumQuickAction(icon: Icons.badge_outlined, label: 'Staff', onTap: onOpenStaff),
                         ),
                       if (showBilling)
                         SizedBox(
                           width: itemWidth,
-                          child: PremiumQuickAction(
+                          child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.receipt_long_outlined,
                             label: 'Billing',
                             onTap: onOpenBilling,
-                          ),
+                          ) : PremiumQuickAction(icon: Icons.receipt_long_outlined, label: 'Billing', onTap: onOpenBilling),
                         ),
                       if (showAmenities)
                         SizedBox(
                           width: itemWidth,
-                          child: PremiumQuickAction(
+                          child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.sports_tennis_rounded,
                             label: 'Amenities',
                             onTap: onOpenAmenities,
-                          ),
+                          ) : PremiumQuickAction(icon: Icons.sports_tennis_rounded, label: 'Amenities', onTap: onOpenAmenities),
                         ),
                       if (showHelpdesk)
                         SizedBox(
                           width: itemWidth,
-                          child: PremiumQuickAction(
+                          child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.support_agent_rounded,
                             label: 'Helpdesk',
                             onTap: onOpenHelpdesk,
-                          ),
+                          ) : PremiumQuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk),
                         ),
                     ],
                   );
@@ -190,7 +199,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
             if (showGate || highlights.isNotEmpty) ...[
-              const SizedBox(height: AaraagateTokens.space6),
+              SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               Semantics(
                 container: true,
                 liveRegion: true,
@@ -202,7 +211,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               if (showGate && controller.loading && controller.accessRequests.isEmpty)
                 const AppStateCard(
                   icon: Icons.sync_rounded,
@@ -230,7 +239,7 @@ class HomeScreen extends StatelessWidget {
               else if (showGate && highlights.isEmpty)
                 const _AllClearCard(),
               if (showGate && pending != null && highlights.isNotEmpty)
-                const SizedBox(height: AaraagateTokens.space3),
+                SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               for (var i = 0; i < highlights.length; i++) ...[
                 _HomeSummaryRow(
                   icon: _highlightIcon(highlights[i].kind),
@@ -256,11 +265,13 @@ class HomeScreen extends StatelessWidget {
                   },
                 ),
                 if (i < highlights.length - 1)
-                  const SizedBox(height: AaraagateTokens.space2),
+                  SizedBox(height: compact ? AaraagateTokens.space1 : AaraagateTokens.space2),
               ],
             ],
-            if (showNotices) ...[
-              const SizedBox(height: AaraagateTokens.space6),
+            // Empty Community and Gate history remain available in their tabs:
+            // do not repeat large placeholder panels on the resident dashboard.
+            if (showNotices && controller.notices.isNotEmpty) ...[
+              SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               PremiumSectionHeader(
                 title: 'Community',
                 supportingText: controller.notices.isEmpty
@@ -271,20 +282,14 @@ class HomeScreen extends StatelessWidget {
                   child: const Text('See all'),
                 ),
               ),
-              const SizedBox(height: AaraagateTokens.space3),
-              if (controller.notices.isEmpty)
-                const AppStateCard(
-                  icon: Icons.campaign_outlined,
-                  message: 'No community updates right now.',
-                )
-              else
-                _CommunityPreview(
-                  notice: controller.notices.first,
-                  onTap: onOpenNotices,
-                ),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
+              _CommunityPreview(
+                notice: controller.notices.first,
+                onTap: onOpenNotices,
+              ),
             ],
             if (showSos) ...[
-              const SizedBox(height: AaraagateTokens.space5),
+              SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => SosScreen(controller: controller)),
@@ -293,17 +298,11 @@ class HomeScreen extends StatelessWidget {
                 label: const Text('Emergency SOS'),
               ),
             ],
-            if (showGate) ...[
-              const SizedBox(height: AaraagateTokens.space6),
+            if (showGate && controller.accessRequests.isNotEmpty) ...[
+              SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               const PremiumSectionHeader(title: 'Recent gate activity'),
-              const SizedBox(height: AaraagateTokens.space3),
-              if (controller.accessRequests.isEmpty)
-                const AppStateCard(
-                  icon: Icons.shield_outlined,
-                  message: 'No access activity yet. New entries will appear here.',
-                )
-              else
-                PremiumSurface(
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
+              PremiumSurface(
                   padding: EdgeInsets.zero,
                   color: theme.colorScheme.surface,
                   child: Column(
@@ -400,6 +399,48 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+// Compact dashboard-only layout. Shared PremiumQuickAction remains unchanged.
+class _CompactHomeQuickAction extends StatelessWidget {
+  const _CompactHomeQuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: label,
+      color: scheme.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AaraagateTokens.space1,
+        vertical: AaraagateTokens.space2,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 22, color: scheme.primary),
+          const SizedBox(height: AaraagateTokens.space1),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AssistantEntryCard extends StatelessWidget {
   const _AssistantEntryCard({required this.onTap, required this.summary});
 
@@ -410,33 +451,38 @@ class _AssistantEntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: 'Open Aaraagate Assistant',
+      semanticLabel: 'Open Aaraagate Assistant. $summary',
       color: scheme.surfaceContainerLow,
-      padding: const EdgeInsets.all(AaraagateTokens.space4),
+      padding: compact
+          ? const EdgeInsets.symmetric(horizontal: AaraagateTokens.space3, vertical: AaraagateTokens.space2)
+          : const EdgeInsets.all(AaraagateTokens.space4),
       child: Row(
         children: [
           if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
             Container(
-              width: 48,
-              height: 48,
+              width: compact ? 34 : 48,
+              height: compact ? 34 : 48,
               decoration: BoxDecoration(
                 color: scheme.primary,
                 borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
               ),
               child: Icon(Icons.auto_awesome_rounded, color: scheme.onPrimary),
             ),
-            const SizedBox(width: AaraagateTokens.space4),
+            SizedBox(width: compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
           ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Ask Aaraagate Assistant', style: theme.textTheme.titleMedium),
+                Text('Ask Aaraagate Assistant', style: compact ? theme.textTheme.titleSmall : theme.textTheme.titleMedium),
                 const SizedBox(height: AaraagateTokens.space1),
                 Text(
                   summary,
+                  maxLines: compact ? 1 : null,
+                  overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
                   style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ],
@@ -496,6 +542,7 @@ class _PendingAccessCardState extends State<_PendingAccessCard> {
     final name = widget.pending['subjectName']?.toString() ?? 'Visitor';
     final type = _displayLabel(widget.pending['subjectType']?.toString() ?? 'VISITOR');
     final purpose = widget.pending['purpose']?.toString();
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return Semantics(
       container: true,
@@ -503,7 +550,7 @@ class _PendingAccessCardState extends State<_PendingAccessCard> {
       child: PremiumSurface(
         elevated: true,
         color: scheme.surface,
-        padding: const EdgeInsets.all(AaraagateTokens.space5),
+        padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -520,7 +567,7 @@ class _PendingAccessCardState extends State<_PendingAccessCard> {
                 style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
               ),
             ],
-            const SizedBox(height: AaraagateTokens.space5),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             PremiumActionGroup(
               inlineMinWidth: 300,
               primary: FilledButton(
@@ -549,6 +596,10 @@ class _AllClearCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return PremiumSurface(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AaraagateTokens.space3,
+        vertical: AaraagateTokens.space2,
+      ),
       child: Row(
         children: [
           Icon(Icons.check_circle_rounded, color: scheme.primary),
@@ -572,18 +623,19 @@ class _CommunityPreview extends StatelessWidget {
     final scheme = theme.colorScheme;
     final title = notice['title']?.toString() ?? 'Community update';
     final body = notice['body']?.toString() ?? '';
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return PremiumSurface(
       onTap: onTap,
       semanticLabel: title,
       color: scheme.surface,
-      padding: const EdgeInsets.all(AaraagateTokens.space4),
+      padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: compact ? 36 : 42,
+            height: compact ? 36 : 42,
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
               borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
@@ -641,18 +693,22 @@ class _HomeSummaryRow extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final urgencyLabel = urgency == ResidentHomeUrgency.immediate ? 'Act now' : urgency == ResidentHomeUrgency.soon ? 'Soon' : 'Info';
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return PremiumSurface(
       onTap: onTap,
       semanticLabel: '$urgencyLabel. $title. $subtitle. $actionLabel',
       color: scheme.surface,
-      padding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space3),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? AaraagateTokens.space3 : AaraagateTokens.space4,
+        vertical: compact ? AaraagateTokens.space2 : AaraagateTokens.space3,
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: compact ? 36 : 42,
+              height: compact ? 36 : 42,
               decoration: BoxDecoration(
                 color: scheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
@@ -676,8 +732,10 @@ class _HomeSummaryRow extends StatelessWidget {
                     subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
-                  const SizedBox(height: AaraagateTokens.space2),
-                  Text(actionLabel, style: theme.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                  if (!compact) ...[
+                    const SizedBox(height: AaraagateTokens.space2),
+                    Text(actionLabel, style: theme.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                  ],
                 ],
               ),
             ),

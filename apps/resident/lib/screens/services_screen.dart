@@ -427,19 +427,25 @@ class _ServicesScreenState extends State<ServicesScreen> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final groups = _serviceGroups;
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space4, AaraagateTokens.pageGutter, AaraagateTokens.space8),
+          padding: EdgeInsets.fromLTRB(
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space3 : AaraagateTokens.space4,
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space6 : AaraagateTokens.space8,
+          ),
           children: [
             const PremiumPageIntro(
               icon: Icons.home_repair_service_outlined,
               title: 'Home services',
               supportingText: 'Compare verified professionals and choose who works for you.',
             ),
-            const SizedBox(height: AaraagateTokens.space4),
+            SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space4),
             PremiumSurface(
               elevated: true,
               onTap: () => Navigator.of(context).push(
@@ -451,14 +457,14 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 ),
               ),
               semanticLabel: 'Insta Services, find trusted local professionals near your selected property',
-              padding: const EdgeInsets.all(AaraagateTokens.space4),
+              padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
                     Container(
-                      width: AaraagateTokens.iconContainer,
-                      height: AaraagateTokens.iconContainer,
+                      width: compact ? 40 : AaraagateTokens.iconContainer,
+                      height: compact ? 40 : AaraagateTokens.iconContainer,
                       decoration: BoxDecoration(
                         color: scheme.tertiaryContainer,
                         borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
@@ -488,7 +494,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: AaraagateTokens.space5),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             TextField(
               controller: _searchController,
               onChanged: (value) => setState(() => _query = value),
@@ -507,7 +513,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                       ),
               ),
             ),
-            const SizedBox(height: AaraagateTokens.space6),
+            SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
             if (controller.loading && controller.serviceCategories.isEmpty)
               const AppStateCard(icon: Icons.sync_rounded, message: 'Loading home services…', loading: true)
             else if (controller.servicesError != null)
@@ -519,7 +525,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
               )
             else ...[
               const PremiumSectionHeader(title: 'Categories'),
-              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               if (controller.serviceCategories.isEmpty)
                 const AppStateCard(icon: Icons.category_outlined, message: 'No service categories are available yet.')
               else
@@ -536,12 +542,12 @@ class _ServicesScreenState extends State<ServicesScreen> {
                       ),
                   ],
                 ),
-              const SizedBox(height: AaraagateTokens.space6),
+              SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               PremiumSectionHeader(
                 title: 'Available services',
                 supportingText: groups.isEmpty ? 'Browse society-approved providers for the selected property.' : '${groups.length} service${groups.length == 1 ? '' : 's'} match your current filters.',
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               if (controller.serviceOfferings.isEmpty)
                 const AppStateCard(icon: Icons.home_repair_service_outlined, message: 'No approved provider offerings are available yet.')
               else if (groups.isEmpty)
@@ -552,11 +558,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   final minPrice = offerings.map((item) => item.pricePaise).reduce((a, b) => a < b ? a : b);
                   final count = offerings.length;
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
+                    padding: EdgeInsets.only(bottom: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
                     child: PremiumSurface(
                       onTap: _busy ? null : () => _chooseProvider(offerings),
                       semanticLabel: '${first.name}, $count verified provider${count == 1 ? '' : 's'}, from ${_price(minPrice)}',
-                      padding: const EdgeInsets.all(AaraagateTokens.space4),
+                      padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -588,13 +594,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     ),
                   );
                 }),
-              const SizedBox(height: AaraagateTokens.space6),
+              SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               PremiumSectionHeader(
                 title: 'Your bookings',
                 supportingText: controller.bookings.isEmpty ? 'Requested and confirmed services will appear here.' : 'Track provider confirmation, gate access and completion status.',
                 trailing: AaraagateStatusPill(label: '${controller.bookings.length}', tone: AaraagateStatusTone.neutral),
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               if (controller.bookings.isEmpty)
                 const AppStateCard(icon: Icons.event_available_outlined, message: 'You have no service bookings yet.')
               else
@@ -603,9 +609,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   final cancellable = status == 'REQUESTED' || status == 'CONFIRMED';
                   final rateable = status == 'COMPLETED' && booking['rating'] == null;
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
+                    padding: EdgeInsets.only(bottom: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
                     child: PremiumSurface(
-                      padding: const EdgeInsets.all(AaraagateTokens.space4),
+                      padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -623,7 +629,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                           Text('Scheduled ${_dateTime(booking['scheduledFrom'])}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                           const SizedBox(height: AaraagateTokens.space2),
                           Text(_statusMessage(booking), style: theme.textTheme.bodyMedium),
-                          const SizedBox(height: AaraagateTokens.space3),
+                          SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
                           Wrap(
                             spacing: AaraagateTokens.space2,
                             runSpacing: AaraagateTokens.space2,

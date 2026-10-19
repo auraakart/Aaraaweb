@@ -174,7 +174,14 @@ class _GuardParcelsScreenState extends State<GuardParcelsScreen> {
 }
 
 class _ParcelDeskCard extends StatelessWidget {
-  const _ParcelDeskCard({required this.parcel, required this.busy, required this.onVerify, required this.onRemind, required this.onReturn});
+  const _ParcelDeskCard({
+    required this.parcel,
+    required this.busy,
+    required this.onVerify,
+    required this.onRemind,
+    required this.onReturn,
+  });
+
   final GuardParcel parcel;
   final bool busy;
   final VoidCallback onVerify;
@@ -185,29 +192,89 @@ class _ParcelDeskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final overdue = parcel.overdue;
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final identity = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(child: Icon(overdue ? Icons.warning_amber_rounded : Icons.inventory_2_outlined)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${parcel.unitNumber} · ${parcel.recipientName}',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              Text(parcel.courierName ?? 'Courier not specified'),
+              if (parcel.trackingReference != null)
+                Text(parcel.trackingReference!, style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+        if (overdue && !largeText) ...[
+          const SizedBox(width: 8),
+          const Chip(label: Text('OVERDUE')),
+        ],
+      ],
+    );
+    final remind = OutlinedButton.icon(
+      onPressed: busy ? null : onRemind,
+      icon: const Icon(Icons.notifications_active_outlined),
+      label: const Text('Remind'),
+    );
+    final returnAction = OutlinedButton.icon(
+      onPressed: busy ? null : onReturn,
+      icon: const Icon(Icons.keyboard_return_rounded),
+      label: const Text('Return'),
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            CircleAvatar(child: Icon(overdue ? Icons.warning_amber_rounded : Icons.inventory_2_outlined)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${parcel.unitNumber} · ${parcel.recipientName}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-              Text(parcel.courierName ?? 'Courier not specified'),
-              if (parcel.trackingReference != null) Text(parcel.trackingReference!, style: theme.textTheme.bodySmall),
-            ])),
-            if (overdue) const Chip(label: Text('OVERDUE')),
-          ]),
-          const SizedBox(height: 14),
-          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : onVerify, icon: const Icon(Icons.pin_outlined), label: const Text('VERIFY PICKUP CODE'))),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: busy ? null : onRemind, icon: const Icon(Icons.notifications_active_outlined), label: const Text('Remind'))),
-            const SizedBox(width: 8),
-            Expanded(child: OutlinedButton.icon(onPressed: busy ? null : onReturn, icon: const Icon(Icons.keyboard_return_rounded), label: const Text('Return'))),
-          ]),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            identity,
+            if (overdue && largeText) ...[
+              const SizedBox(height: 8),
+              const Chip(label: Text('OVERDUE')),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: largeText
+                  ? FilledButton(
+                      onPressed: busy ? null : onVerify,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.pin_outlined),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text('VERIFY PICKUP CODE', style: theme.textTheme.labelLarge)),
+                        ],
+                      ),
+                    )
+                  : FilledButton.icon(
+                      onPressed: busy ? null : onVerify,
+                      icon: const Icon(Icons.pin_outlined),
+                      label: const Text('VERIFY PICKUP CODE'),
+                    ),
+            ),
+            const SizedBox(height: 8),
+            if (largeText) ...[
+              SizedBox(width: double.infinity, child: remind),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: returnAction),
+            ] else
+              Row(
+                children: [
+                  Expanded(child: remind),
+                  const SizedBox(width: 8),
+                  Expanded(child: returnAction),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -265,6 +332,9 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final selected = widget.recipients.firstWhere((row) => _keyFor(row) == _key);
+    final recipientLabel = '${selected.buildingLabel} · ${selected.unitNumber} · ${selected.name}';
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -280,6 +350,15 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
           )).toList(),
           onChanged: (value) { if (value != null) setState(() => _key = value); },
         ),
+        if (largeText) ...[
+          const SizedBox(height: 8),
+          Text('Selected resident & unit', style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            recipientLabel,
+            key: const ValueKey('parcel-selected-recipient'),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
         const SizedBox(height: 12),
         TextField(controller: _courier, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Courier / provider', prefixIcon: Icon(Icons.local_shipping_outlined))),
         const SizedBox(height: 12),
@@ -287,7 +366,26 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
         const SizedBox(height: 12),
         TextField(controller: _notes, maxLines: 2, decoration: const InputDecoration(labelText: 'Notes', prefixIcon: Icon(Icons.notes_rounded))),
         const SizedBox(height: 20),
-        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _submit, icon: const Icon(Icons.notifications_active_outlined), label: const Text('Receive & notify resident'))),
+        SizedBox(
+          key: const ValueKey('parcel-intake-submit'),
+          width: double.infinity,
+          child: largeText
+              ? FilledButton(
+                  onPressed: _submit,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.notifications_active_outlined),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Receive & notify resident')),
+                    ],
+                  ),
+                )
+              : FilledButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.notifications_active_outlined),
+                  label: const Text('Receive & notify resident'),
+                ),
+        ),
       ]),
     );
   }

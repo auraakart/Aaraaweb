@@ -8,6 +8,7 @@ import '../widgets/guard_state_card.dart';
 import '../widgets/guard_operation_ui.dart';
 
 part 'guard_operations_components.dart';
+part 'guard_shift_summary.dart';
 
 class GuardOperationsScreen extends StatefulWidget {
   const GuardOperationsScreen({super.key, required this.controller, this.societyLogoBytes, this.societyDisplayName});
@@ -169,22 +170,11 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
             children: [
-              GuardOperationSurface(
-                semanticLabel: gateReady ? 'Security shift active at ${c.gateName ?? 'selected gate'}' : 'No active gate selected',
-                child: Row(children: [
-                  Container(width: 52, height: 52, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.security_rounded, color: scheme.onPrimaryContainer, size: 28)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(strings.get('securityShiftActive'), style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 2),
-                    Text(c.gateName ?? strings.get('selectGateBegin'), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                  ])),
-                  GuardStatusPill(label: gateReady ? 'READY' : 'SELECT GATE', tone: gateReady ? GuardStatusTone.ready : GuardStatusTone.waiting),
-                ]),
-              ),
+              _GuardShiftSummary(controller: c, strings: strings),
               const SizedBox(height: AaraagateGuardTokens.space2),
               if (!gateReady)
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: c.gateId,
                   decoration: InputDecoration(
                     labelText: strings.get('activeGate'),
@@ -194,7 +184,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                       .map(
                         (gate) => DropdownMenuItem(
                           value: gate['id']?.toString(),
-                          child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()),
+                          child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString(), overflow: TextOverflow.ellipsis),
                         ),
                       )
                       .toList(),
@@ -214,6 +204,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                   subtitle: Text(c.gateName ?? strings.get('activeGate')),
                   children: [
                     DropdownButtonFormField<String>(
+                  isExpanded: true,
                       initialValue: c.gateId,
                       decoration: InputDecoration(
                         labelText: strings.get('activeGate'),
@@ -223,7 +214,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                           .map(
                             (gate) => DropdownMenuItem(
                               value: gate['id']?.toString(),
-                              child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()),
+                              child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString(), overflow: TextOverflow.ellipsis),
                             ),
                           )
                           .toList(),

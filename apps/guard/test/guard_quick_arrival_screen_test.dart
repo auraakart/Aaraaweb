@@ -62,6 +62,40 @@ void main(){
     expect(submit.onPressed,isNotNull);
   });
 
+
+  for (final dark in <bool>[false, true]) {
+    testWidgets('quick arrival keeps selector and destination operable at 320dp 200% text: dark=$dark', (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final c = controller();
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(brightness: dark ? Brightness.dark : Brightness.light),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: GuardQuickArrivalScreen(controller: c, recentStore: _MemoryRecentStore([])),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final selector = tester.widget<SegmentedButton<String>>(find.byType(SegmentedButton<String>));
+      expect(selector.showSelectedIcon, isFalse);
+      await tester.tap(find.text('Cab'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<SegmentedButton<String>>(find.byType(SegmentedButton<String>)).selected, {'CAB'});
+      await tester.scrollUntilVisible(find.text('Alpha · A-101'), 220, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Alpha · A-101'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Change destination'), findsOneWidget);
+      await tester.tap(find.byTooltip('Change destination'));
+      await tester.pumpAndSettle();
+      expect(find.text('Alpha · A-101'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('repeat arrival restores destination and provider in one tap',(tester)async{
     final c=controller();
     final store=_MemoryRecentStore([

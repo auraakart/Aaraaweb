@@ -466,4 +466,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+
+  for (final dark in <bool>[false, true]) {
+    testWidgets('premium compact Gate uses adaptive gutters without shrinking decisions: dark=$dark', (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      for (final scale in <double>[1, 2]) {
+        final controller = ResidentDataController(
+          ResidentRepository(ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test')),
+          fetchEntitlements: false,
+        )..accessRequests = [
+          {
+            'id': 'delivery-compact',
+            'subjectType': 'DELIVERY',
+            'subjectName': 'Delivery partner',
+            'status': 'PENDING',
+          },
+        ];
+        await tester.pumpWidget(MaterialApp(
+          theme: dark ? ThemeData.dark() : ThemeData.light(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(scale),
+              disableAnimations: true,
+            ),
+            child: child!,
+          ),
+          home: Scaffold(body: GateScreen(controller: controller)),
+        ));
+        await tester.pumpAndSettle();
+
+        final pagePadding = tester.widget<ListView>(find.byType(ListView).first).padding! as EdgeInsets;
+        expect(pagePadding.left, scale == 1 ? 16 : 20);
+        expect(pagePadding.top, scale == 1 ? 12 : 16);
+        expect(find.byTooltip('Create visitor QR pass'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('Allow entry'),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(FilledButton, 'Allow entry').hitTestable(), findsOneWidget);
+        expect(find.widgetWithText(OutlinedButton, 'Deny').hitTestable(), findsOneWidget);
+        expect(
+          tester.getSize(find.widgetWithText(FilledButton, 'Allow entry')).height,
+          greaterThanOrEqualTo(48),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+        controller.dispose();
+      }
+    });
+  }
 }

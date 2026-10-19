@@ -38,6 +38,7 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     final household = controller.activeHousehold;
     final householdId = household?['id']?.toString();
     final demo = householdId?.startsWith('demo-') == true;
@@ -60,11 +61,11 @@ class ProfileScreen extends StatelessWidget {
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space4,
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space8,
+          padding: EdgeInsets.fromLTRB(
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space3 : AaraagateTokens.space4,
+            compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter,
+            compact ? AaraagateTokens.space6 : AaraagateTokens.space8,
           ),
           children: [
             PremiumPageIntro(
@@ -80,7 +81,7 @@ class ProfileScreen extends StatelessWidget {
                     )
                   : null,
             ),
-            const SizedBox(height: AaraagateTokens.space5),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             if (controller.loading && household == null)
               const Center(child: Padding(padding: EdgeInsets.all(AaraagateTokens.space6), child: CircularProgressIndicator()))
             else if (controller.householdError != null)
@@ -96,9 +97,9 @@ class ProfileScreen extends StatelessWidget {
                   supportingText: _unitLabel(household),
                 ),
               ),
-              const SizedBox(height: AaraagateTokens.space6),
+              SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               const PremiumSectionHeader(title: 'Your household', supportingText: 'People, vehicles and property lifecycle for the selected home.'),
-              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               PremiumSurface(
                 padding: EdgeInsets.zero,
                 child: Column(children: [
@@ -145,9 +146,9 @@ class ProfileScreen extends StatelessWidget {
                 ]),
               ),
             ],
-            const SizedBox(height: AaraagateTokens.space6),
+            SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
             const PremiumSectionHeader(title: 'Settings', supportingText: 'Device preferences, privacy and account access.'),
-            const SizedBox(height: AaraagateTokens.space3),
+            SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
             PremiumSurface(
               padding: EdgeInsets.zero,
               child: Column(children: [
@@ -164,7 +165,7 @@ class ProfileScreen extends StatelessWidget {
                 const _ProfileTile(icon: Icons.language_rounded, title: 'Language', subtitle: 'English · voice actions support 8 Indian languages'),
                 Divider(height: 1, color: scheme.outlineVariant),
                 SwitchListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space1),
+                  contentPadding: EdgeInsets.symmetric(horizontal: compact ? AaraagateTokens.space3 : AaraagateTokens.space4, vertical: compact ? 0 : AaraagateTokens.space1),
                   secondary: const Icon(Icons.accessibility_new_rounded),
                   title: const Text('Easy mode', style: TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: const Text('Larger text and navigation controls on this device. All features remain available.'),
@@ -330,9 +331,10 @@ class _ProfileTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return ListTile(
       minTileHeight: AaraagateTokens.minTouchTarget,
-      contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space1),
+      contentPadding: EdgeInsets.symmetric(horizontal: compact ? AaraagateTokens.space3 : AaraagateTokens.space4, vertical: compact ? 0 : AaraagateTokens.space1),
       enabled: enabled,
       leading: Icon(icon, color: iconColor),
       title: Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: titleColor)),

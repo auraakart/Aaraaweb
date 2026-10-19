@@ -227,6 +227,7 @@ class _BillingScreenState extends State<BillingScreen> {
     final recoveryPayments = payments.where((payment) { final status = payment['status']?.toString(); return status == 'CREATED' || status == 'AUTHORIZED' || status == 'FAILED'; }).toList();
     final completedPayments = payments.where((payment) => payment['status'] == 'CAPTURED' || payment['status'] == 'REFUNDED').toList();
     outstanding.sort((a, b) => (DateTime.tryParse(a['dueDate']?.toString() ?? '') ?? DateTime(9999)).compareTo(DateTime.tryParse(b['dueDate']?.toString() ?? '') ?? DateTime(9999)));
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Maintenance & payments')),
@@ -234,7 +235,7 @@ class _BillingScreenState extends State<BillingScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space3, AaraagateTokens.pageGutter, AaraagateTokens.space8),
+          padding: EdgeInsets.fromLTRB(compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter, AaraagateTokens.space3, compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter, compact ? AaraagateTokens.space6 : AaraagateTokens.space8),
           children: [
             if (loading)
               const AppStateCard(icon: Icons.sync_rounded, message: 'Loading billing and payment details…', loading: true)
@@ -254,7 +255,7 @@ class _BillingScreenState extends State<BillingScreen> {
                     : () => _preparePayment(outstanding.first),
               ),
               if (outstanding.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space5),
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 PremiumSectionHeader(
                   title: 'Outstanding',
                   supportingText: '${outstanding.length} bill${outstanding.length == 1 ? '' : 's'} waiting for payment.',
@@ -265,7 +266,7 @@ class _BillingScreenState extends State<BillingScreen> {
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
               ] else ...[
-                const SizedBox(height: AaraagateTokens.space5),
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding dues.'),
               ],
               if (widget.activeUnitId != null && widget.activeUnitId!.isNotEmpty) ...[
@@ -278,7 +279,7 @@ class _BillingScreenState extends State<BillingScreen> {
                 ),
               ],
               if (recoveryPayments.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space5),
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 const PremiumSectionHeader(
                   title: 'Payment activity',
                   supportingText: 'Pending and failed attempts remain visible until the gateway confirms the final state.',
@@ -289,7 +290,7 @@ class _BillingScreenState extends State<BillingScreen> {
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
               ],
-              const SizedBox(height: AaraagateTokens.space5),
+              SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
               PremiumSectionHeader(
                 title: 'Payment history',
                 supportingText: completedPayments.isEmpty ? 'Verified payments will appear here.' : 'Receipts are available for completed payments.',
@@ -303,7 +304,7 @@ class _BillingScreenState extends State<BillingScreen> {
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
               if (utilityCharges.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space5),
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 PremiumSectionHeader(
                   title: 'Utility usage',
                   supportingText: 'Issued meter-based charges for this property.',
@@ -316,11 +317,11 @@ class _BillingScreenState extends State<BillingScreen> {
                 ],
               ],
               if (utilityInsights != null) ...[
-                const SizedBox(height: AaraagateTokens.space5),
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 _UtilityAttentionCard(insights: utilityInsights!),
               ],
               if (utilityUsage.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space5),
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 const PremiumSectionHeader(
                   title: 'Recent meter readings',
                   supportingText: 'Consumption is derived from recorded readings; reset/replacement boundaries are not treated as normal usage.',
@@ -481,11 +482,12 @@ class _SummaryCard extends StatelessWidget {
         : const <String, dynamic>{};
     final overdue = overdueCount > 0;
     final overdueAmountLabel = 'Overdue ${_money(overduePaise)}';
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return PremiumSurface(
       elevated: true,
       color: scheme.surface,
-      padding: const EdgeInsets.all(AaraagateTokens.space5),
+      padding: EdgeInsets.all(compact ? AaraagateTokens.space4 : AaraagateTokens.space5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -537,7 +539,7 @@ class _SummaryCard extends StatelessWidget {
             ),
           ],
           if (nextInvoice != null && onPayNext != null) ...[
-            const SizedBox(height: AaraagateTokens.space4),
+            SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -712,9 +714,11 @@ class _InvoiceCard extends StatelessWidget {
     final due = DateTime.tryParse(invoice['dueDate']?.toString() ?? '');
     final overdue = due != null && _isOverdueDate(due, DateTime.now());
     final description = invoice['description']?.toString() ?? '';
+    final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
 
     return PremiumSurface(
       color: scheme.surface,
+      padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         PremiumSectionHeader(
           title: '${invoice['buildingName'] ?? 'Building'} · ${invoice['unitNumber'] ?? 'Unit'}',
@@ -731,7 +735,7 @@ class _InvoiceCard extends StatelessWidget {
           const SizedBox(height: AaraagateTokens.space2),
           Text(description, style: theme.textTheme.bodyMedium),
         ],
-        const SizedBox(height: AaraagateTokens.space4),
+        SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
         SizedBox(
           width: double.infinity,
           child: FilledButton(
