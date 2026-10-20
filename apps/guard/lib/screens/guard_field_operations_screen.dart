@@ -34,7 +34,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   @override Widget build(BuildContext context){
     final strings = GuardStrings(widget.controller.languageCode);
     return Scaffold(appBar:AppBar(title:Text(strings.get('fieldOperations')),actions:[IconButton(tooltip:strings.get('fieldRefresh'),onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
-      if(error!=null)GuardFieldRecoveryNotice(message:error!,onRefresh:busy?null:load),
+      if(error!=null)GuardFieldRecoveryNotice(message:error!,onRefresh:busy?null:load,refreshLabel:strings.get('fieldRefreshStatus')),
       _attentionNow(),const SizedBox(height:12),_metrics(),const SizedBox(height:18),
       _heading(strings.get('fieldOverstays'),Icons.timer_outlined),...overstays.take(20).map((x) => GuardFieldActionCard(
         icon: Icons.schedule_rounded,
@@ -108,7 +108,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
       semanticLabel: urgent==0?'Gate attention queue is clear':'$urgent gate attention items',
       color: urgent==0?scheme.primaryContainer.withValues(alpha: .28):scheme.errorContainer.withValues(alpha: .40),
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        GuardFieldAttentionHeader(urgent: urgent),
+        GuardFieldAttentionHeader(urgent: urgent,attentionLabel:GuardStrings(widget.controller.languageCode).get('fieldAttentionNow'),clearLabel:GuardStrings(widget.controller.languageCode).get('fieldAttentionClear')),
         const SizedBox(height:8),
         Text(urgent==0?'No overstays, ageing resident approvals, active deny-watchlist records, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
         const SizedBox(height:6),Text('Operating mode: ${operatingMode.replaceAll('_',' ')} · advisory only',style:theme.textTheme.labelMedium?.copyWith(fontWeight:FontWeight.w800)),

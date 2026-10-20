@@ -145,3 +145,11 @@ The first five new tests failed (12 existing Gate cases passed) because test ass
 
 ### CI correction for PR #1498
 The first changed-widget run failed only the new light/dark test assertions: Home correctly renders the same pending visitor in the Action Inbox **and** the separate Recent gate activity row, so `find.text('Waiting visitor')` finds two widgets. The no-pending/error regression and existing Home tests passed. Replace the incorrect exact-one text assertion with a presence assertion while retaining explicit Allow/Deny, refresh-warning and no-false-all-clear checks. Do not remove either user-visible record or change production code to satisfy a brittle test. Require a fresh green CI run for this corrected head; the failed artifact upload was downstream of the failed test step.
+
+## Slice V4.99.3.5h — Guard attention and safe-refresh control localization
+
+**Observed source gap:** Guard Field Operations sections and metrics now use eight language vocabularies, but the primary attention heading and the recovery button remained in English. They are prominent during incidents and uncertain action outcomes, and their mismatch undermines comprehension.
+
+**Change:** use the existing Guard language preference for just three short presentation strings: `fieldAttentionNow`, `fieldAttentionClear` and `fieldRefreshStatus`. Extend `GuardFieldAttentionHeader` and `GuardFieldRecoveryNotice` with optional localized labels, retaining existing English defaults so all other call sites keep identical behavior. The status badge, authoritative `load()` recovery only, mutation suppression, operational incident instruction copy, pending commands, network/API, permissions and brand semantics are unchanged. Native-speaker review is required before declaring safety-language acceptance.
+
+**Tests:** completeness checks cover three new keys across eight languages. Targeted widgets verify an attention state and a clear state, translated safe refresh button, 320dp/light and dark, Hindi/Tamil at 200% text, disabled action and no rendering exceptions. Preserve existing Guard recovery/attention and full guarded CI before develop integration. Never auto-retry a gate mutation; never interpret this as a full-screen translation or real-device TalkBack validation.

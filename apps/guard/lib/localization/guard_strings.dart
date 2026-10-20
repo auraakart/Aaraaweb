@@ -23,6 +23,9 @@ class GuardStrings {
 
   static const _values = <String, Map<String, String>>{
     'en': {
+      'fieldAttentionNow':'Attention now',
+      'fieldAttentionClear':'Attention queue clear',
+      'fieldRefreshStatus':'Refresh status',
       'fieldOpenPasses':'Open passes',
       'fieldCheckpoints':'Checkpoints',
       'fieldRefresh':'Refresh field operations',
@@ -48,6 +51,9 @@ class GuardStrings {
       'voiceWaitingApproval':'Waiting for resident approval.'
     },
     'hi': {
+      'fieldAttentionNow':'अभी ध्यान दें',
+      'fieldAttentionClear':'ध्यान देने योग्य कोई काम नहीं',
+      'fieldRefreshStatus':'स्थिति फिर देखें',
       'fieldOpenPasses':'खुले पास',
       'fieldCheckpoints':'जाँच बिंदु',
       'fieldRefresh':'गेट कार्य स्थिति फिर देखें',
@@ -72,6 +78,9 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंज़ूर है। अंदर जाने दें।','voiceAccessBlocked':'प्रवेश मंज़ूर नहीं है। अंदर न जाने दें।','voiceWaitingApproval':'निवासी की मंज़ूरी की प्रतीक्षा है।'
     },
     'ta': {
+      'fieldAttentionNow':'உடனடி கவனம்',
+      'fieldAttentionClear':'கவனிக்க வேண்டியவை இல்லை',
+      'fieldRefreshStatus':'நிலையைப் புதுப்பிக்கவும்',
       'fieldOpenPasses':'நிலுவைப் பாஸ்கள்',
       'fieldCheckpoints':'சோதனை இடங்கள்',
       'fieldRefresh':'கள செயல்பாடுகளைப் புதுப்பிக்கவும்',
@@ -96,6 +105,9 @@ class GuardStrings {
       'voiceAccessApproved':'அனுமதி வழங்கப்பட்டது. உள்ளே விடலாம்.','voiceAccessBlocked':'அனுமதி இல்லை. உள்ளே விட வேண்டாம்.','voiceWaitingApproval':'குடியிருப்பாளர் அனுமதிக்காக காத்திருக்கிறது.'
     },
     'te': {
+      'fieldAttentionNow':'ఇప్పుడే దృష్టి పెట్టండి',
+      'fieldAttentionClear':'శ్రద్ధ అవసరమైనవి లేవు',
+      'fieldRefreshStatus':'స్థితిని రిఫ్రెష్ చేయండి',
       'fieldOpenPasses':'తెరిచి ఉన్న పాస్‌లు',
       'fieldCheckpoints':'తనిఖీ కేంద్రాలు',
       'fieldRefresh':'ఫీల్డ్ ఆపరేషన్స్‌ను రిఫ్రెష్ చేయండి',
@@ -120,6 +132,9 @@ class GuardStrings {
       'voiceAccessApproved':'ప్రవేశం అనుమతించబడింది. లోపలికి పంపండి.','voiceAccessBlocked':'ప్రవేశానికి అనుమతి లేదు. లోపలికి పంపవద్దు.','voiceWaitingApproval':'నివాసి అనుమతి కోసం వేచి ఉంది.'
     },
     'kn': {
+      'fieldAttentionNow':'ಈಗ ಗಮನಿಸಿ',
+      'fieldAttentionClear':'ಗಮನಿಸಬೇಕಾದವುಗಳಿಲ್ಲ',
+      'fieldRefreshStatus':'ಸ್ಥಿತಿಯನ್ನು ನವೀಕರಿಸಿ',
       'fieldOpenPasses':'ತೆರೆದ ಪಾಸ್‌ಗಳು',
       'fieldCheckpoints':'ತಪಾಸಣೆ ಕೇಂದ್ರಗಳು',
       'fieldRefresh':'ಕ್ಷೇತ್ರ ಕಾರ್ಯಾಚರಣೆಗಳನ್ನು ನವೀಕರಿಸಿ',
@@ -144,6 +159,9 @@ class GuardStrings {
       'voiceAccessApproved':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಾಗಿದೆ. ಒಳಗೆ ಬಿಡಿ.','voiceAccessBlocked':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಿಲ್ಲ. ಒಳಗೆ ಬಿಡಬೇಡಿ.','voiceWaitingApproval':'ನಿವಾಸಿಯ ಅನುಮತಿಗಾಗಿ ಕಾಯುತ್ತಿದೆ.'
     },
     'ml': {
+      'fieldAttentionNow':'ഇപ്പോൾ ശ്രദ്ധിക്കുക',
+      'fieldAttentionClear':'ശ്രദ്ധിക്കേണ്ട കാര്യങ്ങളില്ല',
+      'fieldRefreshStatus':'നില പുതുക്കുക',
       'fieldOpenPasses':'തുറന്ന പാസുകൾ',
       'fieldCheckpoints':'പരിശോധനാ കേന്ദ്രങ്ങൾ',
       'fieldRefresh':'ഫീൽഡ് പ്രവർത്തനങ്ങൾ പുതുക്കുക',
@@ -168,6 +186,9 @@ class GuardStrings {
       'voiceAccessApproved':'പ്രവേശനം അനുവദിച്ചു. അകത്ത് വിടാം.','voiceAccessBlocked':'പ്രവേശനം അനുവദിച്ചിട്ടില്ല. അകത്ത് വിടരുത്.','voiceWaitingApproval':'താമസക്കാരന്റെ അനുമതിക്കായി കാത്തിരിക്കുന്നു.'
     },
     'mr': {
+      'fieldAttentionNow':'आता लक्ष द्या',
+      'fieldAttentionClear':'लक्ष देण्यासारखी कामे नाहीत',
+      'fieldRefreshStatus':'स्थिती अद्ययावत करा',
       'fieldOpenPasses':'खुले पास',
       'fieldCheckpoints':'तपासणी ठिकाणे',
       'fieldRefresh':'मैदानी कामकाज अद्ययावत करा',
@@ -192,6 +213,9 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंजूर आहे. आत जाऊ द्या.','voiceAccessBlocked':'प्रवेश मंजूर नाही. आत जाऊ देऊ नका.','voiceWaitingApproval':'रहिवाशाच्या मंजुरीची प्रतीक्षा आहे.'
     },
     'bn': {
+      'fieldAttentionNow':'এখনই নজর দিন',
+      'fieldAttentionClear':'মনোযোগ দেওয়ার মতো কিছু নেই',
+      'fieldRefreshStatus':'অবস্থা রিফ্রেশ করুন',
       'fieldOpenPasses':'খোলা পাস',
       'fieldCheckpoints':'চেকপয়েন্ট',
       'fieldRefresh':'ফিল্ড অপারেশন রিফ্রেশ করুন',
