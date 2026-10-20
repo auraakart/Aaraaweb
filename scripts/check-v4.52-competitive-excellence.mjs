@@ -63,7 +63,12 @@ requireTokens('Facilities Admin continuity',read('apps/admin/app/facilities/heal
 
 const residentHome=read('apps/resident/lib/screens/home_screen.dart');
 requireTokens('Resident action inbox',residentHome,[
-  "title: 'Action inbox'",'liveRegion: true','attentionSummary','items need your attention',
+  "strings.text('homeActionInbox')",'liveRegion: true','attentionSummary',
+  "strings.format('homeAttentionMany', {'count': attentionCount})",
+]);
+requireTokens('Resident action inbox English fallback',read('apps/resident/lib/localization/aaraagate_strings.dart'),[
+  "'homeActionInbox': 'Action inbox'",
+  "'homeAttentionMany': '{count} items need your attention.'",
 ]);
 forbidTokens('Resident action inbox deduplication',residentHome,[
   '_ActionInboxSummary','ACT NOW $immediate','SOON $soon','INFO $info',
