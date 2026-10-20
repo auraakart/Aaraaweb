@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/billing_screen.dart';
+import 'package:aaraagate_resident/localization/aaraagate_strings.dart';
+import 'package:aaraagate_resident/theme/aaraagate_theme.dart';
 import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,6 +117,39 @@ class _DueTodayBillingRepository extends _BillingRepository {
 }
 
 void main() {
+  final localeBinding = TestWidgetsFlutterBinding.ensureInitialized();
+  for (final code in <String>['en', 'hi', 'ta', 'te', 'kn', 'ml', 'mr', 'bn']) {
+    for (final dark in <bool>[false, true]) {
+      testWidgets('Billing entry is localized at 320dp: $code dark=$dark', (tester) async {
+        tester.view.physicalSize = const Size(320, 840);
+        tester.view.devicePixelRatio = 1;
+        localeBinding.platformDispatcher.localeTestValue = Locale(code, 'IN');
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(localeBinding.platformDispatcher.clearLocaleTestValue);
+        final strings = AaraagateStrings.device();
+        await tester.pumpWidget(MaterialApp(
+          theme: dark ? AaraagateTheme.dark() : AaraagateTheme.light(),
+          home: BillingScreen(repository: _BillingRepository()),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.text(strings.text('billingPageTitle')), findsOneWidget);
+        expect(find.text(strings.text('billingOutstanding')), findsOneWidget);
+        expect(find.text(strings.languageCode == 'en'
+            ? '1 bill waiting for payment.'
+            : strings.format('billingOutstandingCount', {'count': 1})), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text(strings.text('billingHistory')), 180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text(strings.text('billingHistory')), findsOneWidget);
+        expect(find.text(strings.text('billingHistoryEmpty')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   testWidgets('owner can review dues and prepare a secure payment order', (tester) async {
     final repository = _BillingRepository();
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
