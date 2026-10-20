@@ -1,6 +1,6 @@
 # Aaraagate V4.99.3 — acceptance status and remaining work
 
-This is a development and acceptance record. It does not establish a release, physical-device certification, native-language approval or a measured 9/10 product score.
+This is a development and acceptance record. V4.99.3 / mobile build 49903 is prepared as a release candidate; it does not establish a published release, physical-device certification, native-language approval or a measured 9/10 product score. See the [health closure and candidate record](AARAAGATE-V4.99.3-HEALTH-CLOSURE.md).
 
 ## Workstream status
 
@@ -22,9 +22,13 @@ Evidence is recorded only after the corresponding protected run passes. Scope-sk
 - [Admin capture artifact](https://github.com/auraakart/Aaraaweb/actions/runs/39472034574/artifacts/12287113956) contains the 28 compact full-page captures alongside existing browser evidence. Captures have not been manually visually reviewed in this session. Actions artifact retention expires 2026-10-27; the committed scenarios can regenerate the evidence.
 - Staff and Admin changes were integrated sequentially only after their own exact-head required gates passed. Initial failures were corrected without suppressing cases, weakening overflow checks, hiding content or bypassing CI.
 
-## Completion boundary as of 2026-10-20
+## Health closure update — 2026-10-21
 
-The scoped Staff entry localization and newly discovered compact Admin overflow defects are fixed and protected on develop. The remaining work is the acceptance sequence below, including human visual review, native-language approval, physical-device/TalkBack/Guard walkthroughs and measured usability. Deeper financial/operational forms and history are not claimed to be fully translated. V4.99.3 overall acceptance therefore remains **open**; no 9/10 score, new release identity or demo build is claimed.
+[PR #1506](https://github.com/auraakart/Aaraaweb/pull/1506) closes the fresh Vite audit failure after full protected application/security validation. [PR #1507](https://github.com/auraakart/Aaraaweb/pull/1507) fixes the payment lookup/conditional allocation reflow and long-title Governance badge. Its [CI 39517689332](https://github.com/auraakart/Aaraaweb/actions/runs/39517689332) passes all 208 browser tests and full Admin gates. Eight focused light/dark normal/200% captures were visually inspected and are readable; the 28 compact full-page captures are regenerated too. Earlier capture-review statements above describe the earlier evidence session, not the current closure review. Detailed source identities and scope qualifications are retained in the health closure record.
+
+## Completion boundary
+
+The scoped Staff entry localization and discovered compact Admin defects are fixed and protected on develop. Engineering visual review found and closed the Finance/Governance issues; live data/role combinations, native-language approval, physical-device/TalkBack/Guard walkthroughs and measured usability remain required below. Deeper financial/operational forms and history are not claimed to be fully translated. V4.99.3 overall acceptance remains **open**; release candidate identity is reconciled, while no 9/10 score or published demo build is claimed.
 
 ## Remaining acceptance sequence
 
