@@ -6,7 +6,7 @@ void main(){
     'tools','language','operationsOverview','activeGate','realtime','connected','disconnected','offlineQueue','pendingActions','retrySync',
     'unitDirectory','searchUnit','noUnits','ready','reviewRequired','cachedDirectory','cachedLookup',
     'quick','parcels','staff','fieldOperations','schoolTransport','voiceCues','voiceCuesHelp',
-    'fieldRefresh','fieldOverstays','fieldWatchlist','fieldPasses','fieldPatrol','fieldHandover','fieldIncidents',
+    'fieldRefresh','fieldOverstays','fieldWatchlist','fieldPasses','fieldPatrol','fieldHandover','fieldIncidents','fieldOpenPasses','fieldCheckpoints',
     'gateOperations','signOut','securityShiftActive','selectGateBegin','scanPass','scanHint','scanQr','enterCredential','manualCredential','verify',
     'enter','exit','quickArrival','delivery','cab','walkInVisitor','waitingApproval','checkApproval','approvedEnter','close',
     'onlineClear','noQueuedActions','processing','voiceAccessApproved','voiceAccessBlocked','voiceWaitingApproval'

@@ -84,7 +84,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     ]))));
   }
 
-  Widget _metrics()=>GuardOperationSurface(child:Wrap(spacing:10,runSpacing:10,children:[_metric('Overstays',summary['overstayCount']),_metric('Watchlist',summary['watchlistCount']),_metric('Open passes',summary['openPassCount']),_metric('Incidents',summary['openIncidentCount']),_metric('Checkpoints',summary['activeCheckpointCount'])]));
+  Widget _metrics(){final strings=GuardStrings(widget.controller.languageCode);return GuardOperationSurface(child:Wrap(spacing:10,runSpacing:10,children:[_metric(strings.get('fieldOverstays'),summary['overstayCount']),_metric(strings.get('fieldWatchlist'),summary['watchlistCount']),_metric(strings.get('fieldOpenPasses'),summary['openPassCount']),_metric(strings.get('fieldIncidents'),summary['openIncidentCount']),_metric(strings.get('fieldCheckpoints'),summary['activeCheckpointCount'])]));}
   Widget _attentionNow(){
     final overstayCount=(command['overstays'] as num?)?.toInt()??(summary['overstayCount'] as num?)?.toInt()??0;
     final watchCount=(command['activeDenyWatchlist'] as num?)?.toInt()??(summary['watchlistCount'] as num?)?.toInt()??0;

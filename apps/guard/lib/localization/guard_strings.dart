@@ -23,6 +23,8 @@ class GuardStrings {
 
   static const _values = <String, Map<String, String>>{
     'en': {
+      'fieldOpenPasses':'Open passes',
+      'fieldCheckpoints':'Checkpoints',
       'fieldRefresh':'Refresh field operations',
       'fieldOverstays':'Overstays',
       'fieldWatchlist':'Watchlist',
@@ -46,6 +48,8 @@ class GuardStrings {
       'voiceWaitingApproval':'Waiting for resident approval.'
     },
     'hi': {
+      'fieldOpenPasses':'खुले पास',
+      'fieldCheckpoints':'जाँच बिंदु',
       'fieldRefresh':'गेट कार्य स्थिति फिर देखें',
       'fieldOverstays':'अधिक समय रुके लोग',
       'fieldWatchlist':'निगरानी सूची',
@@ -68,6 +72,8 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंज़ूर है। अंदर जाने दें।','voiceAccessBlocked':'प्रवेश मंज़ूर नहीं है। अंदर न जाने दें।','voiceWaitingApproval':'निवासी की मंज़ूरी की प्रतीक्षा है।'
     },
     'ta': {
+      'fieldOpenPasses':'நிலுவைப் பாஸ்கள்',
+      'fieldCheckpoints':'சோதனை இடங்கள்',
       'fieldRefresh':'கள செயல்பாடுகளைப் புதுப்பிக்கவும்',
       'fieldOverstays':'நேரம் மீறித் தங்கியவர்கள்',
       'fieldWatchlist':'கண்காணிப்புப் பட்டியல்',
@@ -90,6 +96,8 @@ class GuardStrings {
       'voiceAccessApproved':'அனுமதி வழங்கப்பட்டது. உள்ளே விடலாம்.','voiceAccessBlocked':'அனுமதி இல்லை. உள்ளே விட வேண்டாம்.','voiceWaitingApproval':'குடியிருப்பாளர் அனுமதிக்காக காத்திருக்கிறது.'
     },
     'te': {
+      'fieldOpenPasses':'తెరిచి ఉన్న పాస్‌లు',
+      'fieldCheckpoints':'తనిఖీ కేంద్రాలు',
       'fieldRefresh':'ఫీల్డ్ ఆపరేషన్స్‌ను రిఫ్రెష్ చేయండి',
       'fieldOverstays':'గడువును మించిన వారు',
       'fieldWatchlist':'నిఘా జాబితా',
@@ -112,6 +120,8 @@ class GuardStrings {
       'voiceAccessApproved':'ప్రవేశం అనుమతించబడింది. లోపలికి పంపండి.','voiceAccessBlocked':'ప్రవేశానికి అనుమతి లేదు. లోపలికి పంపవద్దు.','voiceWaitingApproval':'నివాసి అనుమతి కోసం వేచి ఉంది.'
     },
     'kn': {
+      'fieldOpenPasses':'ತೆರೆದ ಪಾಸ್‌ಗಳು',
+      'fieldCheckpoints':'ತಪಾಸಣೆ ಕೇಂದ್ರಗಳು',
       'fieldRefresh':'ಕ್ಷೇತ್ರ ಕಾರ್ಯಾಚರಣೆಗಳನ್ನು ನವೀಕರಿಸಿ',
       'fieldOverstays':'ನಿಗದಿತ ಸಮಯ ಮೀರಿದವರು',
       'fieldWatchlist':'ನಿಗಾ ಪಟ್ಟಿ',
@@ -134,6 +144,8 @@ class GuardStrings {
       'voiceAccessApproved':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಾಗಿದೆ. ಒಳಗೆ ಬಿಡಿ.','voiceAccessBlocked':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಿಲ್ಲ. ಒಳಗೆ ಬಿಡಬೇಡಿ.','voiceWaitingApproval':'ನಿವಾಸಿಯ ಅನುಮತಿಗಾಗಿ ಕಾಯುತ್ತಿದೆ.'
     },
     'ml': {
+      'fieldOpenPasses':'തുറന്ന പാസുകൾ',
+      'fieldCheckpoints':'പരിശോധനാ കേന്ദ്രങ്ങൾ',
       'fieldRefresh':'ഫീൽഡ് പ്രവർത്തനങ്ങൾ പുതുക്കുക',
       'fieldOverstays':'സമയം കഴിഞ്ഞിട്ടും തുടരുന്നവർ',
       'fieldWatchlist':'നിരീക്ഷണ പട്ടിക',
@@ -156,6 +168,8 @@ class GuardStrings {
       'voiceAccessApproved':'പ്രവേശനം അനുവദിച്ചു. അകത്ത് വിടാം.','voiceAccessBlocked':'പ്രവേശനം അനുവദിച്ചിട്ടില്ല. അകത്ത് വിടരുത്.','voiceWaitingApproval':'താമസക്കാരന്റെ അനുമതിക്കായി കാത്തിരിക്കുന്നു.'
     },
     'mr': {
+      'fieldOpenPasses':'खुले पास',
+      'fieldCheckpoints':'तपासणी ठिकाणे',
       'fieldRefresh':'मैदानी कामकाज अद्ययावत करा',
       'fieldOverstays':'वेळ ओलांडलेले पाहुणे',
       'fieldWatchlist':'निगराणी यादी',
@@ -178,6 +192,8 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंजूर आहे. आत जाऊ द्या.','voiceAccessBlocked':'प्रवेश मंजूर नाही. आत जाऊ देऊ नका.','voiceWaitingApproval':'रहिवाशाच्या मंजुरीची प्रतीक्षा आहे.'
     },
     'bn': {
+      'fieldOpenPasses':'খোলা পাস',
+      'fieldCheckpoints':'চেকপয়েন্ট',
       'fieldRefresh':'ফিল্ড অপারেশন রিফ্রেশ করুন',
       'fieldOverstays':'সময়সীমা পেরিয়ে থাকা ব্যক্তি',
       'fieldWatchlist':'নজরদারি তালিকা',
