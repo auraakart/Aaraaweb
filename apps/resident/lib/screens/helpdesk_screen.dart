@@ -141,7 +141,8 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     String? submissionShape;
     bool submitting = false;
     bool listening = false;
-    final languageCode = AaraagateStrings.device().languageCode;
+    final strings = AaraagateStrings.device();
+    final languageCode = strings.languageCode;
 
     final created = await showModalBottomSheet<bool>(
       context: context,
@@ -162,18 +163,18 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(AaraagateStrings.device().text('helpdeskNewComplaint'), style: theme.textTheme.headlineSmall),
+                Text(strings.text('helpdeskNewComplaint'), style: theme.textTheme.headlineSmall),
                 const SizedBox(height: AaraagateTokens.space1),
                 Text(
-                  'Describe the issue clearly so your society team can route it faster.',
+                  strings.text('helpdeskFormIntro'),
                   style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: AaraagateTokens.space5),
                 TextField(
                   controller: title,
-                  decoration: const InputDecoration(
-                     labelText: 'Issue title',
-                     helperText: 'Required · at least 3 characters',
+                  decoration: InputDecoration(
+                     labelText: strings.text('helpdeskIssueTitle'),
+                     helperText: strings.text('helpdeskTitleHint'),
                    ),
                   textInputAction: TextInputAction.next,
                   maxLength: 120,
@@ -231,9 +232,9 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 const SizedBox(height: AaraagateTokens.space2),
                 TextField(
                   controller: description,
-                  decoration: const InputDecoration(
-                     labelText: 'Describe the issue',
-                     helperText: 'Required · at least 5 characters',
+                  decoration: InputDecoration(
+                     labelText: strings.text('helpdeskDescription'),
+                     helperText: strings.text('helpdeskDescriptionHint'),
                    ),
                   minLines: 4,
                   maxLines: 6,
@@ -242,19 +243,19 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 const SizedBox(height: AaraagateTokens.space2),
                 TextField(
                   controller: category,
-                  decoration: const InputDecoration(labelText: 'Category (optional)'),
+                  decoration: InputDecoration(labelText: strings.text('helpdeskCategory')),
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: AaraagateTokens.space3),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   initialValue: priority,
-                  decoration: const InputDecoration(labelText: 'Priority'),
-                  items: const [
-                    DropdownMenuItem(value: 'LOW', child: Text('Low')),
-                    DropdownMenuItem(value: 'NORMAL', child: Text('Normal')),
-                    DropdownMenuItem(value: 'HIGH', child: Text('High')),
-                    DropdownMenuItem(value: 'URGENT', child: Text('Urgent')),
+                  decoration: InputDecoration(labelText: strings.text('helpdeskPriority')),
+                  items: [
+                    DropdownMenuItem(value: 'LOW', child: Text(strings.text('helpdeskLow'))),
+                    DropdownMenuItem(value: 'NORMAL', child: Text(strings.text('helpdeskNormal'))),
+                    DropdownMenuItem(value: 'HIGH', child: Text(strings.text('helpdeskHigh'))),
+                    DropdownMenuItem(value: 'URGENT', child: Text(strings.text('helpdeskUrgent'))),
                   ],
                   onChanged: submitting
                       ? null
@@ -285,7 +286,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                           final cleanDescription = description.text.trim();
                           if (cleanTitle.length < 3 || cleanDescription.length < 5) {
                             setModalState(() {
-                              validationMessage = 'Add a clear title and a little more detail before submitting.';
+                              validationMessage = strings.text('helpdeskValidation');
                             });
                             return;
                           }
@@ -317,13 +318,13 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             if (sheetContext.mounted) {
                               setModalState(() {
                                 submitting = false;
-                                validationMessage = 'Complaint could not be confirmed. Retry will reuse this submission unless you edit the complaint.';
+                                validationMessage = strings.text('helpdeskSubmitUnconfirmed');
                               });
                             }
                           }
                         },
                   child: PremiumActionLabel(
-                    label: 'Submit complaint',
+                    label: strings.text('helpdeskSubmit'),
                     icon: Icons.send_rounded,
                     busy: submitting,
                   ),
