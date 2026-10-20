@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// Lightweight localization for high-frequency resident gate flows.
+/// Lightweight localization for high-frequency resident Gate and Home actions.
 /// Unsupported locales and missing keys fall back to English.
 class AaraagateStrings {
   AaraagateStrings._(this.languageCode);
@@ -35,6 +35,11 @@ class AaraagateStrings {
 
   static const _values = <String, Map<String, String>>{
     'en': {
+      'homeQuickActions': 'Quick actions',
+      'homeStaff': 'Staff',
+      'homeBilling': 'Billing',
+      'homeAmenities': 'Amenities',
+      'homeHelpdesk': 'Helpdesk',
       'gateTitle': 'Gate & access',
       'gateSubtitle': 'Approve arrivals and create visitor passes.',
       'inviteGuest': 'Create visitor QR pass',
@@ -78,6 +83,11 @@ class AaraagateStrings {
       'visitorQr': 'Visitor access QR code',
     },
     'hi': {
+      'homeQuickActions': 'त्वरित कार्य',
+      'homeStaff': 'कर्मचारी',
+      'homeBilling': 'बिल',
+      'homeAmenities': 'सुविधाएँ',
+      'homeHelpdesk': 'सहायता केंद्र',
       'gateTitle': 'गेट और प्रवेश',
       'gateSubtitle': 'आगमन स्वीकृत करें और विज़िटर पास बनाएं.',
       'inviteGuest': 'विज़िटर QR पास बनाएं',
@@ -121,6 +131,11 @@ class AaraagateStrings {
       'visitorQr': 'विज़िटर प्रवेश QR कोड',
     },
     'ta': {
+      'homeQuickActions': 'விரைவுச் செயல்கள்',
+      'homeStaff': 'பணியாளர்கள்',
+      'homeBilling': 'கட்டணங்கள்',
+      'homeAmenities': 'வசதிகள்',
+      'homeHelpdesk': 'உதவி மையம்',
       'gateTitle': 'கேட் மற்றும் அணுகல்',
       'gateSubtitle': 'வருகைகளை அனுமதித்து விருந்தினர் பாஸ் உருவாக்கவும்.',
       'inviteGuest': 'விருந்தினர் QR பாஸ் உருவாக்கவும்',
@@ -164,18 +179,43 @@ class AaraagateStrings {
       'visitorQr': 'விருந்தினர் நுழைவு QR குறியீடு',
     },
     'te': {
+      'homeQuickActions': 'త్వరిత చర్యలు',
+      'homeStaff': 'సిబ్బంది',
+      'homeBilling': 'బిల్లులు',
+      'homeAmenities': 'సౌకర్యాలు',
+      'homeHelpdesk': 'సహాయ కేంద్రం',
       'gateTitle': 'గేట్ & ప్రవేశం', 'gateSubtitle': 'రాకలను అనుమతించి విజిటర్ పాస్ రూపొందించండి.', 'inviteGuest': 'విజిటర్ QR పాస్ రూపొందించండి', 'deliveryNoQr': 'డెలివరీకి QR అవసరం లేదు. రైడర్ వచ్చినప్పుడు సెక్యూరిటీ మీ అనుమతి కోరుతుంది.', 'needsAttention': 'మీ అనుమతి అవసరం', 'recentActivity': 'ఇటీవలి కార్యకలాపం', 'invite': 'ఆహ్వానించండి', 'loadingActivity': 'ప్రవేశ కార్యకలాపం లోడ్ అవుతోంది…', 'loadFailed': 'ప్రవేశ కార్యకలాపం లోడ్ కాలేదు.', 'retry': 'మళ్లీ ప్రయత్నించండి', 'emptyActivity': 'ఇంకా గేట్ కార్యకలాపం లేదు.', 'waiting': 'వేచి ఉంది', 'inside': 'లోపల', 'today': 'ఈ రోజు', 'deny': 'తిరస్కరించండి', 'allow': 'అనుమతించండి', 'allowEntry': 'ప్రవేశం అనుమతించండి', 'cancelPass': 'పాస్ రద్దు', 'cancelPassConfirm': 'ఇది విజిటర్ పాస్‌ను వెంటనే రద్దు చేస్తుంది. భద్రతా సిబ్బంది ఇక దాన్ని అంగీకరించరు.', 'visitorPassReady': 'విజిటర్ పాస్ సిద్ధంగా ఉంది', 'sharePass': 'పాస్ షేర్ చేయండి', 'copyCredential': 'కోడ్ కాపీ చేయండి', 'passCopied': 'పాస్ కాపీ అయ్యింది', 'inviteTitle': 'అతిథిని ఆహ్వానించండి', 'inviteSubtitle': 'సురక్షిత పాస్ రూపొందించండి.', 'guestName': 'అతిథి పేరు', 'guestNameError': 'అతిథి పేరు నమోదు చేయండి', 'phoneOptional': 'ఫోన్ (ఐచ్చికం)', 'purposeOptional': 'ఉద్దేశ్యం (ఐచ్చికం)', 'createPass': 'విజిటర్ పాస్ రూపొందించండి', 'approvalRequired': 'అనుమతి అవసరం', 'allow15': 'తదుపరి 15 నిమిషాలకు అనుమతి', 'allow30': 'తదుపరి 30 నిమిషాలకు అనుమతి', 'visitor': 'విజిటర్', 'entry': 'ప్రవేశం', 'cab': 'క్యాబ్', 'delivery': 'డెలివరీ', 'approvedSecurity': '{label} అనుమతించబడింది. భద్రతా బృందం నవీకరించబడింది.', 'gateRequestChanged': 'ఈ గేట్ అభ్యర్థన మారింది. తాజా స్థితి: {status}.', 'validUntil': '{time} వరకు చెల్లుతుంది', 'visitorQr': 'విజిటర్ QR కోడ్',
     },
     'kn': {
+      'homeQuickActions': 'ತ್ವರಿತ ಕ್ರಮಗಳು',
+      'homeStaff': 'ಸಿಬ್ಬಂದಿ',
+      'homeBilling': 'ಬಿಲ್‌ಗಳು',
+      'homeAmenities': 'ಸೌಲಭ್ಯಗಳು',
+      'homeHelpdesk': 'ಸಹಾಯ ಕೇಂದ್ರ',
       'gateTitle': 'ಗೇಟ್ ಮತ್ತು ಪ್ರವೇಶ', 'gateSubtitle': 'ಆಗಮನವನ್ನು ಅನುಮೋದಿಸಿ ಮತ್ತು ವಿಸಿಟರ್ ಪಾಸ್ ರಚಿಸಿ.', 'inviteGuest': 'ವಿಸಿಟರ್ QR ಪಾಸ್ ರಚಿಸಿ', 'deliveryNoQr': 'ಡೆಲಿವರಿಗೆ QR ಅಗತ್ಯವಿಲ್ಲ. ಡೆಲಿವರಿ ವ್ಯಕ್ತಿ ಬಂದಾಗ ಭದ್ರತಾ ಸಿಬ್ಬಂದಿ ನಿಮ್ಮ ಅನುಮತಿ ಕೇಳುತ್ತಾರೆ.', 'needsAttention': 'ನಿಮ್ಮ ಅನುಮತಿ ಬೇಕು', 'recentActivity': 'ಇತ್ತೀಚಿನ ಚಟುವಟಿಕೆ', 'invite': 'ಆಹ್ವಾನಿಸಿ', 'loadingActivity': 'ಪ್ರವೇಶ ಚಟುವಟಿಕೆ ಲೋಡ್ ಆಗುತ್ತಿದೆ…', 'loadFailed': 'ಪ್ರವೇಶ ಚಟುವಟಿಕೆ ಲೋಡ್ ಆಗಲಿಲ್ಲ.', 'retry': 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ', 'emptyActivity': 'ಇನ್ನೂ ಗೇಟ್ ಚಟುವಟಿಕೆ ಇಲ್ಲ.', 'waiting': 'ಕಾಯುತ್ತಿದೆ', 'inside': 'ಒಳಗೆ', 'today': 'ಇಂದು', 'deny': 'ನಿರಾಕರಿಸಿ', 'allow': 'ಅನುಮತಿಸಿ', 'allowEntry': 'ಪ್ರವೇಶ ಅನುಮತಿಸಿ', 'cancelPass': 'ಪಾಸ್ ರದ್ದು', 'cancelPassConfirm': 'ಇದು ವಿಸಿಟರ್ ಪಾಸ್ ಅನ್ನು ತಕ್ಷಣ ರದ್ದು ಮಾಡುತ್ತದೆ. ಭದ್ರತಾ ಸಿಬ್ಬಂದಿ ಅದನ್ನು ಇನ್ನು ಸ್ವೀಕರಿಸುವುದಿಲ್ಲ.', 'visitorPassReady': 'ವಿಸಿಟರ್ ಪಾಸ್ ಸಿದ್ಧವಾಗಿದೆ', 'sharePass': 'ಪಾಸ್ ಹಂಚಿ', 'copyCredential': 'ಕೋಡ್ ನಕಲಿಸಿ', 'passCopied': 'ಪಾಸ್ ನಕಲಿಸಲಾಗಿದೆ', 'inviteTitle': 'ಅತಿಥಿಯನ್ನು ಆಹ್ವಾನಿಸಿ', 'inviteSubtitle': 'ಸುರಕ್ಷಿತ ಪಾಸ್ ರಚಿಸಿ.', 'guestName': 'ಅತಿಥಿಯ ಹೆಸರು', 'guestNameError': 'ಅತಿಥಿಯ ಹೆಸರನ್ನು ನಮೂದಿಸಿ', 'phoneOptional': 'ಫೋನ್ (ಐಚ್ಛಿಕ)', 'purposeOptional': 'ಉದ್ದೇಶ (ಐಚ್ಛಿಕ)', 'createPass': 'ವಿಸಿಟರ್ ಪಾಸ್ ರಚಿಸಿ', 'approvalRequired': 'ಅನುಮತಿ ಅಗತ್ಯ', 'allow15': 'ಮುಂದಿನ 15 ನಿಮಿಷಗಳಿಗೆ ಅನುಮತಿ', 'allow30': 'ಮುಂದಿನ 30 ನಿಮಿಷಗಳಿಗೆ ಅನುಮತಿ', 'visitor': 'ವಿಸಿಟರ್', 'entry': 'ಪ್ರವೇಶ', 'cab': 'ಕ್ಯಾಬ್', 'delivery': 'ಡೆಲಿವರಿ', 'approvedSecurity': '{label} ಅನುಮೋದಿಸಲಾಗಿದೆ. ಭದ್ರತೆ ನವೀಕರಿಸಲಾಗಿದೆ.', 'gateRequestChanged': 'ಈ ಗೇಟ್ ವಿನಂತಿ ಬದಲಾಗಿದೆ. ಇತ್ತೀಚಿನ ಸ್ಥಿತಿ: {status}.', 'validUntil': '{time} ವರೆಗೆ ಮಾನ್ಯ', 'visitorQr': 'ವಿಸಿಟರ್ QR ಕೋಡ್',
     },
     'ml': {
+      'homeQuickActions': 'ദ്രുത പ്രവർത്തനങ്ങൾ',
+      'homeStaff': 'ജീവനക്കാർ',
+      'homeBilling': 'ബില്ലുകൾ',
+      'homeAmenities': 'സൗകര്യങ്ങൾ',
+      'homeHelpdesk': 'സഹായകേന്ദ്രം',
       'gateTitle': 'ഗേറ്റും പ്രവേശനവും', 'gateSubtitle': 'വരവുകൾ അംഗീകരിച്ച് വിസിറ്റർ പാസ് സൃഷ്ടിക്കുക.', 'inviteGuest': 'വിസിറ്റർ QR പാസ് സൃഷ്ടിക്കുക', 'deliveryNoQr': 'ഡെലിവറിക്ക് QR ആവശ്യമില്ല. റൈഡർ എത്തുമ്പോൾ സുരക്ഷാ ജീവനക്കാർ നിങ്ങളുടെ അനുമതി ചോദിക്കും.', 'needsAttention': 'നിങ്ങളുടെ അനുമതി വേണം', 'recentActivity': 'സമീപകാല പ്രവർത്തനം', 'invite': 'ക്ഷണിക്കുക', 'loadingActivity': 'പ്രവേശന പ്രവർത്തനം ലോഡാകുന്നു…', 'loadFailed': 'പ്രവേശന പ്രവർത്തനം ലോഡ് ചെയ്യാനായില്ല.', 'retry': 'വീണ്ടും ശ്രമിക്കുക', 'emptyActivity': 'ഇനിയും ഗേറ്റ് പ്രവർത്തനം ഇല്ല.', 'waiting': 'കാത്തിരിക്കുന്നു', 'inside': 'അകത്ത്', 'today': 'ഇന്ന്', 'deny': 'നിരസിക്കുക', 'allow': 'അനുവദിക്കുക', 'allowEntry': 'പ്രവേശനം അനുവദിക്കുക', 'cancelPass': 'പാസ് റദ്ദാക്കുക', 'cancelPassConfirm': 'ഇത് വിസിറ്റർ പാസ് ഉടൻ റദ്ദാക്കും. സുരക്ഷാ സംഘം ഇനി അത് സ്വീകരിക്കില്ല.', 'visitorPassReady': 'വിസിറ്റർ പാസ് തയ്യാറാണ്', 'sharePass': 'പാസ് പങ്കിടുക', 'copyCredential': 'കോഡ് പകർത്തുക', 'passCopied': 'പാസ് പകർത്തി', 'inviteTitle': 'അതിഥിയെ ക്ഷണിക്കുക', 'inviteSubtitle': 'സുരക്ഷിത പാസ് സൃഷ്ടിക്കുക.', 'guestName': 'അതിഥിയുടെ പേര്', 'guestNameError': 'അതിഥിയുടെ പേര് നൽകുക', 'phoneOptional': 'ഫോൺ (ഐച്ഛികം)', 'purposeOptional': 'ഉദ്ദേശ്യം (ഐച്ഛികം)', 'createPass': 'വിസിറ്റർ പാസ് സൃഷ്ടിക്കുക', 'approvalRequired': 'അനുമതി ആവശ്യമാണ്', 'allow15': 'അടുത്ത 15 മിനിറ്റിലേക്ക് അനുവദിക്കുക', 'allow30': 'അടുത്ത 30 മിനിറ്റിലേക്ക് അനുവദിക്കുക', 'visitor': 'വിസിറ്റർ', 'entry': 'പ്രവേശനം', 'cab': 'കാബ്', 'delivery': 'ഡെലിവറി', 'approvedSecurity': '{label} അംഗീകരിച്ചു. സുരക്ഷാ സംഘം അപ്ഡേറ്റ് ചെയ്തു.', 'gateRequestChanged': 'ഈ ഗേറ്റ് അഭ്യർത്ഥന മാറിയിരിക്കുന്നു. ഏറ്റവും പുതിയ നില: {status}.', 'validUntil': '{time} വരെ സാധുവാണ്', 'visitorQr': 'വിസിറ്റർ QR കോഡ്',
     },
     'mr': {
+      'homeQuickActions': 'झटपट कृती',
+      'homeStaff': 'कर्मचारी',
+      'homeBilling': 'बिले',
+      'homeAmenities': 'सुविधा',
+      'homeHelpdesk': 'मदत केंद्र',
       'gateTitle': 'गेट आणि प्रवेश', 'gateSubtitle': 'आगमन मंजूर करा आणि व्हिजिटर पास तयार करा.', 'inviteGuest': 'व्हिजिटर QR पास तयार करा', 'deliveryNoQr': 'डिलिव्हरीसाठी QR लागत नाही. रायडर आल्यावर सुरक्षा कर्मचारी तुमची परवानगी मागतील.', 'needsAttention': 'तुमची मंजुरी आवश्यक', 'recentActivity': 'अलीकडील हालचाल', 'invite': 'बोलवा', 'loadingActivity': 'प्रवेश माहिती लोड होत आहे…', 'loadFailed': 'प्रवेश माहिती लोड झाली नाही.', 'retry': 'पुन्हा प्रयत्न करा', 'emptyActivity': 'अजून गेट हालचाल नाही.', 'waiting': 'प्रतीक्षा', 'inside': 'आत', 'today': 'आज', 'deny': 'नाकारा', 'allow': 'परवानगी द्या', 'allowEntry': 'प्रवेश द्या', 'cancelPass': 'पास रद्द करा', 'cancelPassConfirm': 'यामुळे व्हिजिटर पास त्वरित रद्द होईल. सुरक्षा तो पुढे स्वीकारणार नाही.', 'visitorPassReady': 'व्हिजिटर पास तयार आहे', 'sharePass': 'पास शेअर करा', 'copyCredential': 'कोड कॉपी करा', 'passCopied': 'पास कॉपी झाला', 'inviteTitle': 'पाहुण्याला बोलवा', 'inviteSubtitle': 'सुरक्षित पास तयार करा.', 'guestName': 'पाहुण्याचे नाव', 'guestNameError': 'पाहुण्याचे नाव द्या', 'phoneOptional': 'फोन (ऐच्छिक)', 'purposeOptional': 'उद्देश (ऐच्छिक)', 'createPass': 'व्हिजिटर पास तयार करा', 'approvalRequired': 'मंजुरी आवश्यक', 'allow15': 'पुढील 15 मिनिटांसाठी परवानगी', 'allow30': 'पुढील 30 मिनिटांसाठी परवानगी', 'visitor': 'व्हिजिटर', 'entry': 'प्रवेश', 'cab': 'कॅब', 'delivery': 'डिलिव्हरी', 'approvedSecurity': '{label} मंजूर. सुरक्षा अद्ययावत केली आहे.', 'gateRequestChanged': 'ही गेट विनंती बदलली आहे. नवीनतम स्थिती: {status}.', 'validUntil': '{time} पर्यंत वैध', 'visitorQr': 'व्हिजिटर QR कोड',
     },
     'bn': {
+      'homeQuickActions': 'দ্রুত কাজ',
+      'homeStaff': 'কর্মী',
+      'homeBilling': 'বিল',
+      'homeAmenities': 'সুবিধা',
+      'homeHelpdesk': 'সহায়তা কেন্দ্র',
       'gateTitle': 'গেট ও প্রবেশ', 'gateSubtitle': 'আগমন অনুমোদন করুন এবং ভিজিটর পাস তৈরি করুন.', 'inviteGuest': 'ভিজিটর QR পাস তৈরি করুন', 'deliveryNoQr': 'ডেলিভারির জন্য QR দরকার নেই। রাইডার এলে নিরাপত্তাকর্মীরা আপনার অনুমোদন চাইবেন।', 'needsAttention': 'আপনার অনুমোদন দরকার', 'recentActivity': 'সাম্প্রতিক কার্যকলাপ', 'invite': 'আমন্ত্রণ', 'loadingActivity': 'প্রবেশ কার্যকলাপ লোড হচ্ছে…', 'loadFailed': 'প্রবেশ কার্যকলাপ লোড করা যায়নি.', 'retry': 'আবার চেষ্টা করুন', 'emptyActivity': 'এখনও গেট কার্যকলাপ নেই.', 'waiting': 'অপেক্ষা', 'inside': 'ভিতরে', 'today': 'আজ', 'deny': 'প্রত্যাখ্যান', 'allow': 'অনুমতি দিন', 'allowEntry': 'প্রবেশের অনুমতি দিন', 'cancelPass': 'পাস বাতিল', 'cancelPassConfirm': 'এতে ভিজিটর পাসটি সঙ্গে সঙ্গে বাতিল হবে। নিরাপত্তা কর্মীরা এরপর এটি গ্রহণ করবে না।', 'visitorPassReady': 'ভিজিটর পাস প্রস্তুত', 'sharePass': 'পাস শেয়ার করুন', 'copyCredential': 'কোড কপি করুন', 'passCopied': 'পাস কপি হয়েছে', 'inviteTitle': 'অতিথিকে আমন্ত্রণ করুন', 'inviteSubtitle': 'নিরাপদ পাস তৈরি করুন.', 'guestName': 'অতিথির নাম', 'guestNameError': 'অতিথির নাম লিখুন', 'phoneOptional': 'ফোন (ঐচ্ছিক)', 'purposeOptional': 'উদ্দেশ্য (ঐচ্ছিক)', 'createPass': 'ভিজিটর পাস তৈরি করুন', 'approvalRequired': 'অনুমোদন প্রয়োজন', 'allow15': 'পরবর্তী 15 মিনিটের জন্য অনুমতি', 'allow30': 'পরবর্তী 30 মিনিটের জন্য অনুমতি', 'visitor': 'ভিজিটর', 'entry': 'প্রবেশ', 'cab': 'ক্যাব', 'delivery': 'ডেলিভারি', 'approvedSecurity': '{label} অনুমোদিত. নিরাপত্তা দল আপডেট হয়েছে.', 'gateRequestChanged': 'এই গেট অনুরোধটি পরিবর্তিত হয়েছে। সর্বশেষ অবস্থা: {status}.', 'validUntil': '{time} পর্যন্ত বৈধ', 'visitorQr': 'ভিজিটর QR কোড',
     },
   };
