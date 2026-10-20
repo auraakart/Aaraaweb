@@ -54,7 +54,7 @@ const fixtures={
     status:'APPROVED',effectiveAt:later,reason:'Relocation',requestedByUserId:'resident-1',reviewedAt:now,createdAt:now,
   },
   governanceMeeting:{
-    id:'meeting-1',meetingType:'COMMITTEE',status:'HELD',title:'September committee review',scheduledAt:now,
+    id:'meeting-1',meetingType:'COMMITTEE',status:'HELD',title:fixtureOptions.has('longTitle')?'September committee review of maintenance, collections and resident communications':'September committee review',scheduledAt:now,
     heldAt:now,location:'Clubhouse',quorumRequired:4,quorumPresent:5,quorumRuleReference:'Policy Q-1',byeLawReference:'BL-12',
   },
 }
@@ -161,6 +161,9 @@ window.fetch=async(input,init={})=>{
     boundary:'Readiness is descriptive and does not replace society policy or legal verification.',
   })
 
+  const paymentId='53aa5ce7-1dba-47ef-b939-e2385370c242'
+  if(method==='GET'&&path===`/accounting/settlements/payments/${paymentId}/availability`) return json({paymentId,status:'CAPTURED',amountPaise:'350000',allocatedPaise:'0',grossAllocatedPaise:'0',reversedPaise:'0',refundedPaise:'0',unallocatedPaise:'350000'})
+  if(method==='GET'&&[`/accounting/settlements/payments/${paymentId}/allocations`,`/accounting/payment-exceptions/payments/${paymentId}/allocation-reversals`,`/accounting/payment-exceptions/payments/${paymentId}/refunds`].includes(path)) return json([])
   if(path==='/accounting/receivables') return json([{id:'recv-1',unitId:'unit-1',receivableNumber:'INV-2026-09-001',billingPeriod:'2026-09',description:'Monthly maintenance',amountPaise:'350000',outstandingPaise:'125000',dueDate:'2026-09-25T00:00:00.000Z',status:'PARTIALLY_PAID',issuedAt:now}])
   if(path.startsWith('/accounting/receivables/ageing')) return json({currentPaise:'125000',days1To30Paise:'0',days31To60Paise:'0',days61To90Paise:'0',days90PlusPaise:'0'})
   if(path==='/accounting/receivables/charge-rules') return json([{id:'rule-1',code:'MAINT',name:'Maintenance',frequency:'MONTHLY',amountPaise:'350000',lateFeeMode:'FIXED',graceDays:5,active:true}])

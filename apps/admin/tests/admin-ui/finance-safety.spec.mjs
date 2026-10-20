@@ -31,3 +31,12 @@ test('read-only committee finance access exposes no close mutation',async({page}
   await expect(page.getByLabel(confirmation,{exact:true})).toHaveCount(0)
   expect(await writes(page)).toEqual([])
 })
+
+test('read-only payment inspection never exposes allocation authority',async({page})=>{
+  await page.goto('/migrations.html?route=finance&role=COMMITTEE_MEMBER')
+  await page.getByLabel('Payment ID',{exact:true}).fill('53aa5ce7-1dba-47ef-b939-e2385370c242')
+  await page.getByRole('button',{name:'Inspect payment',exact:true}).click()
+  await expect(page.getByText('No allocations yet.',{exact:true})).toBeVisible()
+  await expect(page.locator('#payment-allocation').getByRole('button',{name:'Allocate',exact:true})).toHaveCount(0)
+  expect(await writes(page)).toEqual([])
+})
