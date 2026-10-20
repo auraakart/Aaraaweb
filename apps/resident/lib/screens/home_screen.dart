@@ -74,11 +74,11 @@ class HomeScreen extends StatelessWidget {
     final attentionCount = actionableHighlights.length + (pending != null ? 1 : 0);
     final attentionSummary = attentionCount == 0
         ? highlights.isEmpty
-            ? 'Nothing needs your attention right now.'
-            : 'No urgent follow-up. Recent activity is shown below.'
+            ? strings.text('homeAttentionClear')
+            : strings.text('homeNoUrgent')
         : attentionCount == 1
-            ? '1 item needs your attention.'
-            : '$attentionCount items need your attention.';
+            ? strings.text('homeAttentionOne')
+            : strings.format('homeAttentionMany', {'count': attentionCount});
 
     return SafeArea(
       child: RefreshIndicator(
@@ -208,19 +208,19 @@ class HomeScreen extends StatelessWidget {
               Semantics(
                 container: true,
                 liveRegion: true,
-                label: 'Action inbox. $attentionSummary',
+                label: "${strings.text('homeActionInbox')}. $attentionSummary",
                 child: ExcludeSemantics(
                   child: PremiumSectionHeader(
-                    title: 'Action inbox',
+                    title: strings.text('homeActionInbox'),
                     supportingText: attentionSummary,
                   ),
                 ),
               ),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               if (showGate && controller.loading && controller.accessRequests.isEmpty)
-                const AppStateCard(
+                AppStateCard(
                   icon: Icons.sync_rounded,
-                  message: 'Checking gate activity…',
+                  message: strings.text('homeCheckingGate'),
                   loading: true,
                 )
               else ...[
@@ -229,8 +229,8 @@ class HomeScreen extends StatelessWidget {
                 if (showGate && controller.accessError != null) ...[
                   AppStateCard(
                     icon: Icons.error_outline_rounded,
-                    message: 'Access requests could not be loaded.',
-                    actionLabel: 'Retry',
+                    message: strings.text('homeGateError'),
+                    actionLabel: strings.text('retry'),
                     onAction: controller.load,
                   ),
                   if (pending != null || highlights.isNotEmpty)
@@ -285,13 +285,11 @@ class HomeScreen extends StatelessWidget {
             if (showNotices && controller.notices.isNotEmpty) ...[
               SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               PremiumSectionHeader(
-                title: 'Community',
-                supportingText: controller.notices.isEmpty
-                    ? 'Society notices and updates will appear here.'
-                    : 'Latest from your society.',
+                title: strings.text('navCommunity'),
+                supportingText: strings.text('homeLatestSociety'),
                 trailing: TextButton(
                   onPressed: onOpenNotices,
-                  child: const Text('See all'),
+                  child: Text(strings.text('homeSeeAll')),
                 ),
               ),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
@@ -312,7 +310,7 @@ class HomeScreen extends StatelessWidget {
             ],
             if (showGate && controller.accessRequests.isNotEmpty) ...[
               SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
-              const PremiumSectionHeader(title: 'Recent gate activity'),
+              PremiumSectionHeader(title: strings.text('homeRecentGate')),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               PremiumSurface(
                   padding: EdgeInsets.zero,
