@@ -23,6 +23,8 @@ class GuardStrings {
 
   static const _values = <String, Map<String, String>>{
     'en': {
+      'fieldShowing':'Showing {shown} of {total}',
+      'fieldShowNext':'Show next {count}',
       'fieldAttentionNow':'Attention now',
       'fieldAttentionClear':'Attention queue clear',
       'fieldRefreshStatus':'Refresh status',
@@ -51,6 +53,8 @@ class GuardStrings {
       'voiceWaitingApproval':'Waiting for resident approval.'
     },
     'hi': {
+      'fieldShowing':'{total} में से {shown} दिखाए गए',
+      'fieldShowNext':'अगले {count} दिखाएँ',
       'fieldAttentionNow':'अभी ध्यान दें',
       'fieldAttentionClear':'ध्यान देने योग्य कोई काम नहीं',
       'fieldRefreshStatus':'स्थिति फिर देखें',
@@ -78,6 +82,8 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंज़ूर है। अंदर जाने दें।','voiceAccessBlocked':'प्रवेश मंज़ूर नहीं है। अंदर न जाने दें।','voiceWaitingApproval':'निवासी की मंज़ूरी की प्रतीक्षा है।'
     },
     'ta': {
+      'fieldShowing':'மொத்தம் {total} இல் {shown} காட்டப்பட்டுள்ளன',
+      'fieldShowNext':'அடுத்த {count} பதிவுகளைக் காண்க',
       'fieldAttentionNow':'உடனடி கவனம்',
       'fieldAttentionClear':'கவனிக்க வேண்டியவை இல்லை',
       'fieldRefreshStatus':'நிலையைப் புதுப்பிக்கவும்',
@@ -105,6 +111,8 @@ class GuardStrings {
       'voiceAccessApproved':'அனுமதி வழங்கப்பட்டது. உள்ளே விடலாம்.','voiceAccessBlocked':'அனுமதி இல்லை. உள்ளே விட வேண்டாம்.','voiceWaitingApproval':'குடியிருப்பாளர் அனுமதிக்காக காத்திருக்கிறது.'
     },
     'te': {
+      'fieldShowing':'మొత్తం {total} లో {shown} చూపిస్తున్నాం',
+      'fieldShowNext':'తదుపరి {count} చూపించు',
       'fieldAttentionNow':'ఇప్పుడే దృష్టి పెట్టండి',
       'fieldAttentionClear':'శ్రద్ధ అవసరమైనవి లేవు',
       'fieldRefreshStatus':'స్థితిని రిఫ్రెష్ చేయండి',
@@ -132,6 +140,8 @@ class GuardStrings {
       'voiceAccessApproved':'ప్రవేశం అనుమతించబడింది. లోపలికి పంపండి.','voiceAccessBlocked':'ప్రవేశానికి అనుమతి లేదు. లోపలికి పంపవద్దు.','voiceWaitingApproval':'నివాసి అనుమతి కోసం వేచి ఉంది.'
     },
     'kn': {
+      'fieldShowing':'ಒಟ್ಟು {total} ರಲ್ಲಿ {shown} ತೋರಿಸಲಾಗಿದೆ',
+      'fieldShowNext':'ಮುಂದಿನ {count} ತೋರಿಸಿ',
       'fieldAttentionNow':'ಈಗ ಗಮನಿಸಿ',
       'fieldAttentionClear':'ಗಮನಿಸಬೇಕಾದವುಗಳಿಲ್ಲ',
       'fieldRefreshStatus':'ಸ್ಥಿತಿಯನ್ನು ನವೀಕರಿಸಿ',
@@ -159,6 +169,8 @@ class GuardStrings {
       'voiceAccessApproved':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಾಗಿದೆ. ಒಳಗೆ ಬಿಡಿ.','voiceAccessBlocked':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಿಲ್ಲ. ಒಳಗೆ ಬಿಡಬೇಡಿ.','voiceWaitingApproval':'ನಿವಾಸಿಯ ಅನುಮತಿಗಾಗಿ ಕಾಯುತ್ತಿದೆ.'
     },
     'ml': {
+      'fieldShowing':'ആകെ {total} ൽ {shown} കാണിക്കുന്നു',
+      'fieldShowNext':'അടുത്ത {count} കാണിക്കുക',
       'fieldAttentionNow':'ഇപ്പോൾ ശ്രദ്ധിക്കുക',
       'fieldAttentionClear':'ശ്രദ്ധിക്കേണ്ട കാര്യങ്ങളില്ല',
       'fieldRefreshStatus':'നില പുതുക്കുക',
@@ -186,6 +198,8 @@ class GuardStrings {
       'voiceAccessApproved':'പ്രവേശനം അനുവദിച്ചു. അകത്ത് വിടാം.','voiceAccessBlocked':'പ്രവേശനം അനുവദിച്ചിട്ടില്ല. അകത്ത് വിടരുത്.','voiceWaitingApproval':'താമസക്കാരന്റെ അനുമതിക്കായി കാത്തിരിക്കുന്നു.'
     },
     'mr': {
+      'fieldShowing':'एकूण {total} पैकी {shown} दाखवले',
+      'fieldShowNext':'पुढील {count} दाखवा',
       'fieldAttentionNow':'आता लक्ष द्या',
       'fieldAttentionClear':'लक्ष देण्यासारखी कामे नाहीत',
       'fieldRefreshStatus':'स्थिती अद्ययावत करा',
@@ -213,6 +227,8 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंजूर आहे. आत जाऊ द्या.','voiceAccessBlocked':'प्रवेश मंजूर नाही. आत जाऊ देऊ नका.','voiceWaitingApproval':'रहिवाशाच्या मंजुरीची प्रतीक्षा आहे.'
     },
     'bn': {
+      'fieldShowing':'মোট {total}টির মধ্যে {shown}টি দেখানো হয়েছে',
+      'fieldShowNext':'পরের {count}টি দেখুন',
       'fieldAttentionNow':'এখনই নজর দিন',
       'fieldAttentionClear':'মনোযোগ দেওয়ার মতো কিছু নেই',
       'fieldRefreshStatus':'অবস্থা রিফ্রেশ করুন',
