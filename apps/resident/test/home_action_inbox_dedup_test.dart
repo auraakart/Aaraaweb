@@ -36,7 +36,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Action inbox'), findsOneWidget);
       expect(find.text('Access requests could not be loaded.'), findsOneWidget);
-      expect(find.text('Waiting visitor'), findsOneWidget);
+      // The same pending identity also appears in Recent gate activity.
+      expect(find.text('Waiting visitor'), findsWidgets);
       expect(find.text('Allow'), findsOneWidget);
       expect(find.text('Deny'), findsOneWidget);
       expect(find.text('All clear — nothing needs approval right now.'), findsNothing);
