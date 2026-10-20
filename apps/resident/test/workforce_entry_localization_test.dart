@@ -91,11 +91,17 @@ void main() {
         addTearDown(controller.dispose);
         await mount(tester, controller, code, dark, 2);
         final strings = AaraagateStrings.device();
+        final attendance = find.widgetWithText(OutlinedButton, strings.text('staffAttendance'));
         await tester.scrollUntilVisible(
-          find.text(strings.text('staffAttendance')), 180,
+          attendance, 180,
           scrollable: find.byType(Scrollable).first,
         );
-        expect(find.text(strings.text('staffAttendance')).hitTestable(), findsOneWidget);
+        await tester.ensureVisible(attendance);
+        await tester.pumpAndSettle();
+        expect(attendance.hitTestable(), findsOneWidget);
+        await tester.tap(attendance);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('attendance-month-selector')), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
