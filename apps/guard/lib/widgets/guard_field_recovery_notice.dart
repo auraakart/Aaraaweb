@@ -8,10 +8,12 @@ class GuardFieldRecoveryNotice extends StatelessWidget {
     super.key,
     required this.message,
     required this.onRefresh,
+    this.refreshLabel = 'Refresh status',
   });
 
   final String message;
   final VoidCallback? onRefresh;
+  final String refreshLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +52,7 @@ class GuardFieldRecoveryNotice extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Refresh status'),
+              label: Text(refreshLabel, textAlign: TextAlign.center, softWrap: true),
               style: OutlinedButton.styleFrom(
                 foregroundColor: scheme.onErrorContainer,
                 side: BorderSide(color: scheme.onErrorContainer),
