@@ -63,7 +63,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
                 child: const Text('PROCESS'),
               )
             : null,
-      )),_moreRecords(strings.get('fieldPasses'),visiblePasses,passes.length,()=>setState(()=>visiblePasses+=30)),if(passes.isEmpty)_empty('No gate passes recorded.'),
+      )),_moreRecords(strings.get('fieldPasses'),visiblePasses,passes.length,()=>setState(()=>visiblePasses+=30),step:30),if(passes.isEmpty)_empty('No gate passes recorded.'),
       const SizedBox(height:18),_heading(strings.get('fieldPatrol'),Icons.qr_code_scanner_rounded),...checkpoints.map((x) {
         final status = patrolStatus.firstWhere(
           (s) => s['id'] == x['id'],
@@ -84,16 +84,17 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
         );
       }),if(checkpoints.isEmpty)_empty('No active patrol checkpoints configured.'),
       const SizedBox(height:18),_sectionHeader(strings.get('fieldHandover'),Icons.handshake_outlined,TextButton.icon(onPressed:busy?null:_createHandover,icon:const Icon(Icons.note_add_rounded),label:const Text('HAND OVER'))),...handovers.take(visibleHandovers).map((x)=>_handoverTile(x)),_moreRecords(strings.get('fieldHandover'),visibleHandovers,handovers.length,()=>setState(()=>visibleHandovers+=20)),if(handovers.isEmpty)_empty('No shift handovers recorded.'),
-      const SizedBox(height:18),_sectionHeader(strings.get('fieldIncidents'),Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(visibleIncidents).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),_moreRecords(strings.get('fieldIncidents'),visibleIncidents,incidents.length,()=>setState(()=>visibleIncidents+=30)),if(incidents.isEmpty)_empty('No incidents recorded.'),
+      const SizedBox(height:18),_sectionHeader(strings.get('fieldIncidents'),Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(visibleIncidents).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),_moreRecords(strings.get('fieldIncidents'),visibleIncidents,incidents.length,()=>setState(()=>visibleIncidents+=30),step:30),if(incidents.isEmpty)_empty('No incidents recorded.'),
     ]))));
   }
 
-  Widget _moreRecords(String section,int shown,int total,VoidCallback reveal){
+  Widget _moreRecords(String section,int shown,int total,VoidCallback reveal,{int step=20}){
     final strings=GuardStrings(widget.controller.languageCode);
     return GuardFieldMoreRecords(
       sectionLabel:section,
       shown:shown,
       total:total,
+      pageSize:step,
       showingTemplate:strings.get('fieldShowing'),
       showNextTemplate:strings.get('fieldShowNext'),
       onPressed:reveal,

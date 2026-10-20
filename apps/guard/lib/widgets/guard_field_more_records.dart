@@ -9,6 +9,7 @@ class GuardFieldMoreRecords extends StatelessWidget {
     required this.sectionLabel,
     required this.shown,
     required this.total,
+    this.pageSize = 20,
     required this.showingTemplate,
     required this.showNextTemplate,
     required this.onPressed,
@@ -17,6 +18,7 @@ class GuardFieldMoreRecords extends StatelessWidget {
   final String sectionLabel;
   final int shown;
   final int total;
+  final int pageSize;
   final String showingTemplate;
   final String showNextTemplate;
   final VoidCallback onPressed;
@@ -26,7 +28,7 @@ class GuardFieldMoreRecords extends StatelessWidget {
     if (shown >= total) return const SizedBox.shrink();
     final displayCount = shown < 0 ? 0 : shown;
     final remaining = total - displayCount;
-    final nextCount = remaining > 30 ? 30 : remaining;
+    final nextCount = remaining > pageSize ? pageSize : remaining;
     final caption = showingTemplate
         .replaceAll('{shown}', '$displayCount')
         .replaceAll('{total}', '$total');

@@ -40,7 +40,7 @@ void main() {
             .replaceAll('{shown}', '20').replaceAll('{total}', '47');
         expect(find.text('${strings.get('fieldWatchlist')} · $expectedCaption'), findsOneWidget);
         final action = find.widgetWithText(OutlinedButton,
-            strings.get('fieldShowNext').replaceAll('{count}', '27'));
+            strings.get('fieldShowNext').replaceAll('{count}', '20'));
         expect(action, findsOneWidget);
         expect(tester.getSize(action).height,
             greaterThanOrEqualTo(AaraagateGuardTokens.minTouchTarget));
