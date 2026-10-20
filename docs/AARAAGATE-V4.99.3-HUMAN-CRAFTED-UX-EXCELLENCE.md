@@ -110,3 +110,11 @@ The first five new tests failed (12 existing Gate cases passed) because test ass
 **Fix:** reuse `AaraagateStrings.device()` for the fourteen visible complaint-form keys in the eight existing language codes. Keep exact `LOW/NORMAL/HIGH/URGENT` backend enum values, field validation minimums, user draft, voice sequencing, idempotency shape and reuse after uncertain transport, current property checks and permission contracts. This is text presentation only, with no brand/color change and no new APIs.
 
 **Proof:** add eight-language form interaction tests and Hindi/Tamil at 320dp/200% text; require the existing Helpdesk voice, retry, security, full Resident analyzer/tests and merge gates. Native-speaker review and physical TalkBack acceptance remain unverified.
+
+## Slice V4.99.3.5e — Billing entry and read-only status localization
+
+**Source gap:** after Resident Home/navigation and Helpdesk were localized, Billing still displayed English-only page title, outstanding status and payment-history labels. Keep financial authority and payment safety outside this presentation-only change.
+
+**Change:** add eleven supported-language Billing entry/status keys for English/Hindi/Tamil/Telugu/Kannada/Malayalam/Marathi/Bengali, used for page title, loading/retry/no-bills, outstanding heading/count/zero-state, and payment history heading/receipts/empty state. Preserve English bill singular/plural behavior exactly, use placeholder counts for non-English labels, and leave all payment checkout buttons, due amounts/dates, AutoPay, gateway/payment-completion warnings, idempotency, role checks and API unchanged. Colors, navigation destinations and brand are unchanged.
+
+**Validation:** eight-language x light/dark 320dp test matrix plus existing Billing single-flight, financial permission, gateway recovery and receipt tests and full Flutter gated CI. **Not full Billing localization:** financial statements and checkout remain in their existing English presentation until accurate translations receive professional review. Native-speaker and physical screen-reader acceptance remain pending.
