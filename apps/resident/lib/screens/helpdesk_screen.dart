@@ -50,7 +50,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
               .toList(growable: false);
       if (mounted) setState(() => _tickets = scoped);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Unable to load complaints. Check your connection and try again.');
+      if (mounted) setState(() => _error = 'helpdeskLoadFailed');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -63,9 +63,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
       return status != 'RESOLVED' && status != 'CLOSED' && status != 'CANCELLED';
     }).length;
     final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
+    final strings = AaraagateStrings.device();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Helpdesk')),
+      appBar: AppBar(title: Text(strings.text('helpdeskPageTitle'))),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -79,34 +80,34 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
           children: [
             PremiumPageIntro(
               icon: Icons.support_agent_rounded,
-              title: 'Your complaints',
+              title: strings.text('helpdeskYourComplaints'),
               supportingText: _tickets.isEmpty
-                  ? 'Report a society issue and track every update from one place.'
-                  : '$activeCount active · ${_tickets.length} total for this property.',
+                  ? strings.text('helpdeskIntro')
+                  : strings.format('helpdeskCounts', {'active': activeCount, 'total': _tickets.length}),
               action: FilledButton.tonalIcon(
                 onPressed: _newTicket,
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('New complaint'),
+                label: Text(strings.text('helpdeskNewComplaint'), softWrap: true, textAlign: TextAlign.center),
               ),
             ),
             SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             if (_loading && _tickets.isEmpty)
-              const AppStateCard(
+              AppStateCard(
                 icon: Icons.sync_rounded,
-                message: 'Loading complaints…',
+                message: strings.text('helpdeskLoading'),
                 loading: true,
               )
             else if (_error != null)
               AppStateCard(
                 icon: Icons.error_outline_rounded,
-                message: _error!,
-                actionLabel: 'Try again',
+                message: strings.text(_error!),
+                actionLabel: strings.text('helpdeskRetry'),
                 onAction: _load,
               )
             else if (_tickets.isEmpty)
-              const AppStateCard(
+              AppStateCard(
                 icon: Icons.task_alt_rounded,
-                message: 'No complaints for this property. Report a society issue and track every update here.',
+                message: strings.text('helpdeskEmpty'),
               )
             else
               for (final ticket in _tickets) ...[
@@ -123,7 +124,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     final unitId = widget.controller.primaryUnitId;
     if (unitId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a property before creating a complaint.')),
+        SnackBar(content: Text(AaraagateStrings.device().text('helpdeskSelectProperty'))),
       );
       return;
     }
@@ -161,7 +162,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('New complaint', style: theme.textTheme.headlineSmall),
+                Text(AaraagateStrings.device().text('helpdeskNewComplaint'), style: theme.textTheme.headlineSmall),
                 const SizedBox(height: AaraagateTokens.space1),
                 Text(
                   'Describe the issue clearly so your society team can route it faster.',
