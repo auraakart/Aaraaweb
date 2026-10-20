@@ -187,3 +187,17 @@ The first changed-widget run failed only the new light/dark test assertions: Hom
 ### Follow-up CI finding: V4.84 informational Home contract
 
 The fresh PR run progressed past the V4.52 check but surfaced a second historical source-token requirement in `scripts/check-v4.84-field-operations-pilot-readiness.mjs`: it demanded the literal English `No urgent follow-up. Recent activity is shown below.` in `home_screen.dart`. The functional invariant remains correct—the Home action count still excludes `ResidentHomeUrgency.info` and displays a distinct informational-state summary. Update the contract to enforce the actual localized binding and exact original English fallback; preserve the urgency exclusion and all unrelated V4.84 safety and finance checks. Repository-wide code search found these two historic source-token contracts; the preexisting English Home widget tests remain unchanged and still prove fallback behavior.
+
+
+## Slice V4.99.3.5j — Staff entry, identity fallbacks and history destinations
+
+**Confirmed remaining source gap:** Staff is explicitly in the V4.99.3.5 scope, but the household staff header, empty-state guidance, add/refresh tooltips, missing-name/role fallbacks, loading announcement and attendance/payment-history entry labels were still English-only after the Home, Billing, Helpdesk and Guard slices merged through PR #1502.
+
+**Change:** reuse the established eight-language Resident table for twelve Staff entry keys. Preserve exact English labels, name/phone data, assignment/verification/gate-access meaning, role/status enums, existing callbacks and routes, attendance month selection/history, payment/leave/rating mutations, property isolation and theme tokens. The Add tooltip is translated; the existing add form, operational status text and history sheet content are separate remaining localization surfaces. Do not claim full Staff localization or professionally approved translations.
+
+**Validation:** add an eight-language × light/dark 320dp matrix for empty entry and missing-identity cards, exercise the existing attendance destination, and test Hindi/Tamil light/dark at 200% text plus unsupported-locale fallback. Existing localization completeness, workforce mutation recovery and monthly attendance regressions remain required alongside protected Flutter CI. Local execution is unavailable in this session, so test execution evidence must come from GitHub Actions; no local pass is asserted. Native-speaker and physical-device acceptance remain pending.
+
+
+### V4.99.3.5j large-text interaction harness correction
+
+The first changed-test run passed all 32 normal-size locale/theme cases and English fallback. Four 200%-text cases failed a text-center hit-test immediately after scrolling, without a production overflow exception. Use the actual enabled attendance button, explicitly settle scrolling, and require a real tap to open the month selector. Preserve the 320dp/200% condition and all existing production behavior. The protected rerun must prove the action works; no failing case is removed.
