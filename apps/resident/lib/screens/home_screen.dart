@@ -223,26 +223,33 @@ class HomeScreen extends StatelessWidget {
                   message: 'Checking gate activity…',
                   loading: true,
                 )
-              else if (showGate && controller.accessError != null)
-                AppStateCard(
-                  icon: Icons.error_outline_rounded,
-                  message: 'Access requests could not be loaded.',
-                  actionLabel: 'Retry',
-                  onAction: controller.load,
-                )
-              else if (showGate && pending != null)
-                _PendingAccessCard(
-                  key: ValueKey(pending['id']),
-                  pending: pending,
-                  onDeny: () async {
-                    await controller.denyAccess(pending['id'].toString());
-                  },
-                  onAllow: () async {
-                    await controller.approveAccess(pending['id'].toString());
-                  },
-                )
-              else if (showGate && highlights.isEmpty)
-                const _AllClearCard(),
+              else ...[
+                // A failed refresh must not erase the last locally available
+                // gate decision; the recovery notice remains visible.
+                if (showGate && controller.accessError != null) ...[
+                  AppStateCard(
+                    icon: Icons.error_outline_rounded,
+                    message: 'Access requests could not be loaded.',
+                    actionLabel: 'Retry',
+                    onAction: controller.load,
+                  ),
+                  if (pending != null || highlights.isNotEmpty)
+                    SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
+                ],
+                if (showGate && pending != null)
+                  _PendingAccessCard(
+                    key: ValueKey(pending['id']),
+                    pending: pending,
+                    onDeny: () async {
+                      await controller.denyAccess(pending['id'].toString());
+                    },
+                    onAllow: () async {
+                      await controller.approveAccess(pending['id'].toString());
+                    },
+                  )
+                else if (showGate && highlights.isEmpty && controller.accessError == null)
+                  const _AllClearCard(),
+              ],
               if (showGate && pending != null && highlights.isNotEmpty)
                 SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               for (var i = 0; i < highlights.length; i++) ...[
