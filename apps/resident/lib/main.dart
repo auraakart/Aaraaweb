@@ -9,6 +9,7 @@ import 'data/api_client.dart';
 import 'data/demo_resident_repository.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
+import 'localization/aaraagate_strings.dart';
 import 'screens/amenities_screen.dart';
 import 'screens/ai_assistant_screen.dart';
 import 'screens/parcels_screen.dart';
@@ -384,20 +385,21 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           final status = ticket['status']?.toString().toUpperCase() ?? '';
           return status.isNotEmpty && status != 'RESOLVED' && status != 'CLOSED' && status != 'CANCELLED';
         }).length;
+        final strings = AaraagateStrings.device();
         final destinations = <NavigationDestination>[
-          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: strings.text('navHome')),
           NavigationDestination(
             icon: Badge(isLabelVisible: pendingGateCount > 0, label: Text(pendingGateCount > 99 ? '99+' : '$pendingGateCount'), child: const Icon(Icons.shield_outlined)),
             selectedIcon: Badge(isLabelVisible: pendingGateCount > 0, label: Text(pendingGateCount > 99 ? '99+' : '$pendingGateCount'), child: const Icon(Icons.shield_rounded)),
-            label: 'Gate',
+            label: strings.text('navGate'),
           ),
-          const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'),
+          NavigationDestination(icon: const Icon(Icons.handyman_outlined), selectedIcon: const Icon(Icons.handyman_rounded), label: strings.text('navServices')),
           NavigationDestination(
             icon: Badge(isLabelVisible: openCommunityCount > 0, label: Text(openCommunityCount > 99 ? '99+' : '$openCommunityCount'), child: const Icon(Icons.groups_outlined)),
             selectedIcon: Badge(isLabelVisible: openCommunityCount > 0, label: Text(openCommunityCount > 99 ? '99+' : '$openCommunityCount'), child: const Icon(Icons.groups_rounded)),
-            label: 'Community',
+            label: strings.text('navCommunity'),
           ),
-          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person_rounded), label: strings.text('navProfile')),
         ];
         const profileIndex = 4;
 
