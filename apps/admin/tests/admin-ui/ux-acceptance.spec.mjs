@@ -23,7 +23,7 @@ for (const route of routes) {
         // doubled content; the independent unzoomed case uses a real 320px viewport.
         await page.setViewportSize({ width: 320 * scale, height: 900 })
         await page.emulateMedia({ reducedMotion: 'reduce' })
-        await page.goto(`/migrations.html?route=${route.key}`)
+        await page.goto(`/migrations.html?route=${route.key}${route.key === 'governance' ? '&longTitle=1' : ''}`)
         await expect(page.getByRole('heading', { level: 1, name: route.title, exact: true })).toBeVisible()
         await expect(page.getByText(route.ready, { exact: false }).first()).toBeVisible()
         if (route.detail) {
@@ -34,6 +34,49 @@ for (const route of routes) {
           document.documentElement.dataset.adminTheme = dark ? 'dark' : 'light'
           document.documentElement.style.zoom = String(scale)
         }, { dark, scale })
+        if (route.key === 'finance') {
+          const paymentId = '53aa5ce7-1dba-47ef-b939-e2385370c242'
+          const input = page.getByLabel('Payment ID', { exact: true })
+          expect((await input.boundingBox()).width / scale).toBeGreaterThanOrEqual(180)
+          await input.fill(paymentId)
+          await expect(input).toHaveValue(paymentId)
+          // Keyboard activation must still reach the read-only lookup action.
+          await input.focus()
+          await page.keyboard.press('Tab')
+          const inspect = page.getByRole('button', { name: 'Inspect payment', exact: true })
+          await expect(inspect).toBeFocused()
+          await page.keyboard.press('Enter')
+          const allocation = page.locator('#payment-allocation')
+          await expect(allocation.getByText('No allocations yet.', { exact: true })).toBeVisible()
+          const receivable = allocation.getByLabel('Receivable', { exact: true })
+          const amount = allocation.getByLabel('Amount (₹)', { exact: true })
+          for (const control of [receivable, amount]) {
+            expect((await control.boundingBox()).width / scale).toBeGreaterThanOrEqual(180)
+          }
+          await receivable.selectOption('recv-1')
+          await amount.fill('1250')
+          await expect(allocation.getByRole('button', { name: 'Allocate', exact: true })).toBeEnabled()
+          const lookupRequests = await page.evaluate(id => window.financeRequests.filter(request => request.path.includes(id)), paymentId)
+          expect(lookupRequests).toHaveLength(4)
+          expect(lookupRequests.every(request => request.method === 'GET')).toBe(true)
+        }
+        if (route.key === 'governance') {
+          const meeting = page.getByRole('button').filter({ hasText: 'September committee review of maintenance, collections and resident communications' })
+          const badge = meeting.getByText('HELD', { exact: true })
+          await expect(badge).toBeVisible()
+          // Compare first/last character positions: a visible pill can still wrap
+          // each letter onto a separate line without overflowing the page.
+          expect(await badge.evaluate(element => {
+            const text = element.firstChild
+            const range = document.createRange()
+            range.setStart(text, 0)
+            range.setEnd(text, 1)
+            const first = range.getBoundingClientRect().top
+            range.setStart(text, text.length - 1)
+            range.setEnd(text, text.length)
+            return Math.abs(range.getBoundingClientRect().top - first)
+          })).toBeLessThanOrEqual(1)
+        }
         await expect(page.getByRole('main')).toHaveCount(1)
         const layout = await page.evaluate(() => ({
           viewport: innerWidth,
@@ -70,6 +113,11 @@ for (const route of routes) {
           path: testInfo.outputPath(`v4.99.3-${route.key}-${dark ? 'dark' : 'light'}-${scale}x.png`),
           fullPage: true,
         })
+        if (route.key === 'finance' || route.key === 'governance') {
+          const detail = route.key === 'finance' ? page.locator('#payment-allocation') :
+            page.getByRole('button').filter({ hasText: 'September committee review of maintenance, collections and resident communications' })
+          await detail.screenshot({ path: testInfo.outputPath(`v4.99.3-${route.key}-detail-${dark ? 'dark' : 'light'}-${scale}x.png`) })
+        }
       })
     }
   }

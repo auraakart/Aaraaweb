@@ -194,7 +194,7 @@ const resolutionLink:React.CSSProperties={display:'flex',justifyContent:'space-b
 const twoCol:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,340px),1fr))',gap:24}
 
 const formGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,180px),1fr))',gap:10,alignItems:'end',marginTop:14}
-const inlineForm:React.CSSProperties={display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:10,alignItems:'end'}
-const allocationForm:React.CSSProperties={display:'grid',gridTemplateColumns:'minmax(0,2fr) minmax(180px,1fr) auto',gap:10,alignItems:'end',marginTop:14}
+const inlineForm:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,220px),1fr))',gap:10,alignItems:'end'}
+const allocationForm:React.CSSProperties={...inlineForm,marginTop:14}
 const confirmRow:React.CSSProperties={display:'grid',gridTemplateColumns:'auto 1fr',gap:10,alignItems:'start'}
 const closeControls:React.CSSProperties={display:'grid',gap:10,maxWidth:520}

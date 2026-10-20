@@ -207,7 +207,7 @@ export default function GovernancePage(){
       >
         <div style={queueList}>{meetings.map(m=><button key={m.id} type="button" aria-pressed={selected?.id===m.id} onClick={()=>void inspect(m.id)} style={{...meetingButton,...(selected?.id===m.id?selectedMeeting:{})}}>
           <span style={queueMeta}><strong>{m.meetingType} · {m.title}</strong><small>{fmt(m.scheduledAt)}{m.location?` · ${m.location}`:''}</small></span>
-          <StatusPill label={human(m.status)} tone={m.status==='HELD'?'success':m.status==='CANCELLED'?'danger':'info'}/>
+          <span style={{flexShrink:0}}><StatusPill label={human(m.status)} tone={m.status==='HELD'?'success':m.status==='CANCELLED'?'danger':'info'}/></span>
         </button>)}</div>
       </QueuePanel>
 
@@ -295,7 +295,7 @@ const item={display:'flex',justifyContent:'space-between',gap:12,alignItems:'cen
 const sectionHeader={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'} as const
 const muted={margin:0,color:'var(--muted,#64748b)'} as const
 const queueList={display:'grid',gap:8} as const
-const meetingButton={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',width:'100%',padding:12,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--surface,#fff)',color:'var(--ink,#17323a)',textAlign:'left',font:'inherit',cursor:'pointer'} as const
+const meetingButton={display:'flex',flexWrap:'wrap',justifyContent:'space-between',gap:12,alignItems:'center',width:'100%',padding:12,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--surface,#fff)',color:'var(--ink,#17323a)',textAlign:'left',font:'inherit',cursor:'pointer'} as const
 const selectedMeeting={background:'var(--neutral-soft,#eef6f7)',borderColor:'var(--brand,#05879a)',boxShadow:'inset 3px 0 0 var(--brand,#05879a)'} as const
 const queueMeta={display:'grid',gap:4,minWidth:0} as const
 const statusRow={display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'} as const
