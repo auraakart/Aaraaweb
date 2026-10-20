@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/guard_operations_client.dart';
 import '../guard_controller.dart';
+import '../localization/guard_strings.dart';
 import '../widgets/guard_operation_ui.dart';
 import '../widgets/guard_field_section_header.dart';
 import '../widgets/guard_field_attention_header.dart';
@@ -31,10 +32,11 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   Future<void> run(Future<void> Function() action)async{setState(()=>busy=true);try{await action();await load();}catch(_){if(mounted)setState(()=>error='The action status could not be confirmed. Refresh the latest status before trying again.');}finally{if(mounted)setState(()=>busy=false);}}
 
   @override Widget build(BuildContext context){
-    return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(tooltip:'Refresh field operations',onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
+    final strings = GuardStrings(widget.controller.languageCode);
+    return Scaffold(appBar:AppBar(title:Text(strings.get('fieldOperations')),actions:[IconButton(tooltip:strings.get('fieldRefresh'),onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
       if(error!=null)GuardFieldRecoveryNotice(message:error!,onRefresh:busy?null:load),
       _attentionNow(),const SizedBox(height:12),_metrics(),const SizedBox(height:18),
-      _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x) => GuardFieldActionCard(
+      _heading(strings.get('fieldOverstays'),Icons.timer_outlined),...overstays.take(20).map((x) => GuardFieldActionCard(
         icon: Icons.schedule_rounded,
         title: "${x['subjectName'] ?? 'Visitor'} · ${x['buildingName'] ?? ''} ${x['unitNumber'] ?? ''}",
         subtitle: "${x['minutesInside'] ?? 0} min inside",
@@ -44,8 +46,8 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
           () => client.escalateOverstay(x['id'].toString()).then((_) {}),
         ),
       )),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
-      const SizedBox(height:18),_heading('Watchlist',Icons.policy_outlined),...watchlist.take(20).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
-      const SizedBox(height:18),_sectionHeader('Material & move passes',Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x) => GuardFieldPassCard(
+      const SizedBox(height:18),_heading(strings.get('fieldWatchlist'),Icons.policy_outlined),...watchlist.take(20).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
+      const SizedBox(height:18),_sectionHeader(strings.get('fieldPasses'),Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x) => GuardFieldPassCard(
         title: '${x['referenceCode']} · ${x['movementType']}',
         subtitle: '${x['subjectName']} · ${x['itemDescription']}',
         status: x['status']?.toString() ?? '',
@@ -58,7 +60,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
               )
             : null,
       )),if(passes.isEmpty)_empty('No gate passes recorded.'),
-      const SizedBox(height:18),_heading('Patrol checkpoints',Icons.qr_code_scanner_rounded),...checkpoints.map((x) {
+      const SizedBox(height:18),_heading(strings.get('fieldPatrol'),Icons.qr_code_scanner_rounded),...checkpoints.map((x) {
         final status = patrolStatus.firstWhere(
           (s) => s['id'] == x['id'],
           orElse: () => const <String, dynamic>{},
@@ -77,8 +79,8 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
           ),
         );
       }),if(checkpoints.isEmpty)_empty('No active patrol checkpoints configured.'),
-      const SizedBox(height:18),_sectionHeader('Shift handover',Icons.handshake_outlined,TextButton.icon(onPressed:busy?null:_createHandover,icon:const Icon(Icons.note_add_rounded),label:const Text('HAND OVER'))),...handovers.take(20).map((x)=>_handoverTile(x)),if(handovers.isEmpty)_empty('No shift handovers recorded.'),
-      const SizedBox(height:18),_sectionHeader('Incidents',Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(30).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),if(incidents.isEmpty)_empty('No incidents recorded.'),
+      const SizedBox(height:18),_sectionHeader(strings.get('fieldHandover'),Icons.handshake_outlined,TextButton.icon(onPressed:busy?null:_createHandover,icon:const Icon(Icons.note_add_rounded),label:const Text('HAND OVER'))),...handovers.take(20).map((x)=>_handoverTile(x)),if(handovers.isEmpty)_empty('No shift handovers recorded.'),
+      const SizedBox(height:18),_sectionHeader(strings.get('fieldIncidents'),Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(30).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),if(incidents.isEmpty)_empty('No incidents recorded.'),
     ]))));
   }
 

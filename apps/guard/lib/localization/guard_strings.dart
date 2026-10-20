@@ -23,6 +23,13 @@ class GuardStrings {
 
   static const _values = <String, Map<String, String>>{
     'en': {
+      'fieldRefresh':'Refresh field operations',
+      'fieldOverstays':'Overstays',
+      'fieldWatchlist':'Watchlist',
+      'fieldPasses':'Material & move passes',
+      'fieldPatrol':'Patrol checkpoints',
+      'fieldHandover':'Shift handover',
+      'fieldIncidents':'Incidents',
       'tools':'Guard tools','nextAction':'Next action','language':'Language','operationsOverview':'Operations overview','activeGate':'Active gate',
       'realtime':'Realtime','connected':'Connected','disconnected':'Disconnected','offlineQueue':'Offline queue','pendingActions':'pending actions',
       'retrySync':'Retry safe sync','unitDirectory':'Unit directory','searchUnit':'Search building or unit','clearSearch':'Clear search','noUnits':'No matching occupied units',
@@ -39,6 +46,13 @@ class GuardStrings {
       'voiceWaitingApproval':'Waiting for resident approval.'
     },
     'hi': {
+      'fieldRefresh':'गेट कार्य स्थिति फिर देखें',
+      'fieldOverstays':'अधिक समय रुके लोग',
+      'fieldWatchlist':'निगरानी सूची',
+      'fieldPasses':'सामान और मूव पास',
+      'fieldPatrol':'गश्त जाँच बिंदु',
+      'fieldHandover':'शिफ्ट हस्तांतरण',
+      'fieldIncidents':'घटनाएँ',
       'tools':'गार्ड टूल्स','nextAction':'अगला कदम','language':'भाषा','operationsOverview':'ऑपरेशन स्थिति','activeGate':'सक्रिय गेट',
       'realtime':'रीयल टाइम','connected':'कनेक्टेड','disconnected':'डिस्कनेक्टेड','offlineQueue':'ऑफलाइन कतार','pendingActions':'लंबित कार्य',
       'retrySync':'सुरक्षित सिंक फिर करें','unitDirectory':'फ्लैट सूची','searchUnit':'बिल्डिंग या फ्लैट खोजें','clearSearch':'खोज साफ़ करें','noUnits':'कोई मिलती इकाई नहीं',
@@ -54,6 +68,13 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंज़ूर है। अंदर जाने दें।','voiceAccessBlocked':'प्रवेश मंज़ूर नहीं है। अंदर न जाने दें।','voiceWaitingApproval':'निवासी की मंज़ूरी की प्रतीक्षा है।'
     },
     'ta': {
+      'fieldRefresh':'கள செயல்பாடுகளைப் புதுப்பிக்கவும்',
+      'fieldOverstays':'நேரம் மீறித் தங்கியவர்கள்',
+      'fieldWatchlist':'கண்காணிப்புப் பட்டியல்',
+      'fieldPasses':'பொருள் மற்றும் நகர்வு அனுமதிகள்',
+      'fieldPatrol':'ரோந்துச் சோதனை இடங்கள்',
+      'fieldHandover':'பணி மாற்ற ஒப்படைப்பு',
+      'fieldIncidents':'சம்பவங்கள்',
       'tools':'காவலர் கருவிகள்','nextAction':'அடுத்த செயல்','language':'மொழி','operationsOverview':'செயல்பாட்டு நிலை','activeGate':'செயலில் உள்ள வாயில்',
       'realtime':'நேரடி இணைப்பு','connected':'இணைக்கப்பட்டது','disconnected':'இணைப்பு இல்லை','offlineQueue':'ஆஃப்லைன் வரிசை','pendingActions':'நிலுவை செயல்கள்',
       'retrySync':'பாதுகாப்பான ஒத்திசைவை மீண்டும் செய்','unitDirectory':'வீட்டு பட்டியல்','searchUnit':'கட்டிடம் அல்லது வீடு தேடவும்','clearSearch':'தேடலை அழிக்கவும்','noUnits':'பொருந்தும் வீடுகள் இல்லை',
@@ -69,6 +90,13 @@ class GuardStrings {
       'voiceAccessApproved':'அனுமதி வழங்கப்பட்டது. உள்ளே விடலாம்.','voiceAccessBlocked':'அனுமதி இல்லை. உள்ளே விட வேண்டாம்.','voiceWaitingApproval':'குடியிருப்பாளர் அனுமதிக்காக காத்திருக்கிறது.'
     },
     'te': {
+      'fieldRefresh':'ఫీల్డ్ ఆపరేషన్స్‌ను రిఫ్రెష్ చేయండి',
+      'fieldOverstays':'గడువును మించిన వారు',
+      'fieldWatchlist':'నిఘా జాబితా',
+      'fieldPasses':'సామగ్రి మరియు తరలింపు పాస్‌లు',
+      'fieldPatrol':'గస్తీ తనిఖీ కేంద్రాలు',
+      'fieldHandover':'షిఫ్ట్ అప్పగింత',
+      'fieldIncidents':'సంఘటనలు',
       'tools':'గార్డ్ టూల్స్','nextAction':'తదుపరి చర్య','language':'భాష','operationsOverview':'ఆపరేషన్ స్థితి','activeGate':'యాక్టివ్ గేట్',
       'realtime':'రియల్ టైమ్','connected':'కనెక్ట్ అయింది','disconnected':'డిస్‌కనెక్ట్ అయింది','offlineQueue':'ఆఫ్‌లైన్ క్యూ','pendingActions':'పెండింగ్ చర్యలు',
       'retrySync':'సురక్షిత సింక్ మళ్లీ చేయండి','unitDirectory':'యూనిట్ జాబితా','searchUnit':'బిల్డింగ్ లేదా యూనిట్ వెతకండి','clearSearch':'శోధనను తొలగించండి','noUnits':'సరిపోలిన యూనిట్లు లేవు',
@@ -84,6 +112,13 @@ class GuardStrings {
       'voiceAccessApproved':'ప్రవేశం అనుమతించబడింది. లోపలికి పంపండి.','voiceAccessBlocked':'ప్రవేశానికి అనుమతి లేదు. లోపలికి పంపవద్దు.','voiceWaitingApproval':'నివాసి అనుమతి కోసం వేచి ఉంది.'
     },
     'kn': {
+      'fieldRefresh':'ಕ್ಷೇತ್ರ ಕಾರ್ಯಾಚರಣೆಗಳನ್ನು ನವೀಕರಿಸಿ',
+      'fieldOverstays':'ನಿಗದಿತ ಸಮಯ ಮೀರಿದವರು',
+      'fieldWatchlist':'ನಿಗಾ ಪಟ್ಟಿ',
+      'fieldPasses':'ವಸ್ತು ಮತ್ತು ಸ್ಥಳಾಂತರ ಪಾಸ್‌ಗಳು',
+      'fieldPatrol':'ಗಸ್ತು ತಪಾಸಣೆ ಕೇಂದ್ರಗಳು',
+      'fieldHandover':'ಪಾಳಿ ಹಸ್ತಾಂತರ',
+      'fieldIncidents':'ಘಟನೆಗಳು',
       'tools':'ಗಾರ್ಡ್ ಉಪಕರಣಗಳು','nextAction':'ಮುಂದಿನ ಕ್ರಮ','language':'ಭಾಷೆ','operationsOverview':'ಕಾರ್ಯಾಚರಣೆ ಸ್ಥಿತಿ','activeGate':'ಸಕ್ರಿಯ ಗೇಟ್',
       'realtime':'ನೇರ ಸಂಪರ್ಕ','connected':'ಸಂಪರ್ಕಿತ','disconnected':'ಸಂಪರ್ಕ ಕಡಿತ','offlineQueue':'ಆಫ್‌ಲೈನ್ ಸರತಿ','pendingActions':'ಬಾಕಿ ಕಾರ್ಯಗಳು',
       'retrySync':'ಸುರಕ್ಷಿತ ಸಿಂಕ್ ಮರುಪ್ರಯತ್ನ','unitDirectory':'ಮನೆಗಳ ಪಟ್ಟಿ','searchUnit':'ಕಟ್ಟಡ ಅಥವಾ ಮನೆ ಹುಡುಕಿ','clearSearch':'ಹುಡುಕಾಟ ತೆರವುಗೊಳಿಸಿ','noUnits':'ಹೊಂದುವ ಮನೆಗಳಿಲ್ಲ',
@@ -99,6 +134,13 @@ class GuardStrings {
       'voiceAccessApproved':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಾಗಿದೆ. ಒಳಗೆ ಬಿಡಿ.','voiceAccessBlocked':'ಪ್ರವೇಶ ಅನುಮೋದಿಸಲಿಲ್ಲ. ಒಳಗೆ ಬಿಡಬೇಡಿ.','voiceWaitingApproval':'ನಿವಾಸಿಯ ಅನುಮತಿಗಾಗಿ ಕಾಯುತ್ತಿದೆ.'
     },
     'ml': {
+      'fieldRefresh':'ഫീൽഡ് പ്രവർത്തനങ്ങൾ പുതുക്കുക',
+      'fieldOverstays':'സമയം കഴിഞ്ഞിട്ടും തുടരുന്നവർ',
+      'fieldWatchlist':'നിരീക്ഷണ പട്ടിക',
+      'fieldPasses':'സാധനങ്ങളും നീക്കത്തിനുള്ള പാസുകളും',
+      'fieldPatrol':'പട്രോൾ പരിശോധനാ കേന്ദ്രങ്ങൾ',
+      'fieldHandover':'ഷിഫ്റ്റ് കൈമാറ്റം',
+      'fieldIncidents':'സംഭവങ്ങൾ',
       'tools':'ഗാർഡ് ഉപകരണങ്ങൾ','nextAction':'അടുത്ത നടപടി','language':'ഭാഷ','operationsOverview':'പ്രവർത്തന നില','activeGate':'സജീവ ഗേറ്റ്',
       'realtime':'തത്സമയ ബന്ധം','connected':'ബന്ധിപ്പിച്ചു','disconnected':'ബന്ധം നഷ്ടപ്പെട്ടു','offlineQueue':'ഓഫ്‌ലൈൻ ക്യൂ','pendingActions':'ബാക്കി പ്രവർത്തനങ്ങൾ',
       'retrySync':'സുരക്ഷിത സിങ്ക് വീണ്ടും ശ്രമിക്കുക','unitDirectory':'യൂണിറ്റ് പട്ടിക','searchUnit':'ബിൽഡിംഗ് അല്ലെങ്കിൽ യൂണിറ്റ് തിരയുക','clearSearch':'തിരയൽ മായ്ക്കുക','noUnits':'പൊരുത്തപ്പെടുന്ന യൂണിറ്റുകളില്ല',
@@ -114,6 +156,13 @@ class GuardStrings {
       'voiceAccessApproved':'പ്രവേശനം അനുവദിച്ചു. അകത്ത് വിടാം.','voiceAccessBlocked':'പ്രവേശനം അനുവദിച്ചിട്ടില്ല. അകത്ത് വിടരുത്.','voiceWaitingApproval':'താമസക്കാരന്റെ അനുമതിക്കായി കാത്തിരിക്കുന്നു.'
     },
     'mr': {
+      'fieldRefresh':'मैदानी कामकाज अद्ययावत करा',
+      'fieldOverstays':'वेळ ओलांडलेले पाहुणे',
+      'fieldWatchlist':'निगराणी यादी',
+      'fieldPasses':'साहित्य व हलविण्याचे पास',
+      'fieldPatrol':'गस्त तपासणी ठिकाणे',
+      'fieldHandover':'शिफ्ट हस्तांतरण',
+      'fieldIncidents':'घटना',
       'tools':'गार्ड साधने','nextAction':'पुढील कृती','language':'भाषा','operationsOverview':'ऑपरेशन स्थिती','activeGate':'सक्रिय गेट',
       'realtime':'रिअल टाइम','connected':'जोडलेले','disconnected':'डिस्कनेक्ट','offlineQueue':'ऑफलाइन रांग','pendingActions':'प्रलंबित कृती',
       'retrySync':'सुरक्षित सिंक पुन्हा करा','unitDirectory':'युनिट सूची','searchUnit':'इमारत किंवा युनिट शोधा','clearSearch':'शोध साफ करा','noUnits':'जुळणारी युनिट नाहीत',
@@ -129,6 +178,13 @@ class GuardStrings {
       'voiceAccessApproved':'प्रवेश मंजूर आहे. आत जाऊ द्या.','voiceAccessBlocked':'प्रवेश मंजूर नाही. आत जाऊ देऊ नका.','voiceWaitingApproval':'रहिवाशाच्या मंजुरीची प्रतीक्षा आहे.'
     },
     'bn': {
+      'fieldRefresh':'ফিল্ড অপারেশন রিফ্রেশ করুন',
+      'fieldOverstays':'সময়সীমা পেরিয়ে থাকা ব্যক্তি',
+      'fieldWatchlist':'নজরদারি তালিকা',
+      'fieldPasses':'মালপত্র ও স্থানান্তর পাস',
+      'fieldPatrol':'টহল চেকপয়েন্ট',
+      'fieldHandover':'শিফট হস্তান্তর',
+      'fieldIncidents':'ঘটনা',
       'tools':'গার্ড টুলস','nextAction':'পরবর্তী পদক্ষেপ','language':'ভাষা','operationsOverview':'অপারেশন অবস্থা','activeGate':'সক্রিয় গেট',
       'realtime':'রিয়েল টাইম','connected':'সংযুক্ত','disconnected':'সংযোগ বিচ্ছিন্ন','offlineQueue':'অফলাইন কিউ','pendingActions':'অপেক্ষমান কাজ',
       'retrySync':'নিরাপদ সিঙ্ক আবার চেষ্টা করুন','unitDirectory':'ইউনিট তালিকা','searchUnit':'বিল্ডিং বা ইউনিট খুঁজুন','clearSearch':'অনুসন্ধান মুছুন','noUnits':'কোনো মিল পাওয়া যায়নি',
