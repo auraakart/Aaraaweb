@@ -201,3 +201,12 @@ The fresh PR run progressed past the V4.52 check but surfaced a second historica
 ### V4.99.3.5j large-text interaction harness correction
 
 The first changed-test run passed all 32 normal-size locale/theme cases and English fallback. Four 200%-text cases failed a text-center hit-test immediately after scrolling, without a production overflow exception. Use the actual enabled attendance button, explicitly settle scrolling, and require a real tap to open the month selector. Preserve the 320dp/200% condition and all existing production behavior. The protected rerun must prove the action works; no failing case is removed.
+
+
+## Slice V4.99.3.2b / 3.6a — Compact operational Admin acceptance matrix
+
+**Verified remaining coverage gap:** the seven migrated workspaces already have desktop opt-in dark/axe coverage and 360/768/1440px light responsive tests. Recreating those completed checks would add no closure evidence. The missing combination is 320px reflow, both themes, 200% zoom, and keyboard traversal across their actual migrated route components.
+
+**Change:** add 28 browser cases (seven routes × light/dark × normal/200% zoom). Reuse the existing isolated API fixtures and real Helpdesk, Privacy, Facilities, Documents, Occupancy, Finance and Governance pages, including selected queue details where needed. Check one main landmark, no viewport horizontal overflow, ready content, enabled keyboard focus/Tab traversal, zero runtime errors and WCAG A/AA axe results. Capture a full-page PNG for each condition in the existing Admin CI evidence artifact. Check that these read-only finance acceptance steps cause no finance mutation.
+
+**Scope:** this adds automated evidence and does not change the product, permissions, API, theme preference or brand colors. At 200% browser CSS zoom, a 640px viewport exercises 320px effective reflow, alongside an independent physical 320px CSS viewport at normal scale. This is not physical-device testing, native screen-reader certification, human visual review, hosted integration acceptance or observed user task timings. The milestone remains open for those separately recorded acceptance steps.
