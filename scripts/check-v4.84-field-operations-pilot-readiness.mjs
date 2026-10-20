@@ -70,7 +70,12 @@ for(const token of [
 
 const home=read('apps/resident/lib/screens/home_screen.dart');
 assert.ok(home.includes('item.urgency != ResidentHomeUrgency.info'),'Informational Home activity must not inflate attention count');
-assert.ok(home.includes('No urgent follow-up. Recent activity is shown below.'),'Home informational-state copy missing');
+assert.ok(home.includes("strings.text('homeNoUrgent')"),'Home informational-state must use localized copy');
+assert.ok(
+  read('apps/resident/lib/localization/aaraagate_strings.dart')
+    .includes("'homeNoUrgent': 'No urgent follow-up. Recent activity is shown below.'"),
+  'Home informational-state English fallback missing',
+);
 const community=read('apps/resident/lib/screens/community_screen.dart');
 for(const token of ["label:'Requests'","label:'Circles'","label:'Directory'"]){
   assert.ok(community.includes(token),'Community discovery shortcut missing: '+token);
