@@ -36,7 +36,10 @@ must('V4.66 Resident retry identity',read('apps/resident/lib/screens/helpdesk_sc
   'String? submissionShape;',
   'submissionShape != shape',
   'idempotencyKey: submissionKey!',
-  'Retry will reuse this submission unless you edit the complaint.'
+  "validationMessage = strings.text('helpdeskSubmitUnconfirmed')"
+]);
+must('V4.66 localized retry copy preserves English intent',read('apps/resident/lib/localization/aaraagate_strings.dart'),[
+  "'helpdeskSubmitUnconfirmed': 'Complaint could not be confirmed. Retry will reuse this submission unless you edit the complaint.'"
 ]);
 must('V4.66 idempotency regression',read('services/api/src/helpdesk/helpdesk.service.spec.ts'),[
   'returns the original complaint for an exact same-key replay without a second create event',

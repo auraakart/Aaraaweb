@@ -24,13 +24,21 @@ requireTokens('Resident vernacular voice draft',residentSpeech,[
   "'assistantUnavailable':",
 ]);
 const helpdesk=read('apps/resident/lib/screens/helpdesk_screen.dart');
+const residentStrings=read('apps/resident/lib/localization/aaraagate_strings.dart');
 requireTokens('Helpdesk voice review boundary',helpdesk,[
   'DeviceResidentSpeech',
   "ResidentVoiceCopy.text(languageCode, 'action')",
   'description.text = clean',
-  'Submit complaint',
+  "strings.text('helpdeskSubmit')",
+  'onPressed: submitting || listening',
 ]);
-if(helpdesk.includes('speech.listenOnce')&&!helpdesk.includes('Submit complaint')){
+requireTokens('Helpdesk submit fallback remains explicit',residentStrings,[
+  "'helpdeskSubmit': 'Submit complaint'",
+]);
+if(helpdesk.includes('speech.listenOnce')&&(
+  !helpdesk.includes("strings.text('helpdeskSubmit')")||
+  !helpdesk.includes('onPressed: submitting || listening')
+)){
   console.error('V4.51 regression: voice input must remain a reviewable draft before submit');
   process.exit(1);
 }

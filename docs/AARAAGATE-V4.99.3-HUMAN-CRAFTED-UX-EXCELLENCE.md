@@ -102,3 +102,11 @@ The first five new tests failed (12 existing Gate cases passed) because test ass
 **Change:** reuse the established `AaraagateStrings.device()` table and English fallback for exactly ten Helpdesk entry keys across en/hi/ta/te/kn/ml/mr/bn: page heading, complaint section heading, supporting intro, count summary, new complaint action, loading, connection error, retry, empty state and missing-property guidance. Reuse `helpdeskNewComplaint` in the sheet title. Show translated long button copy with wrapping; retain the native premium responsive page intro. Store a stable error key so changing locale at rebuild does not expose stale English. No changes to user-entered text, ticket submission or idempotency, assigned property scope, voice input, comment/reopen flows, permissions, APIs or theme branding.
 
 **Tests:** add eight-locale × light/dark widget coverage at 320dp for entry and navigating into the existing complaint sheet. Verify English/Tamil recovery at 320dp/200% text, and retain existing Helpdesk concurrency/voice, recovery, compact and full Resident CI gates. This is **entry-screen localization only**: ticket details and the form's remaining English field labels need separate review. Translations are draft pending native-speaker and physical-device acceptance.
+
+## Slice V4.99.3.5d — Helpdesk form labels and validation across eight languages
+
+**Source issue:** the localized Helpdesk entry still opens an English-only form for the title, issue, category, priority, submission and validation/retry. Residents need clear, localized descriptions at the actual reporting step.
+
+**Fix:** reuse `AaraagateStrings.device()` for the fourteen visible complaint-form keys in the eight existing language codes. Keep exact `LOW/NORMAL/HIGH/URGENT` backend enum values, field validation minimums, user draft, voice sequencing, idempotency shape and reuse after uncertain transport, current property checks and permission contracts. This is text presentation only, with no brand/color change and no new APIs.
+
+**Proof:** add eight-language form interaction tests and Hindi/Tamil at 320dp/200% text; require the existing Helpdesk voice, retry, security, full Resident analyzer/tests and merge gates. Native-speaker review and physical TalkBack acceptance remain unverified.
