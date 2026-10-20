@@ -52,7 +52,7 @@ void main() {
         await tester.tap(action);
         await tester.pumpAndSettle();
         expect(find.text(actionLabel), findsWidgets);
-        expect(find.text('Issue title'), findsOneWidget);
+        expect(find.text(strings.text('helpdeskIssueTitle')), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
