@@ -6,6 +6,64 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+
+  for (final dark in <bool>[false, true]) {
+    testWidgets('Home retains pending gate context when refresh fails: dark=$dark', (tester) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = ResidentDataController(
+        DemoResidentRepository(), activeUnitId: 'unit-a', fetchEntitlements: false,
+      )
+        ..accessRequests = [
+          {'id': 'visitor-1', 'subjectName': 'Waiting visitor', 'subjectType': 'VISITOR', 'status': 'PENDING'},
+        ]
+        ..accessError = 'Connection unavailable';
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(MaterialApp(
+        theme: dark ? AaraagateTheme.dark() : AaraagateTheme.light(),
+        home: Scaffold(body: HomeScreen(
+          controller: controller,
+          showGate: true, showStaff: false, showServices: false,
+          showHelpdesk: false, showNotices: false, showBilling: false,
+          showAmenities: false, showSos: false, showAi: false,
+          onOpenStaff: () {}, onOpenServices: () {}, onOpenHelpdesk: () {},
+          onOpenNotices: () {}, onOpenBilling: () {}, onOpenAmenities: () {},
+          onOpenAi: (_) {},
+        )),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('Action inbox'), findsOneWidget);
+      expect(find.text('Access requests could not be loaded.'), findsOneWidget);
+      expect(find.text('Waiting visitor'), findsOneWidget);
+      expect(find.text('Allow'), findsOneWidget);
+      expect(find.text('Deny'), findsOneWidget);
+      expect(find.text('All clear — nothing needs approval right now.'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('Home never reports all-clear on a failed empty Gate load', (tester) async {
+    final controller = ResidentDataController(
+      DemoResidentRepository(), activeUnitId: 'unit-a', fetchEntitlements: false,
+    )..accessError = 'Connection unavailable';
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: HomeScreen(
+      controller: controller,
+      showGate: true, showStaff: false, showServices: false,
+      showHelpdesk: false, showNotices: false, showBilling: false,
+      showAmenities: false, showSos: false, showAi: false,
+      onOpenStaff: () {}, onOpenServices: () {}, onOpenHelpdesk: () {},
+      onOpenNotices: () {}, onOpenBilling: () {}, onOpenAmenities: () {},
+      onOpenAi: (_) {},
+    ))));
+    await tester.pumpAndSettle();
+    expect(find.text('Access requests could not be loaded.'), findsOneWidget);
+    expect(find.text('All clear — nothing needs approval right now.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Action inbox shows one aggregate count and keeps urgency on the item only', (tester) async {
     await tester.binding.setSurfaceSize(const Size(700, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
