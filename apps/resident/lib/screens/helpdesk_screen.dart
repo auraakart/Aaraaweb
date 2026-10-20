@@ -20,6 +20,9 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _tickets = const [];
+  ResidentDataController? _loadedForController;
+  String? _loadedForUnit;
+  int _loadEpoch = 0;
   late final ResidentSpeech speech;
 
   @override
@@ -35,30 +38,60 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant HelpdeskScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      // A switched property/controller must not display a previous list.
+      _tickets = const [];
+      _loadedForController = null;
+      _loadedForUnit = null;
+      _error = null;
+      _load();
+    }
+  }
+
   Future<void> _load() async {
+    final requestController = widget.controller;
+    final requestedUnit = requestController.primaryUnitId;
+    final epoch = ++_loadEpoch;
+    bool currentRequest() =>
+        mounted && epoch == _loadEpoch &&
+        identical(widget.controller, requestController) &&
+        widget.controller.primaryUnitId == requestedUnit;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final tickets = await widget.controller.repository.helpdeskTickets();
-      final selected = widget.controller.primaryUnitId;
-      final scoped = selected == null
+      final tickets = await requestController.repository.helpdeskTickets();
+      final scoped = requestedUnit == null
           ? tickets
           : tickets
-              .where((ticket) => ticket['unitId']?.toString() == selected)
+              .where((ticket) => ticket['unitId']?.toString() == requestedUnit)
               .toList(growable: false);
-      if (mounted) setState(() => _tickets = scoped);
+      if (currentRequest()) {
+        setState(() {
+          _tickets = scoped;
+          _loadedForController = requestController;
+          _loadedForUnit = requestedUnit;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = 'helpdeskLoadFailed');
+      if (currentRequest()) setState(() => _error = 'helpdeskLoadFailed');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (currentRequest()) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeCount = _tickets.where((ticket) {
+    // Present last-known results only for their original property/controller.
+    final visibleTickets = identical(_loadedForController, widget.controller) &&
+            _loadedForUnit == widget.controller.primaryUnitId
+        ? _tickets
+        : const <Map<String, dynamic>>[];
+    final activeCount = visibleTickets.where((ticket) {
       final status = ticket['status']?.toString().toUpperCase();
       return status != 'RESOLVED' && status != 'CLOSED' && status != 'CANCELLED';
     }).length;
@@ -81,9 +114,9 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
             PremiumPageIntro(
               icon: Icons.support_agent_rounded,
               title: strings.text('helpdeskYourComplaints'),
-              supportingText: _tickets.isEmpty
+              supportingText: visibleTickets.isEmpty
                   ? strings.text('helpdeskIntro')
-                  : strings.format('helpdeskCounts', {'active': activeCount, 'total': _tickets.length}),
+                  : strings.format('helpdeskCounts', {'active': activeCount, 'total': visibleTickets.length}),
               action: FilledButton.tonalIcon(
                 onPressed: _newTicket,
                 icon: const Icon(Icons.add_rounded),
@@ -91,7 +124,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
               ),
             ),
             SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
-            if (_loading && _tickets.isEmpty)
+            if (_loading && visibleTickets.isEmpty)
               AppStateCard(
                 icon: Icons.sync_rounded,
                 message: strings.text('helpdeskLoading'),
@@ -104,16 +137,30 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 actionLabel: strings.text('helpdeskRetry'),
                 onAction: _load,
               )
-            else if (_tickets.isEmpty)
+            else if (visibleTickets.isEmpty)
               AppStateCard(
                 icon: Icons.task_alt_rounded,
                 message: strings.text('helpdeskEmpty'),
-              )
-            else
-              for (final ticket in _tickets) ...[
+              ),
+            if (visibleTickets.isNotEmpty) ...[
+              if (_error != null) ...[
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    strings.text('helpdeskCachedNotice'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
+              for (final ticket in visibleTickets) ...[
                 _TicketCard(ticket: ticket, onTap: () => _openTicket(ticket)),
                 SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               ],
+            ],
           ],
         ),
       ),
