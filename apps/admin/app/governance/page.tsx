@@ -287,8 +287,8 @@ export default function GovernancePage(){
 }
 
 const formsGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,300px),1fr))',gap:16} as const
-const panel={display:'grid',gap:12,padding:18,border:'1px solid var(--line,#d5e8eb)',borderRadius:16,background:'var(--surface,#fff)'} as const
-const subPanel={display:'grid',gap:10,padding:14,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--neutral-soft,#f8fafc)'} as const
+const panel={display:'grid',gridTemplateColumns:'minmax(0,1fr)',minWidth:0,gap:12,padding:18,border:'1px solid var(--line,#d5e8eb)',borderRadius:16,background:'var(--surface,#fff)'} as const
+const subPanel={display:'grid',gridTemplateColumns:'minmax(0,1fr)',minWidth:0,gap:10,padding:14,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--neutral-soft,#f8fafc)'} as const
 const note={padding:14,background:'var(--neutral-soft,#f8fafc)',borderRadius:12} as const
 const stack={display:'grid',gap:8} as const
 const item={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--line,#e5e7eb)',flexWrap:'wrap'} as const
