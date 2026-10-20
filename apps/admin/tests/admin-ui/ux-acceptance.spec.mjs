@@ -35,7 +35,18 @@ for (const route of routes) {
           document.documentElement.style.zoom = String(scale)
         }, { dark, scale })
         await expect(page.getByRole('main')).toHaveCount(1)
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+        const layout = await page.evaluate(() => ({
+          viewport: innerWidth,
+          scroll: document.documentElement.scrollWidth,
+          overflowing: [...document.querySelectorAll('main *')].flatMap(el => {
+            const box = el.getBoundingClientRect()
+            if (box.width === 0 || (box.right <= innerWidth + 1 && box.left >= -1)) return []
+            return [{ tag: el.tagName, text: el.textContent?.slice(0, 70),
+              right: Math.round(box.right), width: Math.round(box.width),
+              style: el.getAttribute('style'), className: el.className }]
+          }).slice(0, 15),
+        }))
+        expect(layout.scroll, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport)
         const controls = page.getByRole('main').locator(
           'button:enabled:visible, input:enabled:visible, select:enabled:visible, textarea:enabled:visible, a[href]:visible',
         )
