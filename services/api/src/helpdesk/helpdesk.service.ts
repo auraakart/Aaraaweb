@@ -39,11 +39,12 @@ export class HelpdeskService {
 
   listMine(societyId: string, userId: string) {
     return this.prisma.$queryRaw<TicketRow[]>(Prisma.sql`
-      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName",
+      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", asset."code" AS "assetCode",asset."name" AS "assetName",
         ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       FROM "HelpdeskTicket" ht
       JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
       JOIN "Building" b ON b."id"=u."buildingId"
+      LEFT JOIN "FacilityAsset" asset ON asset."id"=ht."assetId" AND asset."societyId"=ht."societyId"
       WHERE ht."societyId" = ${societyId}::uuid
         AND EXISTS (
           SELECT 1 FROM "UnitOccupancy" uo
@@ -58,10 +59,29 @@ export class HelpdeskService {
     `);
   }
 
+  async resolveResidentAsset(societyId:string,userId:string,unitId:string,rawCode:string){
+    const query=rawCode.trim();
+    if(!query||query.length>180)throw new BadRequestException('Enter an asset code or scan its QR');
+    const token=/^AG-ASSET:([0-9a-f-]{36}):([0-9a-f-]{36})$/i.exec(query);
+    if(query.toUpperCase().startsWith('AG-ASSET:') && (!token||token[1].toLowerCase()!==societyId.toLowerCase()))throw new NotFoundException('Facility asset not found');
+    if(token && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token[2]))throw new NotFoundException('Facility asset not found');
+    const rows=await this.prisma.$queryRaw<Array<{id:string;code:string;name:string;location:string|null}>>(Prisma.sql`
+      SELECT a."id",a."code",a."name",a."location" FROM "FacilityAsset" a
+      WHERE a."societyId"=${societyId}::uuid AND a."status"<>'RETIRED'
+        AND ${token?Prisma.sql`a."id"=${token[2]}::uuid`:Prisma.sql`LOWER(a."code")=LOWER(${query})`}
+        AND EXISTS(SELECT 1 FROM "UnitOccupancy" uo WHERE uo."societyId"=${societyId}::uuid AND uo."unitId"=${unitId}::uuid AND uo."userId"=${userId}::uuid
+          AND uo."active"=true AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+      LIMIT 2
+    `);
+    if(!rows.length)throw new NotFoundException('Facility asset not found');
+    if(rows.length>1)throw new ConflictException('Asset code is ambiguous. Scan the asset QR');
+    return rows[0];
+  }
+
   async createMine(
     societyId: string,
     userId: string,
-    input: { unitId: string; idempotencyKey: string; title: string; description: string; category?: string; priority?: TicketPriority },
+    input: { unitId: string; assetId?: string; idempotencyKey: string; title: string; description: string; category?: string; priority?: TicketPriority },
   ) {
     const title = input.title.trim();
     const description = input.description.trim();
@@ -105,16 +125,22 @@ export class HelpdeskService {
           existing.title === title &&
           existing.description === description &&
           (existing.category ?? null) === category &&
-          existing.priority === priority;
+          existing.priority === priority && (existing.assetId ?? null) === (input.assetId ?? null);
         if (!sameIntent) throw new ConflictException('Idempotency key already used for a different complaint');
         return existing;
       }
+      if(input.assetId){
+        const asset=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+          SELECT "id" FROM "FacilityAsset" WHERE "id"=${input.assetId}::uuid AND "societyId"=${societyId}::uuid AND "status"<>'RETIRED' FOR SHARE
+        `);
+        if(!asset.length)throw new NotFoundException('Facility asset not found');
+      }
       const rows = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         INSERT INTO "HelpdeskTicket" (
-          "societyId", "unitId", "createdById", "idempotencyKey", "title", "description", "category", "priority"
+          "societyId", "unitId", "createdById", "idempotencyKey", "title", "description", "category", "priority", "assetId"
         ) VALUES (
           ${societyId}::uuid, ${input.unitId}::uuid, ${userId}::uuid, ${idempotencyKey},
-          ${title}, ${description}, ${category}, ${priority}
+          ${title}, ${description}, ${category}, ${priority}, ${input.assetId ?? null}::uuid
         )
         RETURNING *
       `);

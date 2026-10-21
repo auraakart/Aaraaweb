@@ -61,7 +61,7 @@ export class ServicesMarketplaceOperationsService {
           "quickServiceEligible",
           "targetArrivalMinutes",
           "includedWork",
-          "partsPolicy",
+          "partsPolicy", "commercialTerms",
           "extraWorkApprovalRequired",
           "recurrenceCadences"
         FROM "ServiceOfferingExperiencePolicy"

@@ -21,6 +21,23 @@ function setup() {
 }
 
 describe('CommunityServices3Service', () => {
+  it('bounds provider declarations and preserves terms for older clients', async () => {
+    const {service,prisma,operators}=setup();
+    operators.resolveProvider.mockResolvedValue({providerId:'provider'});
+    prisma.serviceOffering.findFirst.mockResolvedValue({id:'offering'});
+    prisma.$queryRaw.mockResolvedValue([{}]);
+    const base={quickServiceEligible:false,extraWorkApprovalRequired:true};
+    for(const commercialTerms of [{refund:42},{unknown:'yes'},{refund:'x'.repeat(1001)}]){
+      await expect(service.setMyOfferingExperiencePolicy('user','offering',{...base,commercialTerms} as never)).rejects.toBeInstanceOf(BadRequestException);
+    }
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    await service.setMyOfferingExperiencePolicy('user','offering',base);
+    const q=prisma.$queryRaw.mock.calls[0][0] as {sql:string;values:unknown[]};
+    expect(q.sql).toContain('ELSE "ServiceOfferingExperiencePolicy"."commercialTerms" END');
+    await service.setMyOfferingExperiencePolicy('user','offering',{...base,commercialTerms:{refund:' Provider review required '}});
+    expect(prisma.$queryRaw.mock.calls[1][0].values).toContain('{"refund":"Provider review required"}');
+  });
+
   it('fails closed when a provider reads a service promise for another provider offering', async () => {
     const { service, prisma, operators } = setup();
     operators.resolveProvider.mockResolvedValue({ providerId: 'provider-1' });

@@ -25,3 +25,20 @@ test('partner workspace is accessible on mobile',async({page})=>{
  await page.setViewportSize({width:390,height:844});await page.goto('/partner.html');await expect(page.getByRole('heading',{name:'Society A',exact:true})).toBeVisible()
  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([])
 })
+
+
+test('operational overview shows permitted metrics and switches exact partner scope',async({page})=>{
+ await page.goto('/partner.html?operations')
+ await expect(page.getByRole('heading',{name:'Society A',exact:true})).toBeVisible()
+ await expect(page.getByText('Open maintenance work',{exact:true})).toBeVisible()
+ await expect(page.getByText('Outstanding receivables',{exact:true})).toHaveCount(0)
+ await page.getByLabel('Partner portfolio',{exact:true}).selectOption('22222222-2222-4222-8222-222222222222')
+ await expect(page.getByRole('heading',{name:'Society B',exact:true})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'Society A',exact:true})).toHaveCount(0)
+ expect((await new AxeBuilder({page}).analyze()).violations).toEqual([])
+})
+test('commercial membership without society grants reveals no operational metrics',async({page})=>{
+ await page.goto('/partner.html?operations&noSocietyAccess')
+ await expect(page.getByText('No authorised operational summaries',{exact:true})).toBeVisible()
+ await expect(page.getByText('Open maintenance work',{exact:true})).toHaveCount(0)
+})
