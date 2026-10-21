@@ -172,8 +172,10 @@ void main(){
     await tester.tap(find.text('Water leak'));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('Add a comment'),300,scrollable:find.byType(Scrollable).first);
-    await tester.enterText(find.widgetWithText(TextField,'Comment'),'Please share the repair update');
+    final commentField = find.widgetWithText(TextField, 'Comment');
+    await tester.scrollUntilVisible(commentField, 300, scrollable: find.byType(Scrollable).first);
+    await tester.enterText(commentField, 'Please share the repair update');
+    await tester.scrollUntilVisible(find.text('Send comment'), 150, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Send comment'));
     await tester.pumpAndSettle();
 
@@ -181,6 +183,7 @@ void main(){
     expect(repository.commentKeys.single,startsWith('resident-helpdesk-comment-'));
     expect(find.textContaining('Retry will reuse this comment submission'),findsOneWidget);
 
+    await tester.scrollUntilVisible(find.text('Send comment'), 150, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Send comment'));
     await tester.pumpAndSettle();
 
