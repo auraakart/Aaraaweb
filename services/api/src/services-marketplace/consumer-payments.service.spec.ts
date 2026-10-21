@@ -61,6 +61,7 @@ describe('ConsumerPaymentsService', () => {
     prisma.$queryRaw
       .mockResolvedValueOnce([{
         id: bookingId, offeringName: 'AC service', status: 'IN_PROGRESS', servicePricePaise: 75000,
+        commercialTermsSnapshot: {terms:{refund:'Review required'},source:'PROVIDER_DECLARED'},
       }])
       .mockResolvedValueOnce([{
         id: 'quote-1', scopeDescription: 'Replacement filter', amountPaise: '15000',
@@ -74,6 +75,7 @@ describe('ConsumerPaymentsService', () => {
     expect(summary).toEqual(expect.objectContaining({
       readOnly: true, checkoutReady: false, amountPayablePaise: null,
       currency: 'INR', taxBreakdown: null, taxAssessmentStatus: 'NOT_DETERMINED',
+      commercialTerms: {snapshot:{terms:{refund:'Review required'},source:'PROVIDER_DECLARED'},source:'RECORDED_BOOKING_TERMS',providerDeclared:true,authorizesPayment:false},
       baseService: { description: 'AC service', source: 'SAVED_BOOKING_PRICE', amountPaise: 75000 },
     }));
     expect(summary.readiness).toEqual(expect.objectContaining({

@@ -1231,6 +1231,7 @@ model Session {
 
 model HelpdeskTicket {
   id           String             @id @default(uuid()) @db.Uuid
+  ticketNumber String             @unique(map: "HelpdeskTicket_ticketNumber_key") @default(dbgenerated("next_helpdesk_ticket_number()"))
   societyId    String             @db.Uuid
   unitId       String             @db.Uuid
   createdById  String             @db.Uuid
@@ -1251,6 +1252,9 @@ model HelpdeskTicket {
   createdBy    User               @relation("HelpdeskTicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
   assignedTo   User?              @relation("HelpdeskTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   activities   HelpdeskActivity[]
+  photos       HelpdeskPhoto[]
+
+  @@unique([id, societyId])
 
   @@index([societyId, status, createdAt(sort: Desc)], map: "HelpdeskTicket_society_status_created_idx")
   @@unique([societyId, createdById, idempotencyKey], map: "HelpdeskTicket_society_creator_idempotency_key")
@@ -2018,4 +2022,22 @@ model SocietyLegacySubscription {
   actor              User @relation(fields: [actorId], references: [id], onDelete: Restrict)
   @@unique([societyId, idempotencyKey])
   @@index([societyId, createdAt])
+}
+
+// Immutable, private evidence; access is always rechecked through the parent ticket.
+model HelpdeskPhoto {
+  id String @id @default(uuid()) @db.Uuid
+  societyId String @db.Uuid
+  ticketId String @db.Uuid
+  createdById String @db.Uuid
+  idempotencyKey String
+  kind String
+  note String
+  storageKey String @unique
+  sha256 String
+  sizeBytes Int
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  ticket HelpdeskTicket @relation(fields: [ticketId, societyId], references: [id, societyId], onDelete: Cascade)
+  @@unique([societyId, createdById, idempotencyKey])
+  @@index([societyId, ticketId, createdAt])
 }

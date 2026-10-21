@@ -27,3 +27,10 @@ grep -Fq "flutter: '>=3.47.0'" "$RESIDENT_PUBSPEC"
 grep -Fq "flutter: '>=3.47.0'" "$GUARD_PUBSPEC"
 ! grep -Fq "sed -i 's/cardTheme: CardTheme(/cardTheme: CardThemeData(/'" "$DEMO_WORKFLOW"
 ! grep -Fq "sed -i 's/cardTheme: CardTheme(/cardTheme: CardThemeData(/'" "$RELEASE_WORKFLOW"
+
+# image_picker 1.2.4 supports Android API 24+; match the existing V5 TEST floor.
+# Keep demo and signed-release packaging from lowering the generated SDK floor.
+for workflow in "$DEMO_WORKFLOW" "$RELEASE_WORKFLOW"; do
+  grep -Fq 'minSdk = 24' "$workflow"
+  ! grep -Fq 'minSdk = 23' "$workflow"
+done

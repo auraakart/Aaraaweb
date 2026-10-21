@@ -1,3 +1,4 @@
+import '../widgets/service_commercial_terms.dart';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 
@@ -301,6 +302,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
               trailing: Text('₹${(pricePaise / 100).toStringAsFixed(pricePaise % 100 == 0 ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
             ),
           ),
+          ServiceCommercialTerms(terms: experiencePolicy['commercialTerms']),
           if (experiencePolicy.isNotEmpty) ...[
             Card(
               child: Padding(

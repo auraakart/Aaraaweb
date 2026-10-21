@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync, symlinkSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { validatePromotion, checkRemotePromotion } from './check-staging-promotion-evidence.mjs';
@@ -103,6 +103,115 @@ test('structural CI preflight never invokes pnpm or Flutter and rejects invalid 
   assert.notEqual(run('mastermind-preflight.sh', [base, 'HEAD'], env).status, 0);
 });
 
+test('both preflight modes reject browser-spec syntax before package installation', t => {
+  const { dir, git, run } = repository(t);
+  const base = git('rev-parse', 'HEAD');
+  mkdirSync(join(dir, 'apps/admin/tests/admin-ui'), { recursive: true });
+  writeFileSync(join(dir, 'apps/admin/tests/admin-ui/broken.spec.mjs'), 'const = ;');
+  git('add', '.'); git('commit', '-m', 'Invalid browser spec');
+  for (const mode of ['structural', 'full']) {
+    const result = run('mastermind-preflight.sh', [base, 'HEAD'], { PREFLIGHT_MODE: mode });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /SyntaxError/);
+  }
+});
+
+function preflightTools(dir) {
+  const bin = join(dir, 'bin'); mkdirSync(bin);
+  for (const command of ['git', 'bash']) {
+    const binary = execFileSync('which', [command], { encoding: 'utf8' }).trim();
+    symlinkSync(binary, join(bin, command));
+  }
+  symlinkSync(process.execPath, join(bin, 'node'));
+  const marker = join(dir, 'pnpm-invoked');
+  writeFileSync(join(bin, 'pnpm'), `#!${process.execPath}\nrequire('node:fs').writeFileSync(process.env.PREFLIGHT_MARKER,'called');\nprocess.exit(99);\n`, { mode: 0o755 });
+  return { bin, marker, env: { PATH: bin, PREFLIGHT_MARKER: marker, PREFLIGHT_MODE: 'full', RUN_API: 'true', RUN_ADMIN: 'false', RUN_RESIDENT: 'true', RUN_GUARD: 'false' } };
+}
+
+test('missing Flutter toolchain stops local full preflight before dependency work', t => {
+  const { dir, git, run } = repository(t);
+  const base = git('rev-parse', 'HEAD');
+  const tools = preflightTools(dir);
+  const result = run('mastermind-preflight.sh', [base, 'HEAD'], tools.env);
+  assert.equal(result.status, 127, result.stderr);
+  assert.match(result.stderr, /prerequisites unavailable: flutter dart/);
+  assert.match(result.stderr, /Full preflight has not passed/);
+  assert.equal(existsSync(tools.marker), false);
+});
+
+test('changed Dart parsing fails before API installation and does not rewrite files', t => {
+  const { dir, git, run } = repository(t);
+  const base = git('rev-parse', 'HEAD');
+  const path = join(dir, 'apps/resident/test/broken_test.dart');
+  mkdirSync(join(dir, 'apps/resident/test'), { recursive: true });
+  writeFileSync(path, 'void main( {');
+  git('add', '.'); git('commit', '-m', 'Changed Dart');
+  const tools = preflightTools(dir), args = join(dir, 'dart-args');
+  writeFileSync(join(tools.bin, 'flutter'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  writeFileSync(join(tools.bin, 'dart'), `#!${process.execPath}\nrequire('node:fs').writeFileSync(process.env.DART_ARGS,JSON.stringify(process.argv.slice(2)));\nprocess.exit(65);\n`, { mode: 0o755 });
+  const result = run('mastermind-preflight.sh', [base, 'HEAD'], { ...tools.env, DART_ARGS: args });
+  assert.equal(result.status, 65, result.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(args, 'utf8')), ['format', '--output=none', 'apps/resident/test/broken_test.dart']);
+  assert.equal(readFileSync(path, 'utf8'), 'void main( {');
+  assert.equal(existsSync(tools.marker), false);
+});
+
+test('local source-contract failure stops full preflight before dependency work', t => {
+  const { dir, git, run } = repository(t);
+  const base = git('rev-parse', 'HEAD');
+  mkdirSync(join(dir, 'scripts'));
+  writeFileSync(join(dir, 'scripts/check-stable-domain-invariants.mjs'), 'process.exit(19);');
+  git('add', '.'); git('commit', '-m', 'Contract fixture');
+  const tools = preflightTools(dir);
+  const result = run('mastermind-preflight.sh', [base, 'HEAD'], { ...tools.env, RUN_RESIDENT: 'false' });
+  assert.equal(result.status, 19, result.stderr);
+  assert.equal(existsSync(tools.marker), false);
+});
+
+test('changed Admin gate selects added, edited and renamed specs literally and propagates failures', t => {
+  const { dir, git } = repository(t);
+  const specDir = join(dir, 'apps/admin/tests/admin-ui'); mkdirSync(specDir, { recursive: true });
+  for (const name of ['old', 'edited', 'deleted']) writeFileSync(join(specDir, `${name}.spec.mjs`), `// ${name}`);
+  git('add', '.'); git('commit', '-m', 'Existing specs'); const base = git('rev-parse', 'HEAD');
+  renameSync(join(specDir, 'old.spec.mjs'), join(specDir, 'renamed [literal].spec.mjs'));
+  writeFileSync(join(specDir, 'edited.spec.mjs'), '// edited behaviour');
+  writeFileSync(join(specDir, 'new.spec.mjs'), '// new');
+  writeFileSync(join(specDir, 'fixture.tsx'), '// fixture only');
+  rmSync(join(specDir, 'deleted.spec.mjs'));
+  mkdirSync(join(dir, 'apps/guard/test'), { recursive: true });
+  writeFileSync(join(dir, 'apps/guard/test/foreign.spec.mjs'), '// foreign app');
+  git('add', '.'); git('commit', '-m', 'Changed specs');
+  const bin = join(dir, 'bin'); mkdirSync(bin); const capture = join(dir, 'browser-args');
+  writeFileSync(join(bin, 'pnpm'), `#!${process.execPath}\nrequire('node:fs').writeFileSync(process.env.BROWSER_ARGS,JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}));\nprocess.exit(Number(process.env.TEST_EXIT ?? 0));\n`, { mode: 0o755 });
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, BROWSER_ARGS: capture };
+  const invoke = (from = base, exit = '0') => spawnSync(process.execPath, [join(root, 'scripts/run-changed-admin-tests.mjs'), from, 'HEAD'], { cwd: dir, encoding: 'utf8', env: { ...env, TEST_EXIT: exit } });
+  assert.equal(invoke().status, 0);
+  const selected = JSON.parse(readFileSync(capture, 'utf8'));
+  assert.equal(selected.cwd, join(dir, 'apps/admin'));
+  assert.deepEqual(selected.args.slice(0, 3), ['exec', 'playwright', 'test']);
+  assert.equal(selected.args.at(-1), '--max-failures=1');
+  const patterns = selected.args.slice(3, -1).map(pattern => new RegExp(pattern));
+  assert.equal(patterns.length, 3);
+  for (const name of ['new', 'edited', 'renamed [literal]']) assert.ok(patterns.some(pattern => pattern.test(`tests/admin-ui/${name}.spec.mjs`)));
+  for (const name of ['deleted', 'old', 'renamed literal']) assert.ok(patterns.every(pattern => !pattern.test(`tests/admin-ui/${name}.spec.mjs`)));
+  assert.equal(invoke(base, '7').status, 7);
+  rmSync(capture);
+  assert.equal(invoke('HEAD').status, 0); assert.equal(existsSync(capture), false);
+  assert.notEqual(invoke('missing-ref').status, 0); assert.equal(existsSync(capture), false);
+  rmSync(join(specDir, 'new.spec.mjs'));
+  assert.notEqual(invoke().status, 0); assert.equal(existsSync(capture), false);
+});
+
+test('two-commit PR merge checkout contains both exact Admin scope refs', t => {
+  const { dir, git } = repository(t), clone = join(dir, 'shallow');
+  const base = git('rev-parse', 'HEAD');
+  git('switch', '-c', 'feature'); writeFileSync(join(dir, 'changed.txt'), 'change');
+  git('add', '.'); git('commit', '-m', 'Feature'); const head = git('rev-parse', 'HEAD');
+  git('switch', 'develop'); git('merge', '--no-ff', 'feature', '-m', 'PR merge');
+  execFileSync('git', ['clone', '--depth=2', '--branch=develop', `file://${dir}`, clone], { stdio: 'pipe' });
+  for (const ref of [base, head]) assert.doesNotThrow(() => execFileSync('git', ['rev-parse', '--verify', `${ref}^{commit}`], { cwd: clone, stdio: 'pipe' }));
+});
+
 test('publishing suspends old main before staging changes and fails closed if review lookup fails', t => {
   const { dir, git, run } = repository(t);
   const remote = join(dir, 'remote.git'); git('init', '--bare', remote); git('remote', 'add', 'origin', remote);
@@ -155,6 +264,13 @@ test('workflow keeps full gates while preflight avoids repeated toolchain instal
   const preflight = ci.split('\n  mastermind-preflight:\n')[1].split('\n  api-validation-full:\n')[0];
   assert.match(preflight, /PREFLIGHT_MODE: structural/);
   assert.doesNotMatch(preflight, /Setup Flutter|Setup pnpm|pnpm install/);
+  const admin = ci.split('\n  admin-validation-full:\n')[1].split('\n  admin-validation:\n')[0];
+  assert.match(admin, /fetch-depth: 2/);
+  assert.ok(admin.includes('Typecheck admin'));
+  assert.ok(admin.includes('Changed Admin browser tests before broad regression'));
+  assert.ok(admin.indexOf('Typecheck admin') < admin.indexOf('Test Admin access boundaries'));
+  assert.ok(admin.indexOf('Changed Admin browser tests before broad regression') < admin.indexOf('Test shared Admin component interactions and accessibility'));
+  assert.match(admin, /run-changed-admin-tests\.mjs "\$BASE_SHA" "\$HEAD_SHA"/);
   for (const token of ['Test resident app', 'Test guard app', 'Risk-weighted Resident coverage gate', 'Test API before coverage instrumentation', 'Test shared Admin component interactions and accessibility', 'All required merge gates passed.']) {
     assert.ok(ci.includes(token), token);
   }

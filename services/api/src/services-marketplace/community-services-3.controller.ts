@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString,
-  IsUUID, IsNotEmpty, Matches, Max, MaxLength, Min,
+  IsUUID, IsNotEmpty, IsObject, Matches, Max, MaxLength, Min,
 } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -29,6 +29,7 @@ const recurringStatuses: RecurringPlanStatus[] = ['ACTIVE', 'PAUSED', 'CANCELLED
 const campaignStatuses: CommunityCampaignStatus[] = ['OPEN', 'LOCKED', 'CANCELLED', 'COMPLETED'];
 
 class OfferingExperiencePolicyDto {
+  @IsOptional() @IsObject() commercialTerms?: Record<string,string|null>;
   @IsBoolean() quickServiceEligible!: boolean;
   @IsOptional() @IsInt() @Min(15) @Max(240) targetArrivalMinutes?: number | null;
   @IsOptional() @IsString() @MaxLength(1500) includedWork?: string | null;

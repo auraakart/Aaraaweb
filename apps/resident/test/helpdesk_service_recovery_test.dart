@@ -6,6 +6,7 @@ import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/helpdesk_screen.dart';
 import 'package:aaraagate_resident/voice/resident_speech.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,6 +23,7 @@ class _HelpdeskRepository extends ResidentRepository {
   Future<List<Map<String,dynamic>>> helpdeskTickets() async => [
     {
       'id':'ticket-1',
+      'ticketNumber':'HD-2026-000123',
       'unitId':'unit-1',
       'title':'Water leak',
       'description':'Leak near the kitchen sink',
@@ -93,6 +95,29 @@ void main(){
     controller.dispose();
   });
 
+  testWidgets('ticket number is visible in list and details and can be copied', (tester) async {
+    final repository = _HelpdeskRepository();
+    final controller = ResidentDataController(repository, activeUnitId: 'unit-1', fetchEntitlements: false)
+      ..households = [{'id': 'house-1', 'unitId': 'unit-1'}];
+    addTearDown(controller.dispose);
+    String? clipboardText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') clipboardText = (call.arguments as Map)['text'] as String;
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    await tester.pumpWidget(MaterialApp(home: HelpdeskScreen(controller: controller)));
+    await tester.pumpAndSettle();
+    expect(find.text('HD-2026-000123'), findsOneWidget);
+    await tester.tap(find.text('Water leak'));
+    await tester.pumpAndSettle();
+    expect(find.text('HD-2026-000123'), findsOneWidget);
+    await tester.tap(find.byTooltip('Copy ticket number'));
+    await tester.pumpAndSettle();
+    expect(clipboardText, 'HD-2026-000123');
+    expect(find.text('Ticket number copied'), findsOneWidget);
+  });
+
   testWidgets('resident helpdesk shows property, SLA targets, next action and recovery evidence',(tester) async{
     final repository=_HelpdeskRepository();
     final controller=ResidentDataController(repository,activeUnitId:'unit-1',fetchEntitlements:false);
@@ -147,8 +172,10 @@ void main(){
     await tester.tap(find.text('Water leak'));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('Add a comment'),300,scrollable:find.byType(Scrollable).first);
-    await tester.enterText(find.widgetWithText(TextField,'Comment'),'Please share the repair update');
+    final commentField = find.widgetWithText(TextField, 'Comment');
+    await tester.scrollUntilVisible(commentField, 300, scrollable: find.byType(Scrollable).first);
+    await tester.enterText(commentField, 'Please share the repair update');
+    await tester.scrollUntilVisible(find.text('Send comment'), 150, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Send comment'));
     await tester.pumpAndSettle();
 
@@ -156,6 +183,7 @@ void main(){
     expect(repository.commentKeys.single,startsWith('resident-helpdesk-comment-'));
     expect(find.textContaining('Retry will reuse this comment submission'),findsOneWidget);
 
+    await tester.scrollUntilVisible(find.text('Send comment'), 150, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Send comment'));
     await tester.pumpAndSettle();
 

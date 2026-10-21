@@ -79,9 +79,9 @@ class _BillingScreenState extends State<BillingScreen> {
       _paymentAttemptKeys.removeWhere((invoiceId, _) => !payableInvoiceIds.contains(invoiceId));
       if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; utilityUsage = utilityUsageResult; utilityInsights = utilityInsightResult; financeSummary = summaryResult; autopayPreference = autopayResult; });
     } on ApiException catch (exception) {
-      if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
+      if (mounted) setState(() => error = exception.statusCode == 403 ? AaraagateStrings.device().text('billingLoadDenied') : AaraagateStrings.device().text('billingLoadFailed'));
     } catch (_) {
-      if (mounted) setState(() => error = 'Your billing details could not be loaded.');
+      if (mounted) setState(() => error = AaraagateStrings.device().text('billingLoadFailed'));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -171,13 +171,13 @@ class _BillingScreenState extends State<BillingScreen> {
               const SizedBox(height: AaraagateTokens.space2),
               Text('${receipt['societyName']}\n${receipt['buildingName']} · ${receipt['unitNumber']}\nInvoice ${receipt['invoiceNumber']}\n${receipt['status']}', style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
               const SizedBox(height: AaraagateTokens.space5),
-              SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Done'))),
+              SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: Text(AaraagateStrings.device().text('billingDone')))),
             ]),
           );
         },
       );
     } catch (_) {
-      if (mounted) setState(() => error = 'The verified receipt could not be loaded. Please retry.');
+      if (mounted) setState(() => error = AaraagateStrings.device().text('billingReceiptFailed'));
     }
   }
 
@@ -186,7 +186,7 @@ class _BillingScreenState extends State<BillingScreen> {
     if (payingInvoiceId != null) return;
     final id = invoice['id'].toString();
     if (widget.activeUnitId != null && invoice['unitId']?.toString() != widget.activeUnitId) {
-      setState(() => error = 'This invoice is outside the active property context.');
+      setState(() => error = AaraagateStrings.device().text('billingPropertyMismatch'));
       return;
     }
     widget.repository.recordUsage('PAYMENT_CHECKOUT_STARTED').ignore();
@@ -207,18 +207,18 @@ class _BillingScreenState extends State<BillingScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Container(width: 52, height: 52, decoration: BoxDecoration(color: theme.colorScheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl)), child: Icon(Icons.verified_user_outlined, color: theme.colorScheme.onPrimaryContainer)),
               const SizedBox(height: AaraagateTokens.space3),
-              Text('Secure payment order ready', textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
+              Text(AaraagateStrings.device().text('billingPaymentReady'), textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
               const SizedBox(height: AaraagateTokens.space2),
-              Text('Reference ${order['providerOrderId'] ?? order['id']}. No payment is marked successful until the gateway confirms it.', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.45)),
+              Text(AaraagateStrings.device().format('billingPaymentReference', {'reference': '${order['providerOrderId'] ?? order['id']}'}), textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.45)),
               const SizedBox(height: AaraagateTokens.space5),
-              SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Done'))),
+              SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: Text(AaraagateStrings.device().text('billingDone')))),
             ]),
           );
         },
       );
       await _load();
     } catch (_) {
-      if (mounted) setState(() => error = 'Payment preparation failed. Nothing was charged; please retry.');
+      if (mounted) setState(() => error = AaraagateStrings.device().text('billingPreparationFailed'));
     } finally {
       if (mounted) setState(() => payingInvoiceId = null);
     }

@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import 'dart:typed_data';
 import 'models/resident_boundary_models.dart';
 
 class ResidentRepository {
@@ -292,6 +293,27 @@ class ResidentRepository {
     final value = await api.patch('/api/v1/workforce/assignments/$assignmentId/deactivate');
     return Map<String, dynamic>.from(value as Map);
   }
+
+  Future<Map<String, dynamic>> createAssetHelpdeskTicket({
+    required String unitId, required String assetId, required String idempotencyKey,
+    required String title, required String description, String? category, String priority = 'NORMAL',
+  }) async => Map<String, dynamic>.from(await api.post('/api/v1/helpdesk', {
+    'unitId': unitId, 'assetId': assetId, 'idempotencyKey': idempotencyKey,
+    'title': title, 'description': description, 'category': category, 'priority': priority,
+  }) as Map);
+
+  Future<List<Map<String, dynamic>>> helpdeskPhotos(String ticketId) async =>
+      _list(await api.get('/api/v1/helpdesk/$ticketId/photos'));
+
+  Future<Uint8List> helpdeskPhotoBytes(String ticketId, String photoId) =>
+      api.getPhotoBytes('/api/v1/helpdesk/$ticketId/photos/$photoId');
+
+  Future<Map<String, dynamic>> addHelpdeskPhoto(String ticketId, Uint8List bytes, {
+    required String kind, required String idempotencyKey, String note = '',
+  }) => api.uploadPhoto('/api/v1/helpdesk/$ticketId/photos', bytes, kind: kind, idempotencyKey: idempotencyKey, note: note);
+
+  Future<Map<String, dynamic>> resolveHelpdeskAsset(String unitId, String code) async =>
+      Map<String, dynamic>.from(await api.get('/api/v1/helpdesk/assets/resolve?unitId=${Uri.encodeQueryComponent(unitId)}&code=${Uri.encodeQueryComponent(code)}') as Map);
 
   Future<List<Map<String, dynamic>>> helpdeskTickets() async {
     final value = await api.get('/api/v1/helpdesk/mine');

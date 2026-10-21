@@ -2,7 +2,23 @@
 
 The V4.87.0 application code passed full regression and is retained. This repair changes release tooling and CI scheduling, not application behaviour or the independent main approval requirement.
 
-## Evidence from the interrupted cycle
+## V5.7 validation delay — 2026-10-21
+
+Resume checkpoint: V5.7 software was already merged to develop in PR [#1512](https://github.com/auraakart/Aaraaweb/pull/1512), with acceptance evidence in [#1513](https://github.com/auraakart/Aaraaweb/pull/1513), develop `615fa505aa546578d4299cce60b4750a53df622e`. Resume from that checkpoint; do not restart feature implementation or promote staging/main. Productionization and physical-device acceptance remain on hold.
+
+The avoidable delay came from publishing before all targeted checks had completed. Three distinct validation misses caused successive CI cycles; the final software run [39595127560](https://github.com/auraakart/Aaraaweb/actions/runs/39595127560) passed all required gates. The current attachment copy also opens successfully; the earlier missing scratch-path error is not reproduced and is separate from the CI failures below.
+
+| Confirmed cause | Evidence | Prevention |
+| --- | --- | --- |
+| Local source-contract check was incomplete | [Run 39594272645](https://github.com/auraakart/Aaraaweb/actions/runs/39594272645), job 119202592303: V4.58 expected English reopen labels inside the screen after they had moved into the translation map. | The translation-aware checks are already fixed. Local full preflight now runs the stable source contracts before dependency installation. |
+| New Dart test reached CI with a syntax error | [Run 39594552329](https://github.com/auraakart/Aaraaweb/actions/runs/39594552329), job 119203782089: an extra closing parenthesis in `v57_product_workflows_test.dart` produced three analyzer errors. The local environment had no Flutter SDK. | Local full preflight reports missing Flutter/Dart tools before dependency work, never claiming a pass. With the SDK available, changed Dart files are parsed without rewriting before API installation. Existing CI analysis and changed-widget tests remain required. |
+| New browser test failed during the full suite | Same run, job 119203782071: `getByText('AGR-53AA5CE7')` matched the receipt and its Inspect button; the suite completed with 211 passing and one failed test after two minutes. | Exact locators are already fixed. Changed Admin specs now run first with stop-on-first-failure, followed by the complete browser suite. Admin typecheck also runs before the access/SSR/browser suites. |
+
+Both preflight modes check changed JavaScript syntax, including browser specs outside `scripts/`. CI structural preflight remains lightweight and does not install pnpm/Flutter or repeat complete suites. The Admin checkout includes the PR merge and both parents for exact base/head selection. Changed-spec selection handles additions, edits, copies and renames; ignores deletions/other apps; escapes literal filenames; and propagates nonzero test exits. Missing refs or expected test files fail closed. Empty selection does not replace full regression.
+
+Regression evidence: `node --test scripts/release-delay-controls.test.mjs` passes 27 tests, including missing-toolchain, parse/contract failure before installation, literal changed-spec selection, failure propagation and two-parent shallow-checkout cases. The pinned Playwright CLI also resolves the escaped financial-spec filter with `--list`. No application, database, permission, coverage-floor or production configuration change is part of this repair. Required protected CI remains the merge criterion; no reduction in total validation runtime is claimed without measured evidence.
+
+## Historical V4.87 interrupted cycle
 
 | Cause | Evidence | Correction |
 |---|---|---|

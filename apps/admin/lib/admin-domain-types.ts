@@ -1,4 +1,4 @@
-export type Ticket={id:string;title:string;description:string;category?:string;priority:string;status:string;buildingName?:string;unitNumber?:string;createdByName?:string}
+export type Ticket={id:string;ticketNumber?:string;title:string;description:string;category?:string;priority:string;status:string;buildingName?:string;unitNumber?:string;createdByName?:string}
 export type Activity={id:string;type:string;message?:string;actorName?:string;occurredAt:string}
 export type Notice={id:string;title:string;body:string;category?:string;audience:'OWNER_ONLY'|'OWNER_AND_OCCUPANTS';status:string;createdAt:string}
 export type Building={id:string;name:string;code:string}

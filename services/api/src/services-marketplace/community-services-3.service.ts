@@ -11,6 +11,7 @@ export type RecurringPlanStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
 export type CommunityCampaignStatus = 'OPEN' | 'LOCKED' | 'CANCELLED' | 'COMPLETED';
 
 export type ServiceExperiencePolicyInput = {
+  commercialTerms?: Record<string,string|null>;
   quickServiceEligible: boolean;
   targetArrivalMinutes?: number | null;
   includedWork?: string | null;
@@ -60,13 +61,14 @@ export class CommunityServices3Service {
   async getOfferingExperiencePolicy(offeringId: string) {
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT "offeringId","quickServiceEligible","targetArrivalMinutes","includedWork","partsPolicy",
-             "extraWorkApprovalRequired","recurrenceCadences","updatedAt"
+             "extraWorkApprovalRequired","recurrenceCadences","commercialTerms","updatedAt"
       FROM "ServiceOfferingExperiencePolicy"
       WHERE "offeringId" = ${offeringId}::uuid
       LIMIT 1
     `);
     return rows[0] ?? {
       offeringId,
+      commercialTerms: {},
       quickServiceEligible: false,
       targetArrivalMinutes: null,
       includedWork: null,
@@ -96,14 +98,26 @@ export class CommunityServices3Service {
 
     const includedWork = this.optionalText(input.includedWork, 1500);
     const partsPolicy = this.optionalText(input.partsPolicy, 1500);
+    const terms: Record<string,string> = {};
+    const allowedTerms = ['invoiceIssuer','cancellation','refund','settlement','rework'];
+    if(input.commercialTerms!=null){
+      if(typeof input.commercialTerms!=='object'||Array.isArray(input.commercialTerms))throw new BadRequestException('Commercial terms must be an object');
+      for(const [key,value] of Object.entries(input.commercialTerms)){
+        if(!allowedTerms.includes(key))throw new BadRequestException('Unknown commercial term');
+        if(value!==null && typeof value!=='string')throw new BadRequestException('Commercial terms must contain text');
+        const text=this.optionalText(value,1000);
+        if(text)terms[key]=text;
+      }
+    }
+    const termsJson=JSON.stringify(terms);
     const recurrenceJson = JSON.stringify(recurrenceCadences);
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       INSERT INTO "ServiceOfferingExperiencePolicy" (
         "offeringId","quickServiceEligible","targetArrivalMinutes","includedWork","partsPolicy",
-        "extraWorkApprovalRequired","recurrenceCadences","createdAt","updatedAt"
+        "extraWorkApprovalRequired","recurrenceCadences","commercialTerms","createdAt","updatedAt"
       ) VALUES (
         ${offeringId}::uuid, ${input.quickServiceEligible}, ${targetArrivalMinutes}, ${includedWork}, ${partsPolicy},
-        ${input.extraWorkApprovalRequired}, ${recurrenceJson}::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ${input.extraWorkApprovalRequired}, ${recurrenceJson}::jsonb, ${termsJson}::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       ON CONFLICT ("offeringId") DO UPDATE SET
         "quickServiceEligible" = EXCLUDED."quickServiceEligible",
@@ -112,9 +126,10 @@ export class CommunityServices3Service {
         "partsPolicy" = EXCLUDED."partsPolicy",
         "extraWorkApprovalRequired" = EXCLUDED."extraWorkApprovalRequired",
         "recurrenceCadences" = EXCLUDED."recurrenceCadences",
+        "commercialTerms" = CASE WHEN ${input.commercialTerms !== undefined} THEN EXCLUDED."commercialTerms" ELSE "ServiceOfferingExperiencePolicy"."commercialTerms" END,
         "updatedAt" = CURRENT_TIMESTAMP
       RETURNING "offeringId","quickServiceEligible","targetArrivalMinutes","includedWork","partsPolicy",
-                "extraWorkApprovalRequired","recurrenceCadences","updatedAt"
+                "extraWorkApprovalRequired","recurrenceCadences","commercialTerms","updatedAt"
     `);
     return rows[0];
   }

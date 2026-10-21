@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../data/resident_data_controller.dart';
 import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
 import '../voice/resident_speech.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
+import '../widgets/helpdesk_photos.dart';
+import '../widgets/helpdesk_asset_entry.dart';
 
 class HelpdeskScreen extends StatefulWidget {
   const HelpdeskScreen({super.key, required this.controller, this.speech});
@@ -182,6 +185,8 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     final description = TextEditingController();
     final category = TextEditingController();
     String priority = 'NORMAL';
+    Map<String, dynamic>? selectedAsset;
+    bool assetBusy = false;
     String? validationMessage;
     String? voiceStatus;
     String? submissionKey;
@@ -228,7 +233,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 ),
                 const SizedBox(height: AaraagateTokens.space2),
                 OutlinedButton.icon(
-                  onPressed: submitting || listening
+                  onPressed: submitting || listening || assetBusy
                       ? null
                       : () async {
                           setModalState(() {
@@ -310,6 +315,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                           if (value != null) setModalState(() => priority = value);
                         },
                 ),
+                HelpdeskAssetEntry(controller: widget.controller, unitId: unitId,
+                  disabled: submitting || listening,
+                  onChanged: (asset) { if (sheetContext.mounted) setModalState(() => selectedAsset = asset); },
+                  onBusyChanged: (busy) { if (sheetContext.mounted) setModalState(() => assetBusy = busy); }),
                 if (validationMessage != null) ...[
                   const SizedBox(height: AaraagateTokens.space3),
                   Semantics(
@@ -326,7 +335,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 FilledButton(
                   // Voice capture must finish before a draft can be submitted.
                   // Otherwise a late transcript can mutate a pending request.
-                  onPressed: submitting || listening
+                  onPressed: submitting || listening || assetBusy
                       ? null
                       : () async {
                           final cleanTitle = title.text.trim();
@@ -338,7 +347,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             return;
                           }
                           final cleanCategory = category.text.trim();
-                          final shape = '$unitId\n$cleanTitle\n$cleanDescription\n$cleanCategory\n$priority';
+                          final shape = '$unitId\n$cleanTitle\n$cleanDescription\n$cleanCategory\n$priority\n${selectedAsset?['id'] ?? ''}';
                           if (submissionKey == null || submissionShape != shape) {
                             final stamp = DateTime.now().microsecondsSinceEpoch;
                             final suffix = Object.hash(unitId, cleanTitle, cleanDescription, cleanCategory, priority, stamp)
@@ -352,6 +361,12 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             validationMessage = null;
                           });
                           try {
+                            if (selectedAsset != null) {
+                              await widget.controller.repository.createAssetHelpdeskTicket(
+                                unitId: unitId, assetId: selectedAsset!['id'].toString(), idempotencyKey: submissionKey!,
+                                title: cleanTitle, description: cleanDescription, category: cleanCategory, priority: priority,
+                              );
+                            } else {
                             await widget.controller.repository.createHelpdeskTicket(
                               unitId: unitId,
                               idempotencyKey: submissionKey!,
@@ -360,6 +375,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                               category: cleanCategory,
                               priority: priority,
                             );
+                            }
                             if (sheetContext.mounted) Navigator.pop(sheetContext, true);
                           } catch (_) {
                             if (sheetContext.mounted) {
@@ -420,6 +436,7 @@ class _TicketCard extends StatelessWidget {
     final status = ticket['status']?.toString() ?? 'OPEN';
     final priority = ticket['priority']?.toString() ?? 'NORMAL';
     final category = ticket['category']?.toString().trim() ?? '';
+    final ticketNumber = ticket['ticketNumber']?.toString().trim() ?? '';
     final sla = ticket['computedSlaState']?.toString() ?? ticket['slaState']?.toString() ?? 'UNTRACKED';
     final building = ticket['buildingName']?.toString();
     final unit = ticket['unitNumber']?.toString();
@@ -427,7 +444,7 @@ class _TicketCard extends StatelessWidget {
 
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: 'Open complaint ${ticket['title'] ?? 'Complaint'}, ${_displayLabel(status)}',
+      semanticLabel: 'Open complaint $ticketNumber, ${ticket['title'] ?? 'Complaint'}, ${_displayLabel(status)}',
       color: scheme.surfaceContainerLow,
       padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
       child: Row(
@@ -455,6 +472,10 @@ class _TicketCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(ticket['title']?.toString() ?? 'Complaint', style: theme.textTheme.titleMedium),
+                if (ticketNumber.isNotEmpty) ...[
+                  const SizedBox(height: AaraagateTokens.space1),
+                  Text(ticketNumber, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                ],
                 SizedBox(height: compact ? AaraagateTokens.space1 : AaraagateTokens.space2),
                 Wrap(
                   spacing: AaraagateTokens.space2,
@@ -568,7 +589,7 @@ class _TicketDetailState extends State<_TicketDetail> {
     } catch (_) {
       if (mounted) {
         setState(() => commentError =
-            'Comment could not be confirmed. Retry will reuse this comment submission unless you edit the message.');
+            AaraagateStrings.device().text('helpdeskCommentUnconfirmed'));
       }
     } finally {
       if (mounted) setState(() => submittingComment = false);
@@ -580,7 +601,7 @@ class _TicketDetailState extends State<_TicketDetail> {
     if (selected != null && widget.ticket['unitId']?.toString() != selected) return;
     final reason = reopenReason.text.trim();
     if (reason.length < 3) {
-      setState(() => reopenError = 'Add a short reason so the society team knows what still needs attention.');
+      setState(() => reopenError = AaraagateStrings.device().text('helpdeskReopenReasonRequired'));
       return;
     }
     if (reopening) return;
@@ -601,11 +622,11 @@ class _TicketDetailState extends State<_TicketDetail> {
       await load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Complaint reopened and returned to the society team.')),
+          SnackBar(content: Text(AaraagateStrings.device().text('helpdeskReopened'))),
         );
       }
     } catch (_) {
-      if (mounted) setState(() => reopenError = 'Complaint could not be reopened. Refresh and retry.');
+      if (mounted) setState(() => reopenError = AaraagateStrings.device().text('helpdeskReopenFailed'));
     } finally {
       if (mounted) setState(() => reopening = false);
     }
@@ -625,7 +646,7 @@ class _TicketDetailState extends State<_TicketDetail> {
     final closureCode = widget.ticket['closureCode']?.toString();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Complaint details')),
+      appBar: AppBar(title: Text(AaraagateStrings.device().text('helpdeskDetailsTitle'))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AaraagateTokens.pageGutter,
@@ -642,6 +663,8 @@ class _TicketDetailState extends State<_TicketDetail> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(widget.ticket['title']?.toString() ?? 'Complaint', style: theme.textTheme.headlineSmall),
+                if ((widget.ticket['ticketNumber']?.toString().trim() ?? '').isNotEmpty)
+                  _TicketNumberReference(number: widget.ticket['ticketNumber'].toString()),
                 const SizedBox(height: AaraagateTokens.space2),
                 Wrap(
                   spacing: AaraagateTokens.space2,
@@ -710,7 +733,7 @@ class _TicketDetailState extends State<_TicketDetail> {
             const SizedBox(height: AaraagateTokens.space3),
             TextField(
               controller: reopenReason,
-              decoration: const InputDecoration(labelText: 'Why are you reopening this complaint?'),
+              decoration: InputDecoration(labelText: AaraagateStrings.device().text('helpdeskReopenWhy')),
               maxLength: 1000,
               minLines: 2,
               maxLines: 4,
@@ -723,7 +746,7 @@ class _TicketDetailState extends State<_TicketDetail> {
             FilledButton(
               onPressed: reopening ? null : _reopenComplaint,
               child: PremiumActionLabel(
-                label: 'Reopen complaint',
+                label: AaraagateStrings.device().text('helpdeskReopen'),
                 icon: Icons.restart_alt_rounded,
                 busy: reopening,
               ),
@@ -756,6 +779,9 @@ class _TicketDetailState extends State<_TicketDetail> {
               const SizedBox(height: AaraagateTokens.space2),
             ],
           const SizedBox(height: AaraagateTokens.space6),
+          HelpdeskPhotos(controller: widget.controller, ticketId: widget.ticket['id'].toString(),
+            unitId: widget.ticket['unitId']?.toString() ?? '', closed: status == 'CLOSED'),
+          const SizedBox(height: AaraagateTokens.space6),
           const PremiumSectionHeader(
             title: 'Add a comment',
             supportingText: 'Keep additional details in the same complaint thread.',
@@ -763,7 +789,7 @@ class _TicketDetailState extends State<_TicketDetail> {
           const SizedBox(height: AaraagateTokens.space3),
           TextField(
             controller: comment,
-            decoration: const InputDecoration(labelText: 'Comment'),
+            decoration: InputDecoration(labelText: AaraagateStrings.device().text('helpdeskCommentLabel')),
             maxLength: 1000,
             minLines: 2,
             maxLines: 4,
@@ -776,7 +802,7 @@ class _TicketDetailState extends State<_TicketDetail> {
           FilledButton(
             onPressed: submittingComment ? null : _sendComment,
             child: PremiumActionLabel(
-              label: 'Send comment',
+              label: AaraagateStrings.device().text('helpdeskSendComment'),
               icon: Icons.send_rounded,
               busy: submittingComment,
             ),
@@ -926,10 +952,53 @@ AaraagateStatusTone _priorityTone(String priority) {
   }
 }
 
-String _displayLabel(String raw) => raw
+String _displayLabel(String raw) {
+  final key = {'OPEN':'helpdeskOpen','IN_PROGRESS':'helpdeskInProgress','RESOLVED':'helpdeskResolved','CLOSED':'helpdeskClosed'}[raw.trim().toUpperCase()];
+  if (key != null) return AaraagateStrings.device().text(key);
+  return raw
     .trim()
     .toLowerCase()
     .split('_')
     .where((part) => part.isNotEmpty)
     .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
     .join(' ');
+}
+
+
+class _TicketNumberReference extends StatelessWidget {
+  const _TicketNumberReference({required this.number});
+  final String number;
+
+  Future<void> _copy(BuildContext context) async {
+    final strings = AaraagateStrings.device();
+    try {
+      await Clipboard.setData(ClipboardData(text: number));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.text('helpdeskTicketNumberCopied'))),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.text('helpdeskTicketNumberCopyFailed'))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: AaraagateTokens.space2),
+    child: Wrap(
+      spacing: AaraagateTokens.space2,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SelectableText(number, semanticsLabel: '${AaraagateStrings.device().text('helpdeskTicketNumber')} $number'),
+        IconButton(
+          tooltip: AaraagateStrings.device().text('helpdeskCopyTicketNumber'),
+          onPressed: () => _copy(context),
+          icon: const Icon(Icons.copy_rounded),
+        ),
+      ],
+    ),
+  );
+}

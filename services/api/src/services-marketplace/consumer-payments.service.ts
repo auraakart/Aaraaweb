@@ -34,6 +34,7 @@ type ConsumerPaymentRow = {
 };
 
 type CheckoutBookingRow = {
+  commercialTermsSnapshot?: unknown;
   id: string;
   offeringName: string;
   status: ServiceBookingStatus;
@@ -81,7 +82,7 @@ export class ConsumerPaymentsService {
    */
   async getCheckoutBreakdown(userId: string, bookingId: string) {
     const bookingRows = await this.prisma.$queryRaw<CheckoutBookingRow[]>(Prisma.sql`
-      SELECT b."id", b."offeringName", b."status", b."servicePricePaise"
+      SELECT b."id", b."offeringName", b."status", b."servicePricePaise", b."commercialTermsSnapshot"
       FROM "ConsumerServiceBooking" b
       WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
       LIMIT 1
@@ -137,6 +138,12 @@ export class ConsumerPaymentsService {
           { code: 'EXTRA_WORK_NOT_BILLABLE', label: 'Approved extra work has no consolidated charge authorization' },
           { code: 'SETTLEMENT_REFUND_RULES_UNVERIFIED', label: 'Settlement and refund rules not verified for consolidated checkout' },
         ],
+      },
+      commercialTerms: {
+        snapshot: booking.commercialTermsSnapshot ?? null,
+        source: 'RECORDED_BOOKING_TERMS' as const,
+        providerDeclared: true,
+        authorizesPayment: false,
       },
       baseService: {
         description: booking.offeringName,
