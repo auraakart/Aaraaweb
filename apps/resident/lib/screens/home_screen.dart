@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../data/resident_home_highlights.dart';
+import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
 import '../layout/resident_responsive_layout.dart';
 import '../widgets/app_state_card.dart';
@@ -55,6 +56,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AaraagateStrings.device();
     // Compact only at standard text sizes; generous layout stays available for accessibility.
     final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     final pending = controller.firstPendingAccess;
@@ -72,11 +74,11 @@ class HomeScreen extends StatelessWidget {
     final attentionCount = actionableHighlights.length + (pending != null ? 1 : 0);
     final attentionSummary = attentionCount == 0
         ? highlights.isEmpty
-            ? 'Nothing needs your attention right now.'
-            : 'No urgent follow-up. Recent activity is shown below.'
+            ? strings.text('homeAttentionClear')
+            : strings.text('homeNoUrgent')
         : attentionCount == 1
-            ? '1 item needs your attention.'
-            : '$attentionCount items need your attention.';
+            ? strings.text('homeAttentionOne')
+            : strings.format('homeAttentionMany', {'count': attentionCount});
 
     return SafeArea(
       child: RefreshIndicator(
@@ -125,17 +127,20 @@ class HomeScreen extends StatelessWidget {
               SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             ],
             if (hasQuickActions) ...[
-              const PremiumSectionHeader(
-                title: 'Quick actions',
+              PremiumSectionHeader(
+                title: strings.text('homeQuickActions'),
               ),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final scale = MediaQuery.textScalerOf(context).scale(1);
-                  final compactGrid = residentCompactHomeQuickActionColumns(
-                    maxWidth: constraints.maxWidth,
-                    textScale: scale,
-                  ) == 4;
+                  // Localized scripts and longer labels need readable tiles,
+                  // not four narrow English-sized icon captions.
+                  final compactGrid = strings.languageCode == 'en' &&
+                      residentCompactHomeQuickActionColumns(
+                        maxWidth: constraints.maxWidth,
+                        textScale: scale,
+                      ) == 4;
                   final columns = compactGrid
                       ? 4
                       : constraints.maxWidth >= 720 && scale < 1.3
@@ -153,36 +158,36 @@ class HomeScreen extends StatelessWidget {
                           width: itemWidth,
                           child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.badge_outlined,
-                            label: 'Staff',
+                            label: strings.text('homeStaff'),
                             onTap: onOpenStaff,
-                          ) : PremiumQuickAction(icon: Icons.badge_outlined, label: 'Staff', onTap: onOpenStaff),
+                          ) : PremiumQuickAction(icon: Icons.badge_outlined, label: strings.text('homeStaff'), onTap: onOpenStaff),
                         ),
                       if (showBilling)
                         SizedBox(
                           width: itemWidth,
                           child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.receipt_long_outlined,
-                            label: 'Billing',
+                            label: strings.text('homeBilling'),
                             onTap: onOpenBilling,
-                          ) : PremiumQuickAction(icon: Icons.receipt_long_outlined, label: 'Billing', onTap: onOpenBilling),
+                          ) : PremiumQuickAction(icon: Icons.receipt_long_outlined, label: strings.text('homeBilling'), onTap: onOpenBilling),
                         ),
                       if (showAmenities)
                         SizedBox(
                           width: itemWidth,
                           child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.sports_tennis_rounded,
-                            label: 'Amenities',
+                            label: strings.text('homeAmenities'),
                             onTap: onOpenAmenities,
-                          ) : PremiumQuickAction(icon: Icons.sports_tennis_rounded, label: 'Amenities', onTap: onOpenAmenities),
+                          ) : PremiumQuickAction(icon: Icons.sports_tennis_rounded, label: strings.text('homeAmenities'), onTap: onOpenAmenities),
                         ),
                       if (showHelpdesk)
                         SizedBox(
                           width: itemWidth,
                           child: compactGrid ? _CompactHomeQuickAction(
                             icon: Icons.support_agent_rounded,
-                            label: 'Helpdesk',
+                            label: strings.text('homeHelpdesk'),
                             onTap: onOpenHelpdesk,
-                          ) : PremiumQuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk),
+                          ) : PremiumQuickAction(icon: Icons.support_agent_rounded, label: strings.text('homeHelpdesk'), onTap: onOpenHelpdesk),
                         ),
                     ],
                   );
@@ -203,41 +208,48 @@ class HomeScreen extends StatelessWidget {
               Semantics(
                 container: true,
                 liveRegion: true,
-                label: 'Action inbox. $attentionSummary',
+                label: "${strings.text('homeActionInbox')}. $attentionSummary",
                 child: ExcludeSemantics(
                   child: PremiumSectionHeader(
-                    title: 'Action inbox',
+                    title: strings.text('homeActionInbox'),
                     supportingText: attentionSummary,
                   ),
                 ),
               ),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               if (showGate && controller.loading && controller.accessRequests.isEmpty)
-                const AppStateCard(
+                AppStateCard(
                   icon: Icons.sync_rounded,
-                  message: 'Checking gate activity…',
+                  message: strings.text('homeCheckingGate'),
                   loading: true,
                 )
-              else if (showGate && controller.accessError != null)
-                AppStateCard(
-                  icon: Icons.error_outline_rounded,
-                  message: 'Access requests could not be loaded.',
-                  actionLabel: 'Retry',
-                  onAction: controller.load,
-                )
-              else if (showGate && pending != null)
-                _PendingAccessCard(
-                  key: ValueKey(pending['id']),
-                  pending: pending,
-                  onDeny: () async {
-                    await controller.denyAccess(pending['id'].toString());
-                  },
-                  onAllow: () async {
-                    await controller.approveAccess(pending['id'].toString());
-                  },
-                )
-              else if (showGate && highlights.isEmpty)
-                const _AllClearCard(),
+              else ...[
+                // A failed refresh must not erase the last locally available
+                // gate decision; the recovery notice remains visible.
+                if (showGate && controller.accessError != null) ...[
+                  AppStateCard(
+                    icon: Icons.error_outline_rounded,
+                    message: strings.text('homeGateError'),
+                    actionLabel: strings.text('retry'),
+                    onAction: controller.load,
+                  ),
+                  if (pending != null || highlights.isNotEmpty)
+                    SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
+                ],
+                if (showGate && pending != null)
+                  _PendingAccessCard(
+                    key: ValueKey(pending['id']),
+                    pending: pending,
+                    onDeny: () async {
+                      await controller.denyAccess(pending['id'].toString());
+                    },
+                    onAllow: () async {
+                      await controller.approveAccess(pending['id'].toString());
+                    },
+                  )
+                else if (showGate && highlights.isEmpty && controller.accessError == null)
+                  const _AllClearCard(),
+              ],
               if (showGate && pending != null && highlights.isNotEmpty)
                 SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               for (var i = 0; i < highlights.length; i++) ...[
@@ -273,13 +285,11 @@ class HomeScreen extends StatelessWidget {
             if (showNotices && controller.notices.isNotEmpty) ...[
               SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               PremiumSectionHeader(
-                title: 'Community',
-                supportingText: controller.notices.isEmpty
-                    ? 'Society notices and updates will appear here.'
-                    : 'Latest from your society.',
+                title: strings.text('navCommunity'),
+                supportingText: strings.text('homeLatestSociety'),
                 trailing: TextButton(
                   onPressed: onOpenNotices,
-                  child: const Text('See all'),
+                  child: Text(strings.text('homeSeeAll')),
                 ),
               ),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
@@ -300,7 +310,7 @@ class HomeScreen extends StatelessWidget {
             ],
             if (showGate && controller.accessRequests.isNotEmpty) ...[
               SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
-              const PremiumSectionHeader(title: 'Recent gate activity'),
+              PremiumSectionHeader(title: strings.text('homeRecentGate')),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               PremiumSurface(
                   padding: EdgeInsets.zero,
