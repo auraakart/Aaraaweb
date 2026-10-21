@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsInt, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -14,6 +14,10 @@ import { SettlementService } from './settlement.service';
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
   ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
 );
+
+class SearchPaymentsDto {
+  @IsString() @MinLength(2) @MaxLength(120) q!: string;
+}
 
 class AllocatePaymentDto {
   @IsUUID() paymentId!: string;
@@ -37,6 +41,12 @@ export class SettlementController {
   ) {
     if (!userId) throw new BadRequestException('Authenticated user is required');
     return this.settlement.allocate(societyId, userId, receivableId, dto);
+  }
+
+  @Get('payments/search')
+  @RequiresPermissions(AppPermission.FINANCE_READ)
+  search(@CurrentTenant() societyId: string, @Query() query: SearchPaymentsDto) {
+    return this.settlement.searchPayments(societyId, query.q);
   }
 
   @Get('payments/:paymentId/availability')

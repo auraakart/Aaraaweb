@@ -281,10 +281,12 @@ export class ConsumerBookingsService {
       const rows = await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
         INSERT INTO "ConsumerServiceBooking" (
           "id", "userId", "homeId", "societyUnitId", "providerId", "offeringId", "offeringName", "providerName",
-          "addressSnapshot", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "idempotencyKey", "createdAt", "updatedAt"
+          "commercialTermsSnapshot", "addressSnapshot", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "idempotencyKey", "createdAt", "updatedAt"
         ) VALUES (
           ${id}::uuid, ${userId}::uuid, ${location.homeId}::uuid, ${location.societyUnitId}::uuid,
           ${offering.providerId}::uuid, ${offering.id}::uuid, ${offering.name}, ${offering.provider.businessName},
+          COALESCE((SELECT jsonb_build_object('terms',xp."commercialTerms",'policyUpdatedAt',xp."updatedAt",'source','PROVIDER_DECLARED')
+            FROM "ServiceOfferingExperiencePolicy" xp WHERE xp."offeringId"=${offering.id}::uuid), '{}'::jsonb),
           ${addressSnapshot}::jsonb, ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus", ${input.scheduledFrom},
           ${input.scheduledUntil}, ${offering.pricePaise}, ${notes}, ${idempotencyKey}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         ) RETURNING *

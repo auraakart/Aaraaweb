@@ -1,5 +1,6 @@
 'use client'
 
+import { HelpdeskPhotoPanel } from '../../components/helpdesk/HelpdeskPhotoPanel'
 import { FormEvent,useCallback,useEffect,useMemo,useRef,useState } from 'react'
 import { adminApi, getAdminSession } from '../../lib/aaraagate-api'
 import { operatorConfirm } from '../../lib/operator-dialog'
@@ -311,6 +312,7 @@ export default function HelpdeskAdminPage(){
             }))}/>
           </section>
 
+          <HelpdeskPhotoPanel session={s} ticketId={selected.id} closed={selected.status==='CLOSED'}/>
           <section aria-labelledby="sla-history-heading"><h3 id="sla-history-heading">SLA history</h3>
             <Timeline label="SLA history" emptyLabel="No SLA events." events={slaHistory.map(e=>({
               id:e.id,label:human(e.eventType),actor:e.actorName??'Recorded actor',dateTime:e.createdAt,timeLabel:fmt(e.createdAt),

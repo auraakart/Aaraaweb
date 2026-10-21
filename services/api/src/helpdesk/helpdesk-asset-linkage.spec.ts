@@ -2,6 +2,17 @@ import { describe,expect,it,vi } from 'vitest';
 import { HelpdeskService } from './helpdesk.service';
 
 describe('V4.71 helpdesk facility-asset linkage',()=>{
+  it('rejects foreign QR payloads and ambiguous codes without accepting client scope',async()=>{
+    const query=vi.fn().mockResolvedValue([]),service=new HelpdeskService({$queryRaw:query} as never);
+    const society='11111111-1111-4111-8111-111111111111',foreign='22222222-2222-4222-8222-222222222222';
+    await expect(service.resolveResidentAsset(society,'user','unit',`AG-ASSET:${foreign}:${foreign}`)).rejects.toThrow('not found');
+    expect(query).not.toHaveBeenCalled();
+    await expect(service.resolveResidentAsset(society,'user','unit','LIFT-A')).rejects.toThrow('not found');
+    const q=query.mock.calls[0][0] as {sql:string;values:unknown[]};
+    expect(q.sql).toContain('"effectiveTo">CURRENT_TIMESTAMP');expect(q.sql).toContain('"active"=true');expect(q.values).toContain(society);
+    query.mockResolvedValue([{id:'a'},{id:'b'}]);await expect(service.resolveResidentAsset(society,'user','unit','LIFT-A')).rejects.toThrow('ambiguous');
+  });
+
   it('uses same-asset recurrence evidence when an asset is linked',async()=>{
     const prisma={$queryRaw:vi.fn()
       .mockResolvedValueOnce([{

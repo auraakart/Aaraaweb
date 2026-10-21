@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'v57_critical_copy.dart';
 
 /// Lightweight localization for high-frequency Resident Gate, Home, Helpdesk, Billing and Staff entry actions.
 /// Unsupported locales and missing keys fall back to English.
@@ -23,7 +24,7 @@ class AaraagateStrings {
     return AaraagateStrings._(supportedLanguageCodes.contains(code) ? code : 'en');
   }
 
-  String text(String key) => _values[languageCode]?[key] ?? _values['en']![key] ?? key;
+  String text(String key) => v57CriticalCopy[languageCode]?[key] ?? _values[languageCode]?[key] ?? _values['en']![key] ?? key;
 
   String format(String key, Map<String, Object?> values) {
     var value = text(key);

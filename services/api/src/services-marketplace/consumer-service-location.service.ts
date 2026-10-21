@@ -222,6 +222,7 @@ export class ConsumerServiceLocationService {
           'targetArrivalMinutes', xp."targetArrivalMinutes",
           'includedWork', xp."includedWork",
           'partsPolicy', xp."partsPolicy",
+          'commercialTerms', xp."commercialTerms",
           'extraWorkApprovalRequired', xp."extraWorkApprovalRequired",
           'recurrenceCadences', xp."recurrenceCadences"
         ) END AS "experiencePolicy"

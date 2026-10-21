@@ -1,9 +1,39 @@
+import 'dart:typed_data';
 import 'api_client.dart';
 import 'resident_repository.dart';
 
 class DemoResidentRepository extends ResidentRepository {
   DemoResidentRepository()
       : super(ApiClient(baseUrl: 'http://demo.invalid', accessToken: 'demo'));
+
+  final Map<String,List<Map<String,dynamic>>> _complaintPhotos = {};
+  final Map<String,Uint8List> _complaintPhotoBytes = {};
+  @override
+  Future<List<Map<String,dynamic>>> helpdeskPhotos(String ticketId) async => List.of(_complaintPhotos[ticketId] ?? []);
+  @override
+  Future<Uint8List> helpdeskPhotoBytes(String ticketId,String photoId) async {
+    if (!(_complaintPhotos[ticketId] ?? []).any((p)=>p['id']==photoId)) throw StateError('Photo not found');
+    return _complaintPhotoBytes[photoId]!;
+  }
+  @override
+  Future<Map<String,dynamic>> addHelpdeskPhoto(String ticketId,Uint8List bytes,{required String kind,required String idempotencyKey,String note=''}) async {
+    final rows=_complaintPhotos.putIfAbsent(ticketId,()=>[]);
+    final prior=rows.where((p)=>p['id']==idempotencyKey);
+    if(prior.isNotEmpty)return prior.first;
+    if(rows.length>=6)throw StateError('Six photos maximum');
+    final row=<String,dynamic>{'id':idempotencyKey,'kind':kind,'note':note,'sizeBytes':bytes.length,'createdAt':DateTime.now().toIso8601String()};
+    _complaintPhotoBytes[idempotencyKey]=Uint8List.fromList(bytes);rows.add(row);return row;
+  }
+  @override
+  Future<Map<String,dynamic>> resolveHelpdeskAsset(String unitId,String code) async {
+    if(unitId!='demo-unit-1'||code.trim().toUpperCase()!='LIFT-A')throw StateError('Use demo asset code LIFT-A');
+    return {'id':'demo-asset-lift','name':'Tower A lift','code':'LIFT-A','location':'Tower A lobby'};
+  }
+  @override
+  Future<Map<String,dynamic>> createAssetHelpdeskTicket({required String unitId,required String assetId,required String idempotencyKey,required String title,required String description,String? category,String priority='NORMAL'}) async => {
+    ...await createHelpdeskTicket(unitId:unitId,idempotencyKey:idempotencyKey,title:title,description:description,category:category,priority:priority),
+    'assetId':assetId,'assetCode':'LIFT-A','assetName':'Tower A lift',
+  };
 
   final Map<String, String> _communityPollResponses = <String, String>{};
   final Map<String, String> _communityEventResponses = <String, String>{};
