@@ -508,7 +508,7 @@ jobs:
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
       - name: Test PostgreSQL workflows before broad regression
-        run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts
+        run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts src/helpdesk/helpdesk-ticket-number.postgres.spec.ts
       - name: Finance concurrency and reconciliation acceptance (disposable PostgreSQL)
         env:
           AARAAGATE_FINANCE_CONCURRENCY_CI: '1'
@@ -643,6 +643,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # The PR merge commit and both parents provide the two scope refs.
+          fetch-depth: 2
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -655,6 +658,8 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Typecheck admin
+        run: pnpm --filter @aaraagate/admin typecheck
       - name: Test Admin access boundaries
         run: pnpm --filter @aaraagate/admin test
       - name: Test direct-host partner SSR and cookie isolation
@@ -663,10 +668,14 @@ jobs:
         run: pnpm --filter @aaraagate/admin lint:ui
       - name: Install Admin browser test runtime
         run: bash scripts/install-admin-browser-runtime.sh
+      - name: Changed Admin browser tests before broad regression
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/run-changed-admin-tests.mjs "$BASE_SHA" "$HEAD_SHA"
       - name: Test shared Admin component interactions and accessibility
         run: pnpm --filter @aaraagate/admin test:ui
-      - name: Typecheck admin
-        run: pnpm --filter @aaraagate/admin typecheck
       - name: Build admin
         run: pnpm --filter @aaraagate/admin build
       - name: Retain Admin component visual evidence

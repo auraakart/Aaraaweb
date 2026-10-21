@@ -1,0 +1,26 @@
+'use client'
+import { useEffect, useRef, useState } from 'react'
+import { adminApi, getAdminSession, type AdminSession } from '../../lib/aaraagate-api'
+import { normaliseComplaintPhoto, requestComplaintPhoto } from '../../lib/helpdesk-photo'
+import { ErrorState, PrimaryButton, SecondaryButton, SelectField, FormField } from '../admin-ui'
+
+type Photo={id:string;kind:string;note:string;sizeBytes:number;createdAt:string}
+export function HelpdeskPhotoPanel({session,ticketId,closed}:{session:AdminSession;ticketId:string;closed:boolean}){
+ const [photos,setPhotos]=useState<Photo[]>([]),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[draft,setDraft]=useState<Blob|null>(null),[kind,setKind]=useState('BEFORE'),[note,setNote]=useState(''),[attempted,setAttempted]=useState(false),[image,setImage]=useState('')
+ const generation=useRef(0),submission=useRef(''),imageRef=useRef('')
+ useEffect(()=>{generation.current++;setPhotos([]);setLoaded(false);setBusy(false);setError('');setDraft(null);setAttempted(false);setKind('BEFORE');setNote('');setImage('');submission.current='';if(imageRef.current)URL.revokeObjectURL(imageRef.current);imageRef.current='';return()=>{generation.current++;if(imageRef.current)URL.revokeObjectURL(imageRef.current)}},[ticketId,session.accessToken])
+ const current=(run:number)=>run===generation.current&&getAdminSession()?.accessToken===session.accessToken
+ const load=async()=>{const run=++generation.current;setBusy(true);setError('');try{const rows=await adminApi<Photo[]>(session,`/helpdesk/review/${ticketId}/photos`);if(current(run)){setPhotos(rows);setLoaded(true)}}catch(e){if(current(run))setError(e instanceof Error?e.message:'Photos unavailable.')}finally{if(current(run))setBusy(false)}}
+ const choose=async(file?:File)=>{if(!file)return;const run=++generation.current;setBusy(true);setError('');try{const blob=await normaliseComplaintPhoto(file);if(current(run)){setDraft(blob);submission.current=crypto.randomUUID();setAttempted(false)}}catch(e){if(current(run))setError(e instanceof Error?e.message:'Photo selection failed.')}finally{if(current(run))setBusy(false)}}
+ const upload=async()=>{if(!draft||closed)return;const run=++generation.current;setBusy(true);setError('');setAttempted(true);try{const data=new FormData();data.set('photo',draft,'photo.png');data.set('kind',kind);data.set('note',note);data.set('idempotencyKey',submission.current);const result=await requestComplaintPhoto(session.accessToken,ticketId,undefined,data) as Photo;if(current(run)){setPhotos(old=>[...old.filter(p=>p.id!==result.id),result]);setDraft(null);setAttempted(false)}}catch(e){if(current(run))setError(e instanceof Error?e.message:'Photo upload unconfirmed.')}finally{if(current(run))setBusy(false)}}
+ const view=async(photo:Photo)=>{const run=++generation.current;setBusy(true);setError('');try{const blob=await requestComplaintPhoto(session.accessToken,ticketId,photo.id) as Blob;if(current(run)){if(imageRef.current)URL.revokeObjectURL(imageRef.current);imageRef.current=URL.createObjectURL(blob);setImage(imageRef.current)}}catch(e){if(current(run))setError(e instanceof Error?e.message:'Photo unavailable.')}finally{if(current(run))setBusy(false)}}
+ return <section aria-labelledby="complaint-photos-heading"><h3 id="complaint-photos-heading">Complaint photos</h3><p>Private before/after evidence. Photos are normalised, metadata-free and safety-scanned before acceptance. Maximum six photos per complaint.</p>
+  <SecondaryButton loading={busy} onClick={()=>void load()}>View photos</SecondaryButton>
+  {error&&<ErrorState title="Photo operation unavailable" description={error}/>}
+  {loaded&&photos.length===0&&<p>No photos attached.</p>}
+  {photos.map(photo=><div key={photo.id} style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center',marginTop:12}}><span>{photo.kind==='AFTER'?'After work':'Before work'}{photo.note?` · ${photo.note}`:''}</span><SecondaryButton disabled={busy} onClick={()=>void view(photo)}>View {photo.kind==='AFTER'?'after':'before'} photo</SecondaryButton></div>)}
+  {image&&<figure><img src={image} alt="Private complaint evidence" style={{maxWidth:'100%',maxHeight:400,objectFit:'contain'}}/><figcaption><SecondaryButton onClick={()=>{URL.revokeObjectURL(imageRef.current);imageRef.current='';setImage('')}}>Close photo</SecondaryButton></figcaption></figure>}
+  {!closed&&!draft&&<label style={{display:'grid',gap:8,marginTop:16}}>Add photo<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';void choose(file)}}/></label>}
+  {draft&&<div style={{display:'grid',gap:12,marginTop:16}}><SelectField label="Photo stage" value={kind} disabled={busy||attempted} onChange={e=>setKind(e.target.value)}><option value="BEFORE">Before work</option><option value="AFTER">After work</option></SelectField><FormField label="Photo note (optional)" value={note} disabled={busy||attempted} maxLength={200} onChange={e=>setNote(e.target.value)}/><PrimaryButton loading={busy} onClick={()=>void upload()}>{attempted?'Retry same photo':'Upload photo'}</PrimaryButton>{!attempted&&<SecondaryButton disabled={busy} onClick={()=>setDraft(null)}>Cancel photo</SecondaryButton>}</div>}
+ </section>
+}

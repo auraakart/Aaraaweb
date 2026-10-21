@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:aaraagate_resident/auth/auth_repository.dart';
 
 import 'package:aaraagate_resident/data/api_client.dart';
@@ -15,6 +16,28 @@ Future<HttpServer> localServer(void Function(HttpRequest) handler) async {
 String address(HttpServer server) => 'http://127.0.0.1:${server.port}';
 
 void main() {
+  test('private photo transport retains bearer and retry identity without following redirects', () async {
+    final bodies=<String>[];
+    final server=await localServer((request) async {
+      expect(request.headers.value(HttpHeaders.authorizationHeader),'Bearer resident-token');
+      if(request.uri.path=='/redirect'){
+        request.response.statusCode=302;request.response.headers.set(HttpHeaders.locationHeader,'/must-not-follow');
+      }else if(request.method=='POST'){
+        bodies.add(await utf8.decodeStream(request));
+        request.response.headers.contentType=ContentType.json;request.response.write('{"id":"photo"}');
+      }else{
+        expect(request.uri.path,'/photo');request.response.headers.contentType=ContentType('image','png');request.response.add([1,2,3]);
+      }
+      await request.response.close();
+    });
+    addTearDown(()=>server.close(force:true));
+    final api=ApiClient(baseUrl:address(server),accessToken:'resident-token');addTearDown(api.close);
+    expect(await api.getPhotoBytes('/photo'),[1,2,3]);
+    await expectLater(api.getPhotoBytes('/redirect'),throwsA(isA<ApiException>()));
+    for(var i=0;i<2;i++){expect(await api.uploadPhoto('/photo',Uint8List.fromList([1,2,3]),idempotencyKey:'same-photo-key',kind:'BEFORE'),{'id':'photo'});}
+    expect(bodies.length,2);expect(bodies.every((b)=>b.contains('same-photo-key')&&b.contains('filename="photo.png"')),isTrue);
+  });
+
   test('a stalled GET has a bounded deadline and retryable response', () async {
     final server = await localServer((_) {});
     addTearDown(() => server.close(force: true));

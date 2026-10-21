@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Put, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -24,6 +24,10 @@ class UpsertSlaPolicyDto {
   @IsOptional() @IsUUID() escalationTargetUserId?: string | null;
   @IsOptional() @IsBoolean() automaticEscalationEnabled?: boolean;
 }
+class HelpdeskQueueQueryDto {
+  @IsOptional() @IsString() @MaxLength(120) q?: string;
+}
+
 class EscalateTicketDto {
   @IsUUID() escalatedToId!: string;
   @IsOptional() @IsString() @MaxLength(1000) note?: string;
@@ -49,8 +53,8 @@ export class HelpdeskSlaController {
 
   @Get('queue')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
-  queue(@CurrentTenant() societyId: string) {
-    return this.sla.listQueue(societyId);
+  queue(@CurrentTenant() societyId: string, @Query() query: HelpdeskQueueQueryDto) {
+    return this.sla.listQueue(societyId, query.q);
   }
 
   @Get(':ticketId/readiness')

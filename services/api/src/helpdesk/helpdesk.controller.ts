@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -22,11 +22,17 @@ const STATUS_REASON_CODES = [
 
 class CreateHelpdeskTicketDto {
   @IsUUID() unitId!: string;
+  @IsOptional() @IsUUID() assetId?: string;
   @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!: string;
   @IsString() @MinLength(3) @MaxLength(120) title!: string;
   @IsString() @MinLength(5) @MaxLength(2000) description!: string;
   @IsOptional() @IsString() @MaxLength(80) category?: string;
   @IsOptional() @IsIn(['LOW', 'NORMAL', 'HIGH', 'URGENT']) priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+class ResolveHelpdeskAssetDto {
+  @IsUUID() unitId!: string;
+  @IsString() @MinLength(1) @MaxLength(180) code!: string;
 }
 
 class AddHelpdeskCommentDto {
@@ -66,6 +72,12 @@ export class HelpdeskController {
   @RequiresPermissions(AppPermission.HELPDESK_READ_OWN)
   mine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.helpdesk.listMine(societyId, this.requireUser(userId));
+  }
+
+  @Get('assets/resolve')
+  @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
+  resolveAsset(@Query() query:ResolveHelpdeskAssetDto,@CurrentTenant() societyId:string,@CurrentUser() userId?:string){
+    return this.helpdesk.resolveResidentAsset(societyId,this.requireUser(userId),query.unitId,query.code);
   }
 
   @Post()

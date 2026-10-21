@@ -40,6 +40,30 @@ export class SettlementService {
     }).catch((error) => this.rethrow(error));
   }
 
+  searchPayments(societyId: string, rawQuery: string) {
+    const query = rawQuery.trim();
+    if (query.length < 2 || query.length > 120) throw new BadRequestException('Enter between 2 and 120 characters');
+    const term = `%${query.replace(/[\\%_]/g, '\\$&')}%`;
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT p."id", p."status", p."amountPaise"::text AS "amountPaise", p."createdAt",
+        p."providerPaymentId", p."providerOrderId", i."invoiceNumber", u."number" AS "unitNumber",
+        b."name" AS "buildingName", payer."name" AS "payerName",
+        CASE WHEN p."status" IN ('CAPTURED','REFUNDED') AND p."purposeType"='MAINTENANCE_INVOICE'
+          THEN CONCAT('AGR-', UPPER(SUBSTRING(p."id"::text, 1, 8))) ELSE NULL END AS "receiptNumber"
+      FROM "Payment" p
+      LEFT JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
+      LEFT JOIN "Unit" u ON u."id"=i."unitId" AND u."societyId"=p."societyId"
+      LEFT JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=p."societyId"
+      LEFT JOIN "User" payer ON payer."id"=p."payerUserId"
+      WHERE p."societyId"=${societyId}::uuid AND (
+        p."id"::text ILIKE ${term} OR p."providerOrderId" ILIKE ${term} OR
+        COALESCE(p."providerPaymentId",'') ILIKE ${term} OR COALESCE(i."invoiceNumber",'') ILIKE ${term} OR
+        COALESCE(u."number",'') ILIKE ${term} OR COALESCE(payer."name",'') ILIKE ${term} OR
+        (p."status" IN ('CAPTURED','REFUNDED') AND p."purposeType"='MAINTENANCE_INVOICE' AND CONCAT('AGR-', UPPER(SUBSTRING(p."id"::text, 1, 8))) ILIKE ${term})
+      ) ORDER BY p."createdAt" DESC, p."id" LIMIT 30
+    `);
+  }
+
   listPaymentAllocations(societyId: string, paymentId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT a."id", a."receivableId", a."paymentId", a."amountPaise"::text AS "amountPaise",

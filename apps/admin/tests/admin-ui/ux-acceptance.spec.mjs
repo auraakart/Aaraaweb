@@ -36,6 +36,7 @@ for (const route of routes) {
         }, { dark, scale })
         if (route.key === 'finance') {
           const paymentId = '53aa5ce7-1dba-47ef-b939-e2385370c242'
+          await page.getByText('Look up an internal payment ID', { exact: true }).click()
           const input = page.getByLabel('Payment ID', { exact: true })
           expect((await input.boundingBox()).width / scale).toBeGreaterThanOrEqual(180)
           await input.fill(paymentId)

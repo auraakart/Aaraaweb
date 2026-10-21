@@ -17,7 +17,7 @@ function harness(member: {id:string}|null) {
       findMany:vi.fn().mockResolvedValue([{id:'membership-a',role:'OWNER',createdAt:new Date()}]),
     },
     partner:{findUnique:vi.fn().mockResolvedValue({id:partnerA,displayName:'Partner A'})},
-    society:{findMany:vi.fn().mockResolvedValue([
+    society:{findFirst:vi.fn().mockResolvedValue({productTier:'ENTERPRISE',featureOverrides:{}}),findMany:vi.fn().mockResolvedValue([
       {id:'society-1',name:'Society A',status:'ACTIVE'},
     ])},
   };
@@ -107,4 +107,45 @@ describe('V5.4.4 scoped partner control-plane reads',()=>{
       take:51,select:{id:true,name:true,status:true},
     }));
   });
+});
+
+describe('V5.7 permission-masked operational portfolio',()=>{
+ it('rejects commercial-audience sessions before any database read',async()=>{
+  const {tx,service}=harness({id:'m1'});
+  expect(()=>service.operations(user,partnerA,'PARTNER')).toThrow('society-authorised');
+  expect(tx.partnerMembership.findFirst).not.toHaveBeenCalled();
+ });
+ it('does not grant operational data from commercial membership alone',async()=>{
+  const {tx,service}=harness({id:'m1'});
+  Object.assign(tx,{societyMembership:{findMany:vi.fn().mockResolvedValue([])},$queryRaw:vi.fn()});
+  tx.society.findMany.mockResolvedValue([]);
+  expect((await service.operations(user,partnerA)).societies).toEqual([]);
+  expect((tx as unknown as {$queryRaw:ReturnType<typeof vi.fn>}).$queryRaw).not.toHaveBeenCalled();
+ });
+ it('masks disabled finance and helpdesk features despite administrator permission',async()=>{
+  const {tx,service}=harness({id:'m1'});
+  tx.society.findFirst.mockResolvedValue({productTier:'STARTER',featureOverrides:{}});
+  const raw=vi.fn().mockResolvedValue([{openWorkOrders:0,overdueWorkOrders:0}]);
+  Object.assign(tx,{societyMembership:{findMany:vi.fn().mockResolvedValue([{societyId:'society-1',role:'SOCIETY_ADMIN'}])},$queryRaw:raw});
+  const result=await service.operations(user,partnerA);expect(result.societies[0].finance).toBeNull();expect(result.societies[0].helpdesk).toBeNull();
+  expect(raw.mock.calls.map(c=>c[0].sql).join(' ')).not.toContain('FROM "Receivable"');
+ });
+ it('masks finance for a facility manager and never selects resident or transaction details',async()=>{
+  const {tx,service}=harness({id:'m1'});
+  const raw=vi.fn(async(query:{sql:string})=>{
+   if(query.sql.includes('FROM "HelpdeskTicket"'))return [{openTickets:2,overdueTickets:1}];
+   if(query.sql.includes('FROM "FacilityWorkOrder"'))return [{openWorkOrders:3,overdueWorkOrders:0}];
+   return [];
+  });
+  Object.assign(tx,{societyMembership:{findMany:vi.fn().mockResolvedValue([{societyId:'society-1',role:'FACILITY_MANAGER'}])},$queryRaw:raw});
+  const result=await service.operations(user,partnerA);
+  expect(result.societies[0]).toEqual({societyId:'society-1',societyName:'Society A',finance:null,helpdesk:{openTickets:2,overdueTickets:1},facilities:{openWorkOrders:3,overdueWorkOrders:0}});
+  const sql=raw.mock.calls.map(c=>c[0].sql).join(' ');
+  expect(sql).not.toContain('FROM "Receivable"');expect(sql).not.toContain('"User"');expect(sql).not.toContain('"unitId"');
+  expect(tx.society.findMany).toHaveBeenCalledWith(expect.objectContaining({where:{partnerId:partnerA,status:'ACTIVE',id:{in:['society-1']}}}));
+ });
+ it('conceals a foreign or revoked partner even when the user has society roles',async()=>{
+  const {service}=harness(null);
+  await expect(service.operations(user,partnerB)).rejects.toBeInstanceOf(NotFoundException);
+ });
 });

@@ -1,3 +1,4 @@
+import 'service_commercial_terms.dart';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 
@@ -180,6 +181,7 @@ class _ConsumerCheckoutBreakdownPanelState extends State<ConsumerCheckoutBreakdo
           ),
         ),
         const SizedBox(height: 12),
+        ServiceCommercialTerms(terms: ((info['commercialTerms'] as Map?)?['snapshot'] as Map?)?['terms'], recorded: true),
         Text('Extra-work quotes (separate)', style: theme.textTheme.titleMedium),
         const Text('Even an approved quote is not included in the original booking payment.'),
         if (quotes.isEmpty)

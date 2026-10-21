@@ -36,7 +36,10 @@ must('V4.67 Resident retry identity',read('apps/resident/lib/screens/helpdesk_sc
   'String? commentSubmissionKey;',
   'commentSubmissionShape != message',
   'idempotencyKey: commentSubmissionKey!',
-  'Retry will reuse this comment submission unless you edit the message.'
+  "text('helpdeskCommentUnconfirmed')"
+]);
+must('V5.7 localized retry guidance',read('apps/resident/lib/localization/v57_critical_copy.dart'),[
+  '"helpdeskCommentUnconfirmed"', 'Retry will reuse this comment submission unless you edit the message.'
 ]);
 must('V4.67 Resident retry regression',read('apps/resident/test/helpdesk_service_recovery_test.dart'),[
   'resident comment retry reuses request identity after ambiguous transport failure',
