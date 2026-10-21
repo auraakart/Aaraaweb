@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../data/resident_data_controller.dart';
 import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
@@ -420,6 +421,7 @@ class _TicketCard extends StatelessWidget {
     final status = ticket['status']?.toString() ?? 'OPEN';
     final priority = ticket['priority']?.toString() ?? 'NORMAL';
     final category = ticket['category']?.toString().trim() ?? '';
+    final ticketNumber = ticket['ticketNumber']?.toString().trim() ?? '';
     final sla = ticket['computedSlaState']?.toString() ?? ticket['slaState']?.toString() ?? 'UNTRACKED';
     final building = ticket['buildingName']?.toString();
     final unit = ticket['unitNumber']?.toString();
@@ -427,7 +429,7 @@ class _TicketCard extends StatelessWidget {
 
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: 'Open complaint ${ticket['title'] ?? 'Complaint'}, ${_displayLabel(status)}',
+      semanticLabel: 'Open complaint $ticketNumber, ${ticket['title'] ?? 'Complaint'}, ${_displayLabel(status)}',
       color: scheme.surfaceContainerLow,
       padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
       child: Row(
@@ -455,6 +457,10 @@ class _TicketCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(ticket['title']?.toString() ?? 'Complaint', style: theme.textTheme.titleMedium),
+                if (ticketNumber.isNotEmpty) ...[
+                  const SizedBox(height: AaraagateTokens.space1),
+                  Text(ticketNumber, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                ],
                 SizedBox(height: compact ? AaraagateTokens.space1 : AaraagateTokens.space2),
                 Wrap(
                   spacing: AaraagateTokens.space2,
@@ -642,6 +648,8 @@ class _TicketDetailState extends State<_TicketDetail> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(widget.ticket['title']?.toString() ?? 'Complaint', style: theme.textTheme.headlineSmall),
+                if ((widget.ticket['ticketNumber']?.toString().trim() ?? '').isNotEmpty)
+                  _TicketNumberReference(number: widget.ticket['ticketNumber'].toString()),
                 const SizedBox(height: AaraagateTokens.space2),
                 Wrap(
                   spacing: AaraagateTokens.space2,
@@ -933,3 +941,42 @@ String _displayLabel(String raw) => raw
     .where((part) => part.isNotEmpty)
     .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
     .join(' ');
+
+
+class _TicketNumberReference extends StatelessWidget {
+  const _TicketNumberReference({required this.number});
+  final String number;
+
+  Future<void> _copy(BuildContext context) async {
+    final strings = AaraagateStrings.device();
+    try {
+      await Clipboard.setData(ClipboardData(text: number));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.text('helpdeskTicketNumberCopied'))),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.text('helpdeskTicketNumberCopyFailed'))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: AaraagateTokens.space2),
+    child: Wrap(
+      spacing: AaraagateTokens.space2,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SelectableText(number, semanticsLabel: '${AaraagateStrings.device().text('helpdeskTicketNumber')} $number'),
+        IconButton(
+          tooltip: AaraagateStrings.device().text('helpdeskCopyTicketNumber'),
+          onPressed: () => _copy(context),
+          icon: const Icon(Icons.copy_rounded),
+        ),
+      ],
+    ),
+  );
+}

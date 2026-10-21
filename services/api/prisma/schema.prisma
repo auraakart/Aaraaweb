@@ -1231,6 +1231,7 @@ model Session {
 
 model HelpdeskTicket {
   id           String             @id @default(uuid()) @db.Uuid
+  ticketNumber String             @unique(map: "HelpdeskTicket_ticketNumber_key") @default(dbgenerated("next_helpdesk_ticket_number()"))
   societyId    String             @db.Uuid
   unitId       String             @db.Uuid
   createdById  String             @db.Uuid

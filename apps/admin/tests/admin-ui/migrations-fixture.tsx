@@ -27,7 +27,7 @@ const periodEnd='2026-09-30T23:59:59.000Z'
 
 const fixtures={
   helpdeskTicket:{
-    id:'ticket-1',title:'Lift maintenance follow-up',description:'Resident reported intermittent lift stoppage.',assetId:'asset-1',assetCode:'LIFT-B',assetName:'Tower B Lift',
+    id:'ticket-1',ticketNumber:'HD-2026-000123',title:'Lift maintenance follow-up',description:'Resident reported intermittent lift stoppage.',assetId:'asset-1',assetCode:'LIFT-B',assetName:'Tower B Lift',
     category:'MAINTENANCE',priority:'HIGH',status:'IN_PROGRESS',unitNumber:'B-402',buildingName:'Tower B',
     createdByName:'Resident Demo',assignedToId:'reviewer-1',assignedToName:'Facility Reviewer',
     slaState:'ON_TRACK',computedSlaState:'ON_TRACK',firstResponseDueAt:later,resolutionDueAt:later,
@@ -78,7 +78,10 @@ window.fetch=async(input,init={})=>{
     return json({ok:true})
   }
 
-  if(path==='/helpdesk/sla/queue') return json([fixtures.helpdeskTicket])
+  if(path==='/helpdesk/sla/queue') {
+    const query=new URL(url.toString(),window.location.origin).searchParams.get('q')?.toLowerCase()??''
+    return json([fixtures.helpdeskTicket].filter(t=>!query||t.ticketNumber.toLowerCase().includes(query)||t.title.toLowerCase().includes(query)))
+  }
   if(path==='/helpdesk/review/context') return json([{id:'reviewer-1',name:'Facility Reviewer',phone:'+91 90000 00010'}])
   if(path==='/helpdesk/review/assets') return json([fixtures.facilityAsset])
   if(path==='/helpdesk/review/ticket-1/activities') return json([{id:'ha-1',type:'STATUS_UPDATED',message:'Work in progress',actorName:'Facility Reviewer',occurredAt:now}])

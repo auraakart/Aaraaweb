@@ -119,3 +119,18 @@ for (const route of [
     await page.screenshot({ path: testInfo.outputPath(`admin-dark-preview-${route.key}.png`), fullPage: true })
   })
 }
+
+test('helpdesk displays, copies and searches the permanent ticket number', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto('/migrations.html?route=helpdesk')
+  await expect(page.getByRole('button').filter({hasText:'Lift maintenance follow-up'})).toContainText('HD-2026-000123')
+  await expect(page.getByRole('button',{name:'Copy ticket number',exact:true})).toBeVisible()
+  await page.getByRole('button',{name:'Copy ticket number',exact:true}).click()
+  await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toBe('HD-2026-000123')
+  await page.getByLabel('Find ticket').fill('HD-2026-999999')
+  await page.getByRole('button',{name:'Search tickets',exact:true}).click()
+  await expect(page.getByText('No tickets match this number or title.')).toBeVisible()
+  await page.getByLabel('Find ticket').fill('hd-2026-000123')
+  await page.getByRole('button',{name:'Search tickets',exact:true}).click()
+  await expect(page.getByRole('button').filter({hasText:'Lift maintenance follow-up'})).toBeVisible()
+})

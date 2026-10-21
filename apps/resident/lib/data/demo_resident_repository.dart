@@ -410,6 +410,7 @@ class DemoResidentRepository extends ResidentRepository {
   Future<List<Map<String, dynamic>>> helpdeskTickets() async => [
         {
           'id': 'demo-ticket-1',
+          'ticketNumber': 'HD-2026-000001',
           'unitId': 'demo-unit-1',
           'title': 'Corridor light not working',
           'description': 'Light near lift lobby is flickering.',
@@ -418,6 +419,7 @@ class DemoResidentRepository extends ResidentRepository {
         },
         {
           'id': 'demo-ticket-2',
+          'ticketNumber': 'HD-2026-000002',
           'unitId': 'demo-unit-1',
           'title': 'Water seepage near balcony',
           'description': 'Minor seepage visible after rain.',
@@ -426,6 +428,7 @@ class DemoResidentRepository extends ResidentRepository {
         },
         {
           'id': 'demo-ticket-3',
+          'ticketNumber': 'HD-2026-000003',
           'unitId': 'demo-unit-1',
           'title': 'Intercom audio issue',
           'description': 'Visitor voice is not audible clearly.',
@@ -434,6 +437,7 @@ class DemoResidentRepository extends ResidentRepository {
         },
         {
           'id': 'demo-ticket-4',
+          'ticketNumber': 'HD-2026-000004',
           'unitId': 'demo-unit-1',
           'title': 'Parking sticker replacement',
           'description': 'Old sticker is damaged and needs replacement.',
@@ -823,6 +827,7 @@ class DemoResidentRepository extends ResidentRepository {
     String priority = 'NORMAL',
   }) async => {
         'id': 'demo-ticket-created',
+        'ticketNumber': 'HD-2026-000005',
         'unitId': unitId,
         'title': title,
         'description': description,

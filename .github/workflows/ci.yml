@@ -508,7 +508,7 @@ jobs:
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
       - name: Test PostgreSQL workflows before broad regression
-        run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts
+        run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts src/helpdesk/helpdesk-ticket-number.postgres.spec.ts
       - name: Finance concurrency and reconciliation acceptance (disposable PostgreSQL)
         env:
           AARAAGATE_FINANCE_CONCURRENCY_CI: '1'
