@@ -8,18 +8,20 @@ const databaseTests = process.env.DATABASE_URL ? describe : describe.skip;
 
 databaseTests('Helpdesk ticket number migration and database allocation', () => {
   const schema = `ticket_numbers_${randomUUID().replaceAll('-', '')}`;
-  const admin = new PrismaClient();
   const url = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost/aaraagate_test');
   url.searchParams.set('schema', schema);
   const db = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 
   beforeAll(async () => {
-    await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'execute',
+      '--stdin', '--url', process.env.DATABASE_URL!], {
+      input: `CREATE SCHEMA "${schema}"`, stdio: 'pipe', timeout: 30_000,
+    });
     // A pre-upgrade table with historical tickets, including a closed complaint.
-    await db.$executeRawUnsafe(`CREATE TABLE "HelpdeskTicket" (
+    await db.$executeRaw`CREATE TABLE "HelpdeskTicket" (
       "id" UUID PRIMARY KEY, "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, "status" TEXT NOT NULL DEFAULT 'OPEN'
-    )`);
+    )`;
     await db.$executeRaw`INSERT INTO "HelpdeskTicket" ("id", "createdAt", "updatedAt", "status") VALUES
       (${randomUUID()}::uuid, '2025-12-31T23:59:00Z', '2026-01-02T00:00:00Z', 'CLOSED'),
       (${randomUUID()}::uuid, '2026-01-01T00:01:00Z', '2026-01-02T00:00:00Z', 'OPEN')`;
@@ -30,8 +32,10 @@ databaseTests('Helpdesk ticket number migration and database allocation', () => 
 
   afterAll(async () => {
     await db.$disconnect();
-    await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-    await admin.$disconnect();
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'execute',
+      '--stdin', '--url', process.env.DATABASE_URL!], {
+      input: `DROP SCHEMA IF EXISTS "${schema}" CASCADE`, stdio: 'pipe', timeout: 30_000,
+    });
   });
 
   it('backfills historical tickets using their UTC creation year and preserves history', async () => {
