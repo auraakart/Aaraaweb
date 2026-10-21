@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/localization/aaraagate_strings.dart';
@@ -9,6 +10,21 @@ import 'package:aaraagate_resident/widgets/helpdesk_asset_entry.dart';
 import 'package:aaraagate_resident/widgets/service_commercial_terms.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+class _PhotoPicker implements ComplaintPhotoPicker {
+  @override
+  Future<Uint8List?> pick() async => base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=');
+}
+class _LostPhotoReply extends DemoResidentRepository {
+  final keys=<String>[];
+  @override
+  Future<Map<String,dynamic>> addHelpdeskPhoto(String ticketId,Uint8List bytes,{required String kind,required String idempotencyKey,String note=''}) async {
+    keys.add(idempotencyKey);
+    final result=await super.addHelpdeskPhoto(ticketId,bytes,kind:kind,idempotencyKey:idempotencyKey,note:note);
+    if(keys.length==1)throw StateError('Lost reply');
+    return result;
+  }
+}
+
 void main(){
  final binding=TestWidgetsFlutterBinding.ensureInitialized();
  test('all eight languages have complete V5.7 recovery and evidence vocabulary',(){
@@ -39,8 +55,20 @@ void main(){
    expect(tester.takeException(),isNull);
   });
  }
+ testWidgets('photo retry preserves the submission after a lost reply',(tester)async{
+  final repository=_LostPhotoReply();
+  final c=ResidentDataController(repository,activeUnitId:'demo-unit-1',fetchEntitlements:false)..households=[{'id':'house','unitId':'demo-unit-1'}];addTearDown(c.dispose);
+  await tester.pumpWidget(MaterialApp(home:Scaffold(body:SingleChildScrollView(child:HelpdeskPhotos(controller:c,ticketId:'demo-ticket-1',unitId:'demo-unit-1',closed:false,picker:_PhotoPicker())))));
+  await tester.tap(find.text('Add photo'));await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('Upload photo'));await tester.tap(find.text('Upload photo'));await tester.pumpAndSettle();
+  expect(repository.keys.length,1);
+  await tester.ensureVisible(find.text('Retry same photo'));await tester.tap(find.text('Retry same photo'));await tester.pumpAndSettle();
+  expect(repository.keys.length,2);expect(repository.keys[1],repository.keys[0]);
+  expect(await repository.helpdeskPhotos('demo-ticket-1'),hasLength(1));
+  expect(find.text('Retry same photo'),findsNothing);expect(tester.takeException(),isNull);
+ });
  testWidgets('unspecified declarations are visible and never fabricate policy',(tester)async{
-  await tester.pumpWidget(const MaterialApp(home:Scaffold(body:SingleChildScrollView(child:ServiceCommercialTerms(terms:{'refund':'Provider review required'},recorded:true))))));
+  await tester.pumpWidget(const MaterialApp(home:Scaffold(body:SingleChildScrollView(child:ServiceCommercialTerms(terms:{'refund':'Provider review required'},recorded:true)))));
   expect(find.text('Refund: Provider review required'),findsOneWidget);expect(find.text('Invoice issuer: Not recorded'),findsOneWidget);expect(find.byType(FilledButton),findsNothing);
  });
 }
