@@ -66,7 +66,11 @@ export class HelpdeskSlaService {
     return rows[0];
   }
 
-  listQueue(societyId: string) {
+  listQueue(societyId: string, search = '') {
+    const query = search.trim();
+    if (query.length > 120) throw new BadRequestException('Search must be 120 characters or fewer');
+    const term = `%${query.replace(/[\\%_]/g, '\\$&')}%`;
+    const filter = query ? Prisma.sql`AND (ht."ticketNumber" ILIKE ${term} OR ht."title" ILIKE ${term})` : Prisma.empty;
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
 ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
@@ -74,7 +78,7 @@ ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
       JOIN "Building" b ON b."id"=u."buildingId"
       JOIN "User" creator ON creator."id"=ht."createdById"
-      WHERE ht."societyId"=${societyId}::uuid
+      WHERE ht."societyId"=${societyId}::uuid ${filter}
       ORDER BY
         CASE ${HELPDESK_TICKET_SLA_STATE_SQL}
           WHEN 'RESOLUTION_BREACHED' THEN 0

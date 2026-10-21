@@ -24,7 +24,7 @@ import {
 type Reviewer={id:string;name:string;phone:string}
 type FacilityAsset={id:string;code:string;name:string;category:string;location?:string|null;status:string}
 type Ticket={
-  id:string;title:string;description:string;category?:string|null;priority:string;status:string;
+  id:string;ticketNumber?:string;title:string;description:string;category?:string|null;priority:string;status:string;
   unitNumber?:string;buildingName?:string;createdByName?:string;assignedToId?:string|null;assignedToName?:string|null;
   slaState?:string;computedSlaState?:string;firstResponseDueAt?:string|null;resolutionDueAt?:string|null;
   escalationLevel?:number;escalatedToId?:string|null;escalatedToName?:string|null;resolutionCode?:string|null;closureCode?:string|null;assetId?:string|null;assetCode?:string|null;assetName?:string|null
@@ -53,21 +53,25 @@ export default function HelpdeskAdminPage(){
   const[assignedToId,setAssignedToId]=useState(''),[assetId,setAssetId]=useState(''),[status,setStatus]=useState('IN_PROGRESS'),[reasonCode,setReasonCode]=useState(''),[statusNote,setStatusNote]=useState('')
   const[comment,setComment]=useState(''),[internalNote,setInternalNote]=useState(''),[reopenNote,setReopenNote]=useState('')
   const[escalatedToId,setEscalatedToId]=useState(''),[escalationNote,setEscalationNote]=useState('')
+  const[search,setSearch]=useState(''),[query,setQuery]=useState('')
+  const queueRequest=useRef(0)
   const detailRequest=useRef(0)
 
   const selected=useMemo(()=>tickets.find(t=>t.id===selectedId)??null,[tickets,selectedId])
 
   const load=useCallback(async()=>{if(!s||!allowed)return;setQueueLoading(true);setQueueError('')
+    const requestId=++queueRequest.current
     try{
       const[queue,ctx,assetRows]=await Promise.all([
-        adminApi<Ticket[]>(s,'/helpdesk/sla/queue'),
+        adminApi<Ticket[]>(s,query?`/helpdesk/sla/queue?q=${encodeURIComponent(query)}`:'/helpdesk/sla/queue'),
         adminApi<Reviewer[]>(s,'/helpdesk/review/context'),
         adminApi<FacilityAsset[]>(s,'/helpdesk/review/assets'),
       ])
+      if(requestId!==queueRequest.current)return
       setTickets(queue);setReviewers(ctx);setAssets(assetRows)
       setSelectedId(current=>current&&queue.some(t=>t.id===current)?current:queue[0]?.id??'')
-    }catch(e){setQueueError(e instanceof Error?e.message:'Helpdesk queue could not be loaded')}finally{setQueueLoading(false)}
-  },[s?.accessToken,allowed])
+    }catch(e){if(requestId===queueRequest.current)setQueueError(e instanceof Error?e.message:'Helpdesk queue could not be loaded')}finally{if(requestId===queueRequest.current)setQueueLoading(false)}
+  },[s?.accessToken,allowed,query])
 
   const loadDetail=useCallback(async(id:string)=>{if(!s||!id)return
     const requestId=++detailRequest.current
@@ -97,6 +101,8 @@ export default function HelpdeskAdminPage(){
     try{await task();setSuccess(message);await load();if(selectedId)await loadDetail(selectedId)}
     catch(e){setOperationError(e instanceof Error?e.message:'Helpdesk operation failed')}finally{setMutationBusy(false)}
   }
+
+  const copyTicketNumber=async()=>{if(!selected?.ticketNumber)return;try{await navigator.clipboard.writeText(selected.ticketNumber);setSuccess('Ticket number copied.');setOperationError('')}catch{setOperationError('Could not copy. Select the ticket number and copy it manually.')}}
 
   const canManageFacilities=!!s&&['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(s.role)
   const createFacilityWorkOrder=async()=>{if(!s||!selected||!facilityHandoff||!canManageFacilities||facilityHandoff.blockers.length)return;const confirmed=await operatorConfirm(`Create a ${facilityHandoff.suggested.priority} corrective Facilities work order from “${selected.title}”?`);if(!confirmed)return;void run(()=>adminApi(s,`/facilities/helpdesk-handoffs/${selected.id}`,{method:'POST',body:'{}'}).then(()=>undefined),'Facilities work order created.')}
@@ -131,6 +137,11 @@ export default function HelpdeskAdminPage(){
       <SecondaryButton disabled={queueLoading||mutationBusy} loading={queueLoading} loadingLabel="Refreshing…" onClick={()=>void load()}>Refresh queue</SecondaryButton>
     </ActionBar>
 
+    <form onSubmit={e=>{e.preventDefault();setQuery(search.trim())}} style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'end',marginBottom:16}}>
+        <FormField label="Find ticket" value={search} onChange={e=>setSearch(e.target.value)} maxLength={120} placeholder="Ticket number or title"/>
+        <PrimaryButton type="submit" loading={queueLoading}>Search tickets</PrimaryButton>
+        {query&&<SecondaryButton onClick={()=>{setSearch('');setQuery('')}}>Clear search</SecondaryButton>}
+    </form>
     <PageShell.Columns>
       <QueuePanel
         title="Prioritized queue"
@@ -138,7 +149,7 @@ export default function HelpdeskAdminPage(){
         state={queueState}
         loadingLabel="Loading helpdesk queue…"
         error={<ErrorState title="Helpdesk queue unavailable" description={queueError} action={<SecondaryButton onClick={()=>void load()}>Retry queue</SecondaryButton>}/>}
-        empty={<EmptyState title="No helpdesk tickets" description="There are no tickets in the current SLA queue."/>}
+        empty={<EmptyState title="No helpdesk tickets" description={query?'No tickets match this number or title.':'There are no tickets in the current SLA queue.'}/>}
       >
         <div style={queueList}>
           {tickets.map(t=><button
@@ -150,6 +161,7 @@ export default function HelpdeskAdminPage(){
           >
             <span style={row}><StatusPill label={human(t.priority)} tone={t.priority==='URGENT'?'danger':t.priority==='HIGH'?'warning':'neutral'}/><StatusPill label={human(t.status)} tone={t.status==='RESOLVED'||t.status==='CLOSED'?'success':'info'}/></span>
             <strong>{t.title}</strong>
+            {t.ticketNumber&&<small>Ticket {t.ticketNumber}</small>}
             <small>{t.buildingName??'Building'} · {t.unitNumber??'Unit'} · {t.createdByName??'Resident'}</small>
             <small>SLA: {human(t.computedSlaState??t.slaState??'UNTRACKED')}{t.assignedToName?` · ${t.assignedToName}`:' · Unassigned'}</small>
           </button>)}
@@ -165,6 +177,10 @@ export default function HelpdeskAdminPage(){
         actions={selected?<StatusPill label={human(selected.computedSlaState??selected.slaState??'UNTRACKED')} tone={readiness?.critical?'danger':'info'}/>:undefined}
       >
         {selected&&<>
+          {selected.ticketNumber&&<div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+            <span>Ticket <strong style={{userSelect:'all',overflowWrap:'anywhere'}}>{selected.ticketNumber}</strong></span>
+            <SecondaryButton onClick={()=>void copyTicketNumber()}>Copy ticket number</SecondaryButton>
+          </div>}
           <p>{selected.description}</p>
           <EvidenceGrid items={[
             {id:'property',label:'Property',value:`${selected.buildingName??'—'} · ${selected.unitNumber??'—'}`},

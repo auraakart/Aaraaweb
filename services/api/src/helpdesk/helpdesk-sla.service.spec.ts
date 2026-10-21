@@ -130,3 +130,26 @@ describe('HelpdeskSlaService', () => {
     expect(eventSql).toContain('RESOLUTION_BREACHED');
   });
 });
+
+describe('Helpdesk ticket reference search', () => {
+  it('filters inside the society scope before applying the queue limit and binds search input', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new HelpdeskSlaService(prisma as never);
+    await service.listQueue('11111111-1111-1111-1111-111111111111', 'HD-2026-000123');
+    const query = prisma.$queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(query.sql).toContain('ht."ticketNumber" ILIKE');
+    expect(query.sql.indexOf('ht."ticketNumber" ILIKE')).toBeLessThan(query.sql.indexOf('LIMIT 500'));
+    expect(query.sql).toContain('ht."societyId"=');
+    expect(query.sql).not.toContain('HD-2026-000123');
+    expect(query.values).toContain('%HD-2026-000123%');
+  });
+
+  it('treats SQL wildcard characters as literal text and rejects oversized searches', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new HelpdeskSlaService(prisma as never);
+    await service.listQueue('11111111-1111-1111-1111-111111111111', '%_');
+    const query = prisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+    expect(query.values).toContain('%\\%\\_%');
+    expect(() => service.listQueue('society', 'x'.repeat(121))).toThrow('120 characters');
+  });
+});

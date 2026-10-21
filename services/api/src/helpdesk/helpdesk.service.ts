@@ -13,6 +13,7 @@ const CLOSURE_CODES = new Set<ClosureCode>(['RESOLVED_CONFIRMED', 'RESIDENT_CONF
 
 type TicketRow = {
   id: string;
+  ticketNumber: string;
   societyId: string;
   unitId: string;
   createdById: string;
