@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/premium_ui.dart';
 import 'workforce_history_sheets.dart';
@@ -10,6 +11,7 @@ class WorkforceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AaraagateStrings.device();
     final assignments = controller.workforceAssignments;
     final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     return SafeArea(
@@ -28,19 +30,19 @@ class WorkforceScreen extends StatelessWidget {
             if (controller.workforceError != null)
               _MessageCard(
                 icon: Icons.error_outline_rounded,
-                title: 'Staff information is unavailable',
+                title: strings.text('staffUnavailable'),
                 message: controller.workforceError!,
               )
             else if (controller.loading && assignments.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 48),
-                child: Center(child: CircularProgressIndicator()),
+              Padding(
+                padding: const EdgeInsets.only(top: 48),
+                child: Center(child: CircularProgressIndicator(semanticsLabel: strings.text('staffLoading'))),
               )
             else if (assignments.isEmpty)
-              const _MessageCard(
+              _MessageCard(
                 icon: Icons.badge_outlined,
-                title: 'No household staff yet',
-                message: 'Staff added to your household will appear here after society review.',
+                title: strings.text('staffEmptyTitle'),
+                message: strings.text('staffEmptyMessage'),
               )
             else
               ...assignments.map((assignment) => Padding(
@@ -78,19 +80,20 @@ class _WorkforceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AaraagateStrings.device();
     return PremiumPageIntro(
       icon: Icons.badge_outlined,
-      title: 'Household staff',
-      supportingText: 'Attendance, leave and ratings in one place.',
+      title: strings.text('staffTitle'),
+      supportingText: strings.text('staffIntro'),
       action: Wrap(spacing: AaraagateTokens.space2, runSpacing: AaraagateTokens.space2, children: [
         IconButton.filledTonal(
           onPressed: canAdd ? onAdd : null,
-          tooltip: 'Add household staff',
+          tooltip: strings.text('staffAdd'),
           icon: const Icon(Icons.person_add_alt_1_rounded),
         ),
         IconButton.filledTonal(
           onPressed: onRefresh,
-          tooltip: 'Refresh staff',
+          tooltip: strings.text('staffRefresh'),
           icon: const Icon(Icons.refresh_rounded),
         ),
       ]),
@@ -216,6 +219,7 @@ class _StaffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AaraagateStrings.device();
     final worker = assignment['worker'] is Map
         ? Map<String, dynamic>.from(assignment['worker'] as Map)
         : <String, dynamic>{
@@ -261,11 +265,11 @@ class _StaffCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        workerName?.isNotEmpty == true ? workerName! : 'Staff name unavailable',
+                        workerName?.isNotEmpty == true ? workerName! : strings.text('staffNameUnavailable'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: AaraagateTokens.space1),
-                      Text(workerRole?.isNotEmpty == true ? _friendly(workerRole!) : 'Role not specified'),
+                      Text(workerRole?.isNotEmpty == true ? _friendly(workerRole!) : strings.text('staffRoleUnspecified')),
                       if (workerPhone?.isNotEmpty == true) ...[
                         const SizedBox(height: 4),
                         Text(workerPhone!, style: Theme.of(context).textTheme.bodySmall),
@@ -325,11 +329,11 @@ class _StaffCard extends StatelessWidget {
             PremiumActionGroup(
               primary: OutlinedButton(
                 onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
-                child: const PremiumActionLabel(label: 'VIEW ATTENDANCE', icon: Icons.calendar_month_outlined),
+                child: PremiumActionLabel(label: strings.text('staffAttendance'), icon: Icons.calendar_month_outlined),
               ),
               secondary: OutlinedButton(
                 onPressed: assignmentId.isEmpty ? null : () => _openPaymentSheet(context, assignmentId),
-                child: const PremiumActionLabel(label: 'PAYMENTS', icon: Icons.payments_outlined),
+                child: PremiumActionLabel(label: strings.text('staffPayments'), icon: Icons.payments_outlined),
               ),
             ),
           ],

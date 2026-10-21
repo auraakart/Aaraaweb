@@ -3,9 +3,16 @@ import 'guard_operation_ui.dart';
 
 /// A gate-attention heading that retains status semantics and fits large text.
 class GuardFieldAttentionHeader extends StatelessWidget {
-  const GuardFieldAttentionHeader({super.key, required this.urgent});
+  const GuardFieldAttentionHeader({
+    super.key,
+    required this.urgent,
+    this.attentionLabel = 'Attention now',
+    this.clearLabel = 'Attention queue clear',
+  });
 
   final int urgent;
+  final String attentionLabel;
+  final String clearLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +32,7 @@ class GuardFieldAttentionHeader extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            clear ? 'Attention queue clear' : 'Attention now',
+            clear ? clearLabel : attentionLabel,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w900,
             ),

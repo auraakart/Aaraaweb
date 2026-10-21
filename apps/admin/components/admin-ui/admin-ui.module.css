@@ -10,11 +10,13 @@
   padding: 32px 24px 64px;
   color: var(--ink, #17323a);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   font: 400 1rem/1.5 system-ui, sans-serif;
   overflow-wrap: anywhere;
 }
 .shell *, .shell *::before, .shell *::after { box-sizing: border-box; }
+.shell > * { min-width: 0; }
 .shell a { color: var(--admin-link-ink, var(--admin-action-brand)); text-underline-offset: 3px; }
 .shell a:focus-visible, .button:focus-visible, .control:focus-visible {
   outline: 3px solid var(--admin-focus, var(--brand, #05879a));
@@ -41,7 +43,7 @@
 .danger { background: var(--admin-danger-surface, #fef2f2); color: var(--danger, #b42318); }
 .field { display: grid; gap: 8px; min-width: 0; }
 .field label { font-weight: 600; }
-.control { width: 100%; max-width: 100%; min-height: var(--admin-control-height, 48px); box-sizing: border-box; border: 1px solid var(--admin-control-line, #6c858b); border-radius: 12px; padding: 12px; font: inherit; color: var(--ink, #17323a); background: var(--surface, #fff); }
+.control { width: 100%; min-width: 0; max-width: 100%; min-height: var(--admin-control-height, 48px); box-sizing: border-box; border: 1px solid var(--admin-control-line, #6c858b); border-radius: 12px; padding: 12px; font: inherit; color: var(--ink, #17323a); background: var(--surface, #fff); }
 textarea.control { min-height: 96px; resize: vertical; }
 .control[type='checkbox'], .control[type='radio'] { width: 48px; height: 48px; padding: 0; accent-color: var(--admin-action-brand, #047a8b); }
 .control[aria-invalid='true'] { border-color: var(--danger, #b42318); }

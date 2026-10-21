@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/guard_operations_client.dart';
 import '../guard_controller.dart';
+import '../localization/guard_strings.dart';
 import '../widgets/guard_operation_ui.dart';
 import '../widgets/guard_field_section_header.dart';
 import '../widgets/guard_field_attention_header.dart';
@@ -12,6 +13,8 @@ import '../widgets/guard_field_incident_dialog.dart';
 import '../widgets/guard_field_handover_dialog.dart';
 import '../widgets/guard_field_info_card.dart';
 import '../widgets/guard_field_metric.dart';
+import '../widgets/guard_field_recovery_notice.dart';
+import '../widgets/guard_field_more_records.dart';
 
 class GuardFieldOperationsScreen extends StatefulWidget {
   const GuardFieldOperationsScreen({super.key,required this.controller});
@@ -22,19 +25,22 @@ class GuardFieldOperationsScreen extends StatefulWidget {
 class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>{
   late final GuardOperationsClient client=GuardOperationsClient(widget.controller.api);
   bool loading=true,busy=false; String? error;
+  // Keep existing initial queue lengths, and reveal further API-provided rows
+  // on demand instead of silently hiding them after the twentieth/thirtieth.
+  int visibleOverstays=20,visibleWatchlist=20,visiblePasses=30,visibleHandovers=20,visibleIncidents=30;
   Map<String,dynamic> summary=const {},command=const {};
   List<Map<String,dynamic>> overstays=const [],watchlist=const [],passes=const [],checkpoints=const [],patrolStatus=const [],incidents=const [],handovers=const [];
 
   @override void initState(){super.initState();load();}
-  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.patrolStatus(),client.incidents(),client.shiftHandovers(),client.commandSummary()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;patrolStatus=values[5] as List<Map<String,dynamic>>;incidents=values[6] as List<Map<String,dynamic>>;handovers=values[7] as List<Map<String,dynamic>>;command=values[8] as Map<String,dynamic>;error=null;});}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
-  Future<void> run(Future<void> Function() action)async{setState(()=>busy=true);try{await action();await load();}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>busy=false);}}
+  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.patrolStatus(),client.incidents(),client.shiftHandovers(),client.commandSummary()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;patrolStatus=values[5] as List<Map<String,dynamic>>;incidents=values[6] as List<Map<String,dynamic>>;handovers=values[7] as List<Map<String,dynamic>>;command=values[8] as Map<String,dynamic>;error=null;});}catch(_){if(mounted)setState(()=>error='Field operations could not be refreshed. Check your connection and try again.');}finally{if(mounted)setState(()=>loading=false);}}
+  Future<void> run(Future<void> Function() action)async{setState(()=>busy=true);try{await action();await load();}catch(_){if(mounted)setState(()=>error='The action status could not be confirmed. Refresh the latest status before trying again.');}finally{if(mounted)setState(()=>busy=false);}}
 
   @override Widget build(BuildContext context){
-    final theme=Theme.of(context);
-    return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(tooltip:'Refresh field operations',onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
-      if(error!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:theme.colorScheme.errorContainer,borderRadius:BorderRadius.circular(12)),child:Text(error!)),
-      _metrics(),const SizedBox(height:12),_attentionNow(),const SizedBox(height:18),
-      _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x) => GuardFieldActionCard(
+    final strings = GuardStrings(widget.controller.languageCode);
+    return Scaffold(appBar:AppBar(title:Text(strings.get('fieldOperations')),actions:[IconButton(tooltip:strings.get('fieldRefresh'),onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
+      if(error!=null)GuardFieldRecoveryNotice(message:error!,onRefresh:busy?null:load,refreshLabel:strings.get('fieldRefreshStatus')),
+      _attentionNow(),const SizedBox(height:12),_metrics(),const SizedBox(height:18),
+      _heading(strings.get('fieldOverstays'),Icons.timer_outlined),...overstays.take(visibleOverstays).map((x) => GuardFieldActionCard(
         icon: Icons.schedule_rounded,
         title: "${x['subjectName'] ?? 'Visitor'} · ${x['buildingName'] ?? ''} ${x['unitNumber'] ?? ''}",
         subtitle: "${x['minutesInside'] ?? 0} min inside",
@@ -43,9 +49,9 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
         onPressed: busy ? null : () => run(
           () => client.escalateOverstay(x['id'].toString()).then((_) {}),
         ),
-      )),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
-      const SizedBox(height:18),_heading('Watchlist',Icons.policy_outlined),...watchlist.take(20).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
-      const SizedBox(height:18),_sectionHeader('Material & move passes',Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x) => GuardFieldPassCard(
+      )),_moreRecords(strings.get('fieldOverstays'),visibleOverstays,overstays.length,()=>setState(()=>visibleOverstays+=20)),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
+      const SizedBox(height:18),_heading(strings.get('fieldWatchlist'),Icons.policy_outlined),...watchlist.take(visibleWatchlist).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),_moreRecords(strings.get('fieldWatchlist'),visibleWatchlist,watchlist.length,()=>setState(()=>visibleWatchlist+=20)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
+      const SizedBox(height:18),_sectionHeader(strings.get('fieldPasses'),Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(visiblePasses).map((x) => GuardFieldPassCard(
         title: '${x['referenceCode']} · ${x['movementType']}',
         subtitle: '${x['subjectName']} · ${x['itemDescription']}',
         status: x['status']?.toString() ?? '',
@@ -57,8 +63,8 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
                 child: const Text('PROCESS'),
               )
             : null,
-      )),if(passes.isEmpty)_empty('No gate passes recorded.'),
-      const SizedBox(height:18),_heading('Patrol checkpoints',Icons.qr_code_scanner_rounded),...checkpoints.map((x) {
+      )),_moreRecords(strings.get('fieldPasses'),visiblePasses,passes.length,()=>setState(()=>visiblePasses+=30),step:30),if(passes.isEmpty)_empty('No gate passes recorded.'),
+      const SizedBox(height:18),_heading(strings.get('fieldPatrol'),Icons.qr_code_scanner_rounded),...checkpoints.map((x) {
         final status = patrolStatus.firstWhere(
           (s) => s['id'] == x['id'],
           orElse: () => const <String, dynamic>{},
@@ -77,12 +83,24 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
           ),
         );
       }),if(checkpoints.isEmpty)_empty('No active patrol checkpoints configured.'),
-      const SizedBox(height:18),_sectionHeader('Shift handover',Icons.handshake_outlined,TextButton.icon(onPressed:busy?null:_createHandover,icon:const Icon(Icons.note_add_rounded),label:const Text('HAND OVER'))),...handovers.take(20).map((x)=>_handoverTile(x)),if(handovers.isEmpty)_empty('No shift handovers recorded.'),
-      const SizedBox(height:18),_sectionHeader('Incidents',Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(30).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),if(incidents.isEmpty)_empty('No incidents recorded.'),
+      const SizedBox(height:18),_sectionHeader(strings.get('fieldHandover'),Icons.handshake_outlined,TextButton.icon(onPressed:busy?null:_createHandover,icon:const Icon(Icons.note_add_rounded),label:const Text('HAND OVER'))),...handovers.take(visibleHandovers).map((x)=>_handoverTile(x)),_moreRecords(strings.get('fieldHandover'),visibleHandovers,handovers.length,()=>setState(()=>visibleHandovers+=20)),if(handovers.isEmpty)_empty('No shift handovers recorded.'),
+      const SizedBox(height:18),_sectionHeader(strings.get('fieldIncidents'),Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(visibleIncidents).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),_moreRecords(strings.get('fieldIncidents'),visibleIncidents,incidents.length,()=>setState(()=>visibleIncidents+=30),step:30),if(incidents.isEmpty)_empty('No incidents recorded.'),
     ]))));
   }
 
-  Widget _metrics()=>GuardOperationSurface(child:Wrap(spacing:10,runSpacing:10,children:[_metric('Overstays',summary['overstayCount']),_metric('Watchlist',summary['watchlistCount']),_metric('Open passes',summary['openPassCount']),_metric('Incidents',summary['openIncidentCount']),_metric('Checkpoints',summary['activeCheckpointCount'])]));
+  Widget _moreRecords(String section,int shown,int total,VoidCallback reveal,{int step=20}){
+    final strings=GuardStrings(widget.controller.languageCode);
+    return GuardFieldMoreRecords(
+      sectionLabel:section,
+      shown:shown,
+      total:total,
+      pageSize:step,
+      showingTemplate:strings.get('fieldShowing'),
+      showNextTemplate:strings.get('fieldShowNext'),
+      onPressed:reveal,
+    );
+  }
+  Widget _metrics(){final strings=GuardStrings(widget.controller.languageCode);return GuardOperationSurface(child:Wrap(spacing:10,runSpacing:10,children:[_metric(strings.get('fieldOverstays'),summary['overstayCount']),_metric(strings.get('fieldWatchlist'),summary['watchlistCount']),_metric(strings.get('fieldOpenPasses'),summary['openPassCount']),_metric(strings.get('fieldIncidents'),summary['openIncidentCount']),_metric(strings.get('fieldCheckpoints'),summary['activeCheckpointCount'])]));}
   Widget _attentionNow(){
     final overstayCount=(command['overstays'] as num?)?.toInt()??(summary['overstayCount'] as num?)?.toInt()??0;
     final watchCount=(command['activeDenyWatchlist'] as num?)?.toInt()??(summary['watchlistCount'] as num?)?.toInt()??0;
@@ -106,7 +124,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
       semanticLabel: urgent==0?'Gate attention queue is clear':'$urgent gate attention items',
       color: urgent==0?scheme.primaryContainer.withValues(alpha: .28):scheme.errorContainer.withValues(alpha: .40),
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        GuardFieldAttentionHeader(urgent: urgent),
+        GuardFieldAttentionHeader(urgent: urgent,attentionLabel:GuardStrings(widget.controller.languageCode).get('fieldAttentionNow'),clearLabel:GuardStrings(widget.controller.languageCode).get('fieldAttentionClear')),
         const SizedBox(height:8),
         Text(urgent==0?'No overstays, ageing resident approvals, active deny-watchlist records, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
         const SizedBox(height:6),Text('Operating mode: ${operatingMode.replaceAll('_',' ')} · advisory only',style:theme.textTheme.labelMedium?.copyWith(fontWeight:FontWeight.w800)),

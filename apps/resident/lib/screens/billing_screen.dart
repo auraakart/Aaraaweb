@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/resident_repository.dart';
+import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -181,6 +182,8 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   Future<void> _preparePayment(Map<String, dynamic> invoice) async {
+    // Keep checkout single-flight, even if a callback runs before rebuild.
+    if (payingInvoiceId != null) return;
     final id = invoice['id'].toString();
     if (widget.activeUnitId != null && invoice['unitId']?.toString() != widget.activeUnitId) {
       setState(() => error = 'This invoice is outside the active property context.');
@@ -228,9 +231,10 @@ class _BillingScreenState extends State<BillingScreen> {
     final completedPayments = payments.where((payment) => payment['status'] == 'CAPTURED' || payment['status'] == 'REFUNDED').toList();
     outstanding.sort((a, b) => (DateTime.tryParse(a['dueDate']?.toString() ?? '') ?? DateTime(9999)).compareTo(DateTime.tryParse(b['dueDate']?.toString() ?? '') ?? DateTime(9999)));
     final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
+    final strings = AaraagateStrings.device();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Maintenance & payments')),
+      appBar: AppBar(title: Text(strings.text('billingPageTitle'))),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -238,11 +242,11 @@ class _BillingScreenState extends State<BillingScreen> {
           padding: EdgeInsets.fromLTRB(compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter, AaraagateTokens.space3, compact ? AaraagateTokens.space4 : AaraagateTokens.pageGutter, compact ? AaraagateTokens.space6 : AaraagateTokens.space8),
           children: [
             if (loading)
-              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading billing and payment details…', loading: true)
+              AppStateCard(icon: Icons.sync_rounded, message: strings.text('billingLoading'), loading: true)
             else if (error != null)
-              AppStateCard(icon: Icons.lock_outline_rounded, message: error!, actionLabel: 'Retry', onAction: _load)
+              AppStateCard(icon: Icons.lock_outline_rounded, message: error!, actionLabel: strings.text('billingRetry'), onAction: _load)
             else if (invoices.isEmpty && utilityCharges.isEmpty && (widget.activeUnitId == null || widget.activeUnitId!.isEmpty))
-              const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
+              AppStateCard(icon: Icons.receipt_long_outlined, message: strings.text('billingNoBills'))
             else ...[
               _SummaryCard(
                 outstanding: outstanding,
@@ -250,6 +254,7 @@ class _BillingScreenState extends State<BillingScreen> {
                 nextInvoice: outstanding.isEmpty ? null : outstanding.first,
                 busy: outstanding.isNotEmpty &&
                     payingInvoiceId == outstanding.first['id']?.toString(),
+                paymentLocked: payingInvoiceId != null,
                 onPayNext: outstanding.isEmpty
                     ? null
                     : () => _preparePayment(outstanding.first),
@@ -257,17 +262,25 @@ class _BillingScreenState extends State<BillingScreen> {
               if (outstanding.isNotEmpty) ...[
                 SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 PremiumSectionHeader(
-                  title: 'Outstanding',
-                  supportingText: '${outstanding.length} bill${outstanding.length == 1 ? '' : 's'} waiting for payment.',
+                  title: strings.text('billingOutstanding'),
+                  supportingText: strings.languageCode == 'en'
+                      ? '${outstanding.length} bill${outstanding.length == 1 ? '' : 's'} waiting for payment.'
+                      : strings.format('billingOutstandingCount', {'count': outstanding.length}),
                 ),
                 const SizedBox(height: AaraagateTokens.space2),
                 for (final invoice in outstanding) ...[
-                  _InvoiceCard(invoice: invoice, busy: payingInvoiceId == invoice['id']?.toString(), onPay: () => _preparePayment(invoice)),
+                  _InvoiceCard(
+                    invoice: invoice,
+                    busy: payingInvoiceId == invoice['id']?.toString(),
+                    onPay: payingInvoiceId == null
+                        ? () => _preparePayment(invoice)
+                        : null,
+                  ),
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
               ] else ...[
                 SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
-                const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding dues.'),
+                AppStateCard(icon: Icons.check_circle_outline_rounded, message: strings.text('billingNoOutstanding')),
               ],
               if (widget.activeUnitId != null && widget.activeUnitId!.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space3),
@@ -292,12 +305,12 @@ class _BillingScreenState extends State<BillingScreen> {
               ],
               SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
               PremiumSectionHeader(
-                title: 'Payment history',
-                supportingText: completedPayments.isEmpty ? 'Verified payments will appear here.' : 'Receipts are available for completed payments.',
+                title: strings.text('billingHistory'),
+                supportingText: strings.text(completedPayments.isEmpty ? 'billingHistoryEmpty' : 'billingHistoryReceipts'),
               ),
               const SizedBox(height: AaraagateTokens.space2),
               if (completedPayments.isEmpty)
-                const AppStateCard(icon: Icons.history_rounded, message: 'No completed payments yet.')
+                AppStateCard(icon: Icons.history_rounded, message: strings.text('billingNoCompleted'))
               else
                 for (final payment in completedPayments) ...[
                   _PaymentCard(payment: payment, onReceipt: () => _showReceipt(payment)),
@@ -452,12 +465,14 @@ class _SummaryCard extends StatelessWidget {
     this.nextInvoice,
     this.onPayNext,
     this.busy = false,
+    this.paymentLocked = false,
   });
   final List<Map<String, dynamic>> outstanding;
   final Map<String, dynamic>? summary;
   final Map<String, dynamic>? nextInvoice;
   final VoidCallback? onPayNext;
   final bool busy;
+  final bool paymentLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -543,7 +558,7 @@ class _SummaryCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: busy ? null : onPayNext,
+                onPressed: busy || paymentLocked ? null : onPayNext,
                 child: PremiumActionLabel(
                   label: overdue ? 'Pay overdue bill' : 'Pay next due',
                   icon: Icons.lock_outline_rounded,

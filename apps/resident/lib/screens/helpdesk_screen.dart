@@ -20,6 +20,9 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _tickets = const [];
+  ResidentDataController? _loadedForController;
+  String? _loadedForUnit;
+  int _loadEpoch = 0;
   late final ResidentSpeech speech;
 
   @override
@@ -35,37 +38,68 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant HelpdeskScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      // A switched property/controller must not display a previous list.
+      _tickets = const [];
+      _loadedForController = null;
+      _loadedForUnit = null;
+      _error = null;
+      _load();
+    }
+  }
+
   Future<void> _load() async {
+    final requestController = widget.controller;
+    final requestedUnit = requestController.primaryUnitId;
+    final epoch = ++_loadEpoch;
+    bool currentRequest() =>
+        mounted && epoch == _loadEpoch &&
+        identical(widget.controller, requestController) &&
+        widget.controller.primaryUnitId == requestedUnit;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final tickets = await widget.controller.repository.helpdeskTickets();
-      final selected = widget.controller.primaryUnitId;
-      final scoped = selected == null
+      final tickets = await requestController.repository.helpdeskTickets();
+      final scoped = requestedUnit == null
           ? tickets
           : tickets
-              .where((ticket) => ticket['unitId']?.toString() == selected)
+              .where((ticket) => ticket['unitId']?.toString() == requestedUnit)
               .toList(growable: false);
-      if (mounted) setState(() => _tickets = scoped);
+      if (currentRequest()) {
+        setState(() {
+          _tickets = scoped;
+          _loadedForController = requestController;
+          _loadedForUnit = requestedUnit;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = 'Unable to load complaints. Check your connection and try again.');
+      if (currentRequest()) setState(() => _error = 'helpdeskLoadFailed');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (currentRequest()) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeCount = _tickets.where((ticket) {
+    // Present last-known results only for their original property/controller.
+    final visibleTickets = identical(_loadedForController, widget.controller) &&
+            _loadedForUnit == widget.controller.primaryUnitId
+        ? _tickets
+        : const <Map<String, dynamic>>[];
+    final activeCount = visibleTickets.where((ticket) {
       final status = ticket['status']?.toString().toUpperCase();
       return status != 'RESOLVED' && status != 'CLOSED' && status != 'CANCELLED';
     }).length;
     final compact = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
+    final strings = AaraagateStrings.device();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Helpdesk')),
+      appBar: AppBar(title: Text(strings.text('helpdeskPageTitle'))),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -79,40 +113,54 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
           children: [
             PremiumPageIntro(
               icon: Icons.support_agent_rounded,
-              title: 'Your complaints',
-              supportingText: _tickets.isEmpty
-                  ? 'Report a society issue and track every update from one place.'
-                  : '$activeCount active · ${_tickets.length} total for this property.',
+              title: strings.text('helpdeskYourComplaints'),
+              supportingText: visibleTickets.isEmpty
+                  ? strings.text('helpdeskIntro')
+                  : strings.format('helpdeskCounts', {'active': activeCount, 'total': visibleTickets.length}),
               action: FilledButton.tonalIcon(
                 onPressed: _newTicket,
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('New complaint'),
+                label: Text(strings.text('helpdeskNewComplaint'), softWrap: true, textAlign: TextAlign.center),
               ),
             ),
             SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
-            if (_loading && _tickets.isEmpty)
-              const AppStateCard(
+            if (_loading && visibleTickets.isEmpty)
+              AppStateCard(
                 icon: Icons.sync_rounded,
-                message: 'Loading complaints…',
+                message: strings.text('helpdeskLoading'),
                 loading: true,
               )
             else if (_error != null)
               AppStateCard(
                 icon: Icons.error_outline_rounded,
-                message: _error!,
-                actionLabel: 'Try again',
+                message: strings.text(_error!),
+                actionLabel: strings.text('helpdeskRetry'),
                 onAction: _load,
               )
-            else if (_tickets.isEmpty)
-              const AppStateCard(
+            else if (visibleTickets.isEmpty)
+              AppStateCard(
                 icon: Icons.task_alt_rounded,
-                message: 'No complaints for this property. Report a society issue and track every update here.',
-              )
-            else
-              for (final ticket in _tickets) ...[
+                message: strings.text('helpdeskEmpty'),
+              ),
+            if (visibleTickets.isNotEmpty) ...[
+              if (_error != null) ...[
+                SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    strings.text('helpdeskCachedNotice'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+              SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
+              for (final ticket in visibleTickets) ...[
                 _TicketCard(ticket: ticket, onTap: () => _openTicket(ticket)),
                 SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               ],
+            ],
           ],
         ),
       ),
@@ -123,7 +171,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     final unitId = widget.controller.primaryUnitId;
     if (unitId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a property before creating a complaint.')),
+        SnackBar(content: Text(AaraagateStrings.device().text('helpdeskSelectProperty'))),
       );
       return;
     }
@@ -140,7 +188,8 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     String? submissionShape;
     bool submitting = false;
     bool listening = false;
-    final languageCode = AaraagateStrings.device().languageCode;
+    final strings = AaraagateStrings.device();
+    final languageCode = strings.languageCode;
 
     final created = await showModalBottomSheet<bool>(
       context: context,
@@ -161,16 +210,19 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('New complaint', style: theme.textTheme.headlineSmall),
+                Text(strings.text('helpdeskNewComplaint'), style: theme.textTheme.headlineSmall),
                 const SizedBox(height: AaraagateTokens.space1),
                 Text(
-                  'Describe the issue clearly so your society team can route it faster.',
+                  strings.text('helpdeskFormIntro'),
                   style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: AaraagateTokens.space5),
                 TextField(
                   controller: title,
-                  decoration: const InputDecoration(labelText: 'Issue title'),
+                  decoration: InputDecoration(
+                     labelText: strings.text('helpdeskIssueTitle'),
+                     helperText: strings.text('helpdeskTitleHint'),
+                   ),
                   textInputAction: TextInputAction.next,
                   maxLength: 120,
                 ),
@@ -227,7 +279,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 const SizedBox(height: AaraagateTokens.space2),
                 TextField(
                   controller: description,
-                  decoration: const InputDecoration(labelText: 'Describe the issue'),
+                  decoration: InputDecoration(
+                     labelText: strings.text('helpdeskDescription'),
+                     helperText: strings.text('helpdeskDescriptionHint'),
+                   ),
                   minLines: 4,
                   maxLines: 6,
                   maxLength: 2000,
@@ -235,19 +290,19 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 const SizedBox(height: AaraagateTokens.space2),
                 TextField(
                   controller: category,
-                  decoration: const InputDecoration(labelText: 'Category (optional)'),
+                  decoration: InputDecoration(labelText: strings.text('helpdeskCategory')),
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: AaraagateTokens.space3),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   initialValue: priority,
-                  decoration: const InputDecoration(labelText: 'Priority'),
-                  items: const [
-                    DropdownMenuItem(value: 'LOW', child: Text('Low')),
-                    DropdownMenuItem(value: 'NORMAL', child: Text('Normal')),
-                    DropdownMenuItem(value: 'HIGH', child: Text('High')),
-                    DropdownMenuItem(value: 'URGENT', child: Text('Urgent')),
+                  decoration: InputDecoration(labelText: strings.text('helpdeskPriority')),
+                  items: [
+                    DropdownMenuItem(value: 'LOW', child: Text(strings.text('helpdeskLow'))),
+                    DropdownMenuItem(value: 'NORMAL', child: Text(strings.text('helpdeskNormal'))),
+                    DropdownMenuItem(value: 'HIGH', child: Text(strings.text('helpdeskHigh'))),
+                    DropdownMenuItem(value: 'URGENT', child: Text(strings.text('helpdeskUrgent'))),
                   ],
                   onChanged: submitting
                       ? null
@@ -257,21 +312,28 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 ),
                 if (validationMessage != null) ...[
                   const SizedBox(height: AaraagateTokens.space3),
-                  Text(
-                    validationMessage!,
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      validationMessage!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
                   ),
                 ],
                 const SizedBox(height: AaraagateTokens.space5),
                 FilledButton(
-                  onPressed: submitting
+                  // Voice capture must finish before a draft can be submitted.
+                  // Otherwise a late transcript can mutate a pending request.
+                  onPressed: submitting || listening
                       ? null
                       : () async {
                           final cleanTitle = title.text.trim();
                           final cleanDescription = description.text.trim();
                           if (cleanTitle.length < 3 || cleanDescription.length < 5) {
                             setModalState(() {
-                              validationMessage = 'Add a clear title and a little more detail before submitting.';
+                              validationMessage = strings.text('helpdeskValidation');
                             });
                             return;
                           }
@@ -303,13 +365,13 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             if (sheetContext.mounted) {
                               setModalState(() {
                                 submitting = false;
-                                validationMessage = 'Complaint could not be confirmed. Retry will reuse this submission unless you edit the complaint.';
+                                validationMessage = strings.text('helpdeskSubmitUnconfirmed');
                               });
                             }
                           }
                         },
                   child: PremiumActionLabel(
-                    label: 'Submit complaint',
+                    label: strings.text('helpdeskSubmit'),
                     icon: Icons.send_rounded,
                     busy: submitting,
                   ),
