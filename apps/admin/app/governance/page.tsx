@@ -207,7 +207,7 @@ export default function GovernancePage(){
       >
         <div style={queueList}>{meetings.map(m=><button key={m.id} type="button" aria-pressed={selected?.id===m.id} onClick={()=>void inspect(m.id)} style={{...meetingButton,...(selected?.id===m.id?selectedMeeting:{})}}>
           <span style={queueMeta}><strong>{m.meetingType} · {m.title}</strong><small>{fmt(m.scheduledAt)}{m.location?` · ${m.location}`:''}</small></span>
-          <StatusPill label={human(m.status)} tone={m.status==='HELD'?'success':m.status==='CANCELLED'?'danger':'info'}/>
+          <span style={{flexShrink:0}}><StatusPill label={human(m.status)} tone={m.status==='HELD'?'success':m.status==='CANCELLED'?'danger':'info'}/></span>
         </button>)}</div>
       </QueuePanel>
 
@@ -287,15 +287,15 @@ export default function GovernancePage(){
 }
 
 const formsGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,300px),1fr))',gap:16} as const
-const panel={display:'grid',gap:12,padding:18,border:'1px solid var(--line,#d5e8eb)',borderRadius:16,background:'var(--surface,#fff)'} as const
-const subPanel={display:'grid',gap:10,padding:14,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--neutral-soft,#f8fafc)'} as const
+const panel={display:'grid',gridTemplateColumns:'minmax(0,1fr)',minWidth:0,gap:12,padding:18,border:'1px solid var(--line,#d5e8eb)',borderRadius:16,background:'var(--surface,#fff)'} as const
+const subPanel={display:'grid',gridTemplateColumns:'minmax(0,1fr)',minWidth:0,gap:10,padding:14,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--neutral-soft,#f8fafc)'} as const
 const note={padding:14,background:'var(--neutral-soft,#f8fafc)',borderRadius:12} as const
 const stack={display:'grid',gap:8} as const
 const item={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--line,#e5e7eb)',flexWrap:'wrap'} as const
 const sectionHeader={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'} as const
 const muted={margin:0,color:'var(--muted,#64748b)'} as const
 const queueList={display:'grid',gap:8} as const
-const meetingButton={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',width:'100%',padding:12,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--surface,#fff)',color:'var(--ink,#17323a)',textAlign:'left',font:'inherit',cursor:'pointer'} as const
+const meetingButton={display:'flex',flexWrap:'wrap',justifyContent:'space-between',gap:12,alignItems:'center',width:'100%',padding:12,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--surface,#fff)',color:'var(--ink,#17323a)',textAlign:'left',font:'inherit',cursor:'pointer'} as const
 const selectedMeeting={background:'var(--neutral-soft,#eef6f7)',borderColor:'var(--brand,#05879a)',boxShadow:'inset 3px 0 0 var(--brand,#05879a)'} as const
 const queueMeta={display:'grid',gap:4,minWidth:0} as const
 const statusRow={display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'} as const

@@ -1,9 +1,48 @@
 import 'package:aaraagate_guard/theme/aaraagate_guard_theme.dart';
+import 'package:aaraagate_guard/localization/guard_strings.dart';
 import 'package:aaraagate_guard/widgets/guard_field_section_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final code in <String>['en', 'hi', 'ta', 'te', 'kn', 'ml', 'mr', 'bn']) {
+    testWidgets('Guard localized Field Operations headings remain readable at 320dp / 200%: $code', (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final strings = GuardStrings(code);
+      await tester.pumpWidget(MaterialApp(
+        theme: AaraagateGuardTheme.light(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: const TextScaler.linear(2),
+            disableAnimations: true,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(body: SafeArea(child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: GuardFieldSectionHeader(
+            title: strings.get('fieldPasses'),
+            icon: Icons.local_shipping_outlined,
+            action: TextButton(
+              onPressed: () {},
+              child: const Text('NEW PASS'),
+            ),
+          ),
+        ))),
+      ));
+      await tester.pumpAndSettle();
+      final title = find.text(strings.get('fieldPasses'));
+      final action = find.widgetWithText(TextButton, 'NEW PASS');
+      expect(title, findsOneWidget);
+      expect(action.hitTestable(), findsOneWidget);
+      expect(tester.getTopLeft(action).dy, greaterThan(tester.getBottomLeft(title).dy));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final dark in <bool>[false, true]) {
     for (final largeText in <bool>[false, true]) {
       testWidgets(

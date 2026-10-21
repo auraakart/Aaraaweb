@@ -521,4 +521,85 @@ void main() {
       }
     });
   }
+  for (final dark in <bool>[false, true]) {
+    for (final largeText in <bool>[false, true]) {
+      testWidgets(
+        'Gate retains already loaded activity beneath refresh error: dark=$dark largeText=$largeText',
+        (tester) async {
+          tester.view.physicalSize = Size(largeText ? 320 : 390, 1050);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          final controller = ResidentDataController(
+            DemoResidentRepository(),
+            activeUnitId: 'unit-1',
+            fetchEntitlements: false,
+          )
+            ..households = [{'id': 'house-1', 'unitId': 'unit-1'}]
+            ..accessRequests = [
+              {
+                'id': 'access-verified',
+                'unitId': 'unit-1',
+                'subjectType': 'VISITOR',
+                'subjectName': 'Verified Guest',
+                'status': 'CHECKED_IN',
+              },
+            ]
+            ..accessError = 'Refresh failed';
+          addTearDown(controller.dispose);
+
+          await tester.pumpWidget(MaterialApp(
+            theme: dark ? ThemeData.dark() : ThemeData.light(),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(largeText ? 2 : 1),
+                disableAnimations: true,
+              ),
+              child: child!,
+            ),
+            home: Scaffold(body: GateScreen(controller: controller)),
+          ));
+          await tester.pumpAndSettle();
+
+          // Large text can move the retry card below the initial viewport.
+          // Verify it and the retained history by scrolling the real Gate list.
+          await tester.scrollUntilVisible(
+            find.text('Could not load access activity.'),
+            160,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Could not load access activity.'), findsOneWidget);
+          expect(find.text('Retry'), findsOneWidget);
+          await tester.scrollUntilVisible(
+            find.text('Verified Guest'),
+            160,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Verified Guest'), findsOneWidget);
+          expect(find.text('No gate activity yet. Create a visitor pass when you need one.'), findsNothing);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  testWidgets('Gate retry error remains available with no cached activity', (tester) async {
+    final controller = ResidentDataController(
+      DemoResidentRepository(), activeUnitId: 'unit-1', fetchEntitlements: false,
+    )..accessError = 'Refresh failed';
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: GateScreen(controller: controller)),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load access activity.'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('No gate activity yet. Create a visitor pass when you need one.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
 }

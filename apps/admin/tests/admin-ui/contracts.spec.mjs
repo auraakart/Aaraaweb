@@ -193,3 +193,63 @@ test('opt-in dark preview preserves legacy operational surfaces and status meani
   await page.getByRole('button', { name: 'Choose reviewer' }).click()
   await expect(page.getByRole('button', { name: 'Choose reviewer' })).toBeEnabled()
 })
+
+test('V4.99.3 mobile Admin navigation keeps role links visible by scrolling instead of wrapping', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 })
+  await page.goto('/')
+  await page.evaluate(() => {
+    const aside = document.createElement('aside')
+    aside.className = 'sidebar'
+    aside.innerHTML = '<nav class="nav" aria-label="Admin sections">' +
+      ['Overview', 'Residents', 'Gates', 'Workforce', 'Marketplace', 'SOS', 'Helpdesk', 'Notices', 'Billing', 'Branding']
+        .map((name, index) => '<button type="button"' + (index === 0 ? ' class="active" aria-current="page"' : '') + '>' + name + '</button>')
+        .join('') + '</nav>'
+    document.body.append(aside)
+  })
+  const nav = page.getByRole('navigation', { name: 'Admin sections' })
+  const links = nav.getByRole('button')
+  await expect(links).toHaveCount(10)
+  await expect(nav.getByRole('button', { name: 'Overview' })).toHaveAttribute('aria-current', 'page')
+  const before = await nav.evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth, wrap: getComputedStyle(el).flexWrap }))
+  expect(before.scroll).toBeGreaterThan(before.client)
+  expect(before.wrap).toBe('nowrap')
+  const first = await links.first().boundingBox()
+  const last = await links.last().boundingBox()
+  expect(Math.abs(first.y - last.y)).toBeLessThan(8)
+  await links.last().focus()
+  expect(await nav.evaluate(el => el.scrollLeft)).toBeGreaterThan(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await expect(links.last()).toBeFocused()
+})
+
+for (const dark of [false, true]) {
+  test(`V4.99.3 active Admin navigation is readable in dark=${dark}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 840 })
+    await page.goto('/')
+    await page.evaluate(darkMode => {
+      document.documentElement.dataset.adminTheme = darkMode ? 'dark' : 'light'
+      const aside = document.createElement('aside')
+      aside.className = 'sidebar'
+      aside.innerHTML = '<nav class="nav" aria-label="Admin sections"><button type="button" class="active" aria-current="page">Overview</button><button type="button">Residents</button></nav>'
+      document.body.append(aside)
+    }, dark)
+    const active = page.getByRole('navigation', { name: 'Admin sections' }).getByRole('button', { name: 'Overview' })
+    const colors = await active.evaluate(el => {
+      const style = getComputedStyle(el)
+      return { foreground: style.color, background: style.backgroundColor }
+    })
+    const luminance = cssColor => {
+      const values = cssColor.match(/\d+/g)?.slice(0, 3).map(Number)
+      if (!values || values.length !== 3) throw new Error('Unresolved active-navigation color: ' + cssColor)
+      const linear = values.map(value => {
+        const s = value / 255
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+    }
+    const a = luminance(colors.foreground), b = luminance(colors.background)
+    expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5)
+    await expect(active).toHaveAttribute('aria-current', 'page')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}

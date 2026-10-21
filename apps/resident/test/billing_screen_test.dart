@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/billing_screen.dart';
+import 'package:aaraagate_resident/localization/aaraagate_strings.dart';
+import 'package:aaraagate_resident/theme/aaraagate_theme.dart';
 import 'package:aaraagate_resident/widgets/premium_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,6 +68,24 @@ class _PendingBillingRepository extends _BillingRepository {
   }
 }
 
+class _TwoInvoicePendingBillingRepository extends _PendingBillingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> maintenanceInvoices() async => [
+    {
+      'id': 'invoice-1', 'invoiceNumber': '202609-A101',
+      'billingPeriod': '2026-09', 'amountPaise': 125000,
+      'dueDate': '2026-09-30', 'status': 'ISSUED',
+      'buildingName': 'A Block', 'unitNumber': '101',
+    },
+    {
+      'id': 'invoice-2', 'invoiceNumber': '202610-A101',
+      'billingPeriod': '2026-10', 'amountPaise': 90000,
+      'dueDate': '2026-10-31', 'status': 'ISSUED',
+      'buildingName': 'A Block', 'unitNumber': '101',
+    },
+  ];
+}
+
 class _RetryBillingRepository extends _BillingRepository {
   bool failFirst = true;
 
@@ -97,6 +117,39 @@ class _DueTodayBillingRepository extends _BillingRepository {
 }
 
 void main() {
+  final localeBinding = TestWidgetsFlutterBinding.ensureInitialized();
+  for (final code in <String>['en', 'hi', 'ta', 'te', 'kn', 'ml', 'mr', 'bn']) {
+    for (final dark in <bool>[false, true]) {
+      testWidgets('Billing entry is localized at 320dp: $code dark=$dark', (tester) async {
+        tester.view.physicalSize = const Size(320, 840);
+        tester.view.devicePixelRatio = 1;
+        localeBinding.platformDispatcher.localeTestValue = Locale(code, 'IN');
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(localeBinding.platformDispatcher.clearLocaleTestValue);
+        final strings = AaraagateStrings.device();
+        await tester.pumpWidget(MaterialApp(
+          theme: dark ? AaraagateTheme.dark() : AaraagateTheme.light(),
+          home: BillingScreen(repository: _BillingRepository()),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.text(strings.text('billingPageTitle')), findsOneWidget);
+        expect(find.text(strings.text('billingOutstanding')), findsOneWidget);
+        expect(find.text(strings.languageCode == 'en'
+            ? '1 bill waiting for payment.'
+            : strings.format('billingOutstandingCount', {'count': 1})), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text(strings.text('billingHistory')), 180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text(strings.text('billingHistory')), findsOneWidget);
+        expect(find.text(strings.text('billingHistoryEmpty')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   testWidgets('owner can review dues and prepare a secure payment order', (tester) async {
     final repository = _BillingRepository();
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
@@ -180,6 +233,46 @@ void main() {
       });
     }
   }
+
+  testWidgets('other invoice Pay actions stay disabled during an active order', (tester) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _TwoInvoicePendingBillingRepository();
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, 'Pay securely'), findsNWidgets(2));
+    await tester.tap(find.text('Pay next due'));
+    await tester.pump();
+
+    expect(repository.paymentCalls, 1);
+    expect(tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Pay next due'),
+    ).onPressed, isNull);
+    final buttons = tester.widgetList<FilledButton>(
+      find.widgetWithText(FilledButton, 'Pay securely'),
+    ).toList();
+    expect(buttons, hasLength(2));
+    for (final button in buttons) {
+      expect(button.onPressed, isNull);
+    }
+    final labels = tester.widgetList<PremiumActionLabel>(
+      find.byType(PremiumActionLabel),
+    ).where((label) => label.label == 'Pay securely').toList();
+    expect(labels, hasLength(2));
+    expect(labels.where((label) => label.busy), hasLength(1));
+    expect(tester.takeException(), isNull);
+
+    repository.pendingOrder.complete({
+      'id': 'payment-pending', 'providerOrderId': 'order-pending', 'status': 'CREATED',
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Secure payment order ready'), findsOneWidget);
+    expect(repository.paymentCalls, 1);
+  });
 
   testWidgets('payment retry reuses the same idempotency key after a lost response', (tester) async {
     final repository = _RetryBillingRepository();
