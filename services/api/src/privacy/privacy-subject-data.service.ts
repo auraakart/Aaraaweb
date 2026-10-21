@@ -23,7 +23,7 @@ export class PrivacySubjectDataService {
     if(privacyCase.requestType!=='ACCESS') throw new BadRequestException('Only completed ACCESS requests can generate a data export');
     if(privacyCase.status!=='COMPLETED') throw new BadRequestException('Data export becomes available after the ACCESS request is completed');
 
-    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,disputeEvidence,extraWorkBillingRequests,offeringEvents]=await Promise.all([
+    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,disputeEvidence,extraWorkBillingRequests,offeringEvents,helpdeskPhotos]=await Promise.all([
       tx.$queryRaw(Prisma.sql`
         SELECT "id","phone","email","name","status","createdAt","updatedAt"
         FROM "User" WHERE "id"=${userId}::uuid LIMIT 1
@@ -43,7 +43,7 @@ export class PrivacySubjectDataService {
         ORDER BY "createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
       societyId?tx.$queryRaw(Prisma.sql`
-        SELECT "id","unitId","title","description","category","priority","status","resolvedAt","closedAt","createdAt","updatedAt"
+        SELECT "id","ticketNumber","unitId","title","description","category","priority","status","resolvedAt","closedAt","createdAt","updatedAt"
         FROM "HelpdeskTicket" WHERE "societyId"=${societyId}::uuid AND "createdById"=${userId}::uuid
         ORDER BY "createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
@@ -116,6 +116,10 @@ export class PrivacySubjectDataService {
         SELECT "id","offeringId","providerId","action","snapshotJson","occurredAt"
         FROM "ServiceOfferingProviderEvent" WHERE "actorUserId"=${userId}::uuid ORDER BY "occurredAt" DESC LIMIT 1000
       `):Promise.resolve([]),
+      societyId?tx.$queryRaw(Prisma.sql`
+        SELECT "id","ticketId","kind","note","sizeBytes","createdAt" FROM "HelpdeskPhoto"
+        WHERE "societyId"=${societyId}::uuid AND "createdById"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
     ]);
 
     return {
@@ -127,6 +131,7 @@ export class PrivacySubjectDataService {
       relationships:(relationships as unknown[])[0]??{memberships:[],ownerships:[],occupancies:[]},
       accessRequests:access,
       helpdeskTickets:helpdesk,
+      helpdeskPhotos,
       serviceBookings:services,
       payments,
       consumerHomes,

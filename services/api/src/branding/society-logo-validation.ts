@@ -18,8 +18,12 @@ function crc32(data: Buffer): number {
 }
 
 export function validateSocietyLogoPng(bytes: Uint8Array) {
+  return validateStaticPng(bytes);
+}
+
+export function validateStaticPng(bytes: Uint8Array, limits = {minDimension:64, maxDimension:1024, maxBytes:MAX_SOCIETY_LOGO_BYTES}) {
   const file = Buffer.from(bytes);
-  if (file.length < 57 || file.length > MAX_SOCIETY_LOGO_BYTES ||
+  if (file.length < 57 || file.length > limits.maxBytes ||
       !file.subarray(0, 8).equals(PNG_SIGNATURE)) return reject();
 
   let pos = 8, width = 0, height = 0, channels = 0;
@@ -28,7 +32,7 @@ export function validateSocietyLogoPng(bytes: Uint8Array) {
   while (pos < file.length) {
     if (file.length - pos < 12) return reject();
     const length = file.readUInt32BE(pos);
-    if (length > MAX_SOCIETY_LOGO_BYTES || length > file.length - pos - 12) return reject();
+    if (length > limits.maxBytes || length > file.length - pos - 12) return reject();
     const type = file.toString('ascii', pos + 4, pos + 8);
     const next = pos + length + 12;
     if (crc32(file.subarray(pos + 4, next - 4)) !== file.readUInt32BE(next - 4)) return reject();
@@ -38,7 +42,7 @@ export function validateSocietyLogoPng(bytes: Uint8Array) {
       width = chunk.readUInt32BE(0);
       height = chunk.readUInt32BE(4);
       channels = chunk[9] === 6 ? 4 : chunk[9] === 2 ? 3 : 0;
-      if (width < 64 || width > 1024 || height < 64 || height > 1024 ||
+      if (width < limits.minDimension || width > limits.maxDimension || height < limits.minDimension || height > limits.maxDimension ||
           chunk[8] !== 8 || !channels || chunk[10] !== 0 ||
           chunk[11] !== 0 || chunk[12] !== 0) return reject();
       hasHeader = true;

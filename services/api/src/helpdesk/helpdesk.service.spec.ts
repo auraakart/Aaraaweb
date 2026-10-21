@@ -48,7 +48,7 @@ describe('HelpdeskService', () => {
 
   it('returns the original complaint for an exact same-key replay without a second create event', async () => {
     const existing = {
-      id:'44444444-4444-4444-4444-444444444444',
+      id:'44444444-4444-4444-4444-444444444444',ticketNumber:'HD-2026-000123',
       societyId:'11111111-1111-1111-1111-111111111111',
       unitId:'33333333-3333-3333-3333-333333333333',
       createdById:'22222222-2222-2222-2222-222222222222',
@@ -64,13 +64,14 @@ describe('HelpdeskService', () => {
       description:existing.description,category:' Plumbing ',priority:'HIGH',
     });
     expect(result.id).toBe(existing.id);
+    expect(result.ticketNumber).toBe(existing.ticketNumber);
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('rejects a same-key replay when normalized complaint intent changes', async () => {
     const existing = {
-      id:'44444444-4444-4444-4444-444444444444',
+      id:'44444444-4444-4444-4444-444444444444',ticketNumber:'HD-2026-000123',
       societyId:'11111111-1111-1111-1111-111111111111',
       unitId:'33333333-3333-3333-3333-333333333333',
       createdById:'22222222-2222-2222-2222-222222222222',
@@ -168,7 +169,7 @@ describe('HelpdeskService', () => {
 
   it('records an audited REOPENED event for an owned resolved ticket', async () => {
     const current = {
-      id:'44444444-4444-4444-4444-444444444444',
+      id:'44444444-4444-4444-4444-444444444444',ticketNumber:'HD-2026-000123',
       societyId:'11111111-1111-1111-1111-111111111111',
       unitId:'33333333-3333-3333-3333-333333333333',
       createdById:'22222222-2222-2222-2222-222222222222',
@@ -186,6 +187,7 @@ describe('HelpdeskService', () => {
 
     const result = await service.reopenMine(current.societyId,current.createdById,current.id,'The leak has returned');
     expect(result.status).toBe('IN_PROGRESS');
+    expect(result.ticketNumber).toBe(current.ticketNumber);
     const activity = tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[] };
     expect(activity.strings.join(' ')).toContain("'REOPENED'");
   });

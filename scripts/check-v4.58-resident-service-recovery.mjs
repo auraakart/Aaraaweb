@@ -29,9 +29,12 @@ must('V4.58 Resident repository',read('apps/resident/lib/data/resident_repositor
 ]);
 must('V4.58 Resident recovery UI',read('apps/resident/lib/screens/helpdesk_screen.dart'),[
   "status == 'RESOLVED' || status == 'CLOSED'",
-  "labelText: 'Why are you reopening this complaint?'",
-  "'Reopen complaint'",
+  "text('helpdeskReopenWhy')",
+  "text('helpdeskReopen')",
   'reopenHelpdeskTicket',
+]);
+must('V5.7 localized reopen guidance',read('apps/resident/lib/localization/v57_critical_copy.dart'),[
+ '"helpdeskReopenWhy": "Why are you reopening this complaint?"', '"helpdeskReopen": "Reopen complaint"'
 ]);
 must('V4.58 API regression',read('services/api/src/helpdesk/helpdesk.service.spec.ts'),[
   'scopes resident reopen to current occupancy inside the locked transaction',

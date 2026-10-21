@@ -27,7 +27,7 @@ const periodEnd='2026-09-30T23:59:59.000Z'
 
 const fixtures={
   helpdeskTicket:{
-    id:'ticket-1',title:'Lift maintenance follow-up',description:'Resident reported intermittent lift stoppage.',assetId:'asset-1',assetCode:'LIFT-B',assetName:'Tower B Lift',
+    id:'ticket-1',ticketNumber:'HD-2026-000123',title:'Lift maintenance follow-up',description:'Resident reported intermittent lift stoppage.',assetId:'asset-1',assetCode:'LIFT-B',assetName:'Tower B Lift',
     category:'MAINTENANCE',priority:'HIGH',status:'IN_PROGRESS',unitNumber:'B-402',buildingName:'Tower B',
     createdByName:'Resident Demo',assignedToId:'reviewer-1',assignedToName:'Facility Reviewer',
     slaState:'ON_TRACK',computedSlaState:'ON_TRACK',firstResponseDueAt:later,resolutionDueAt:later,
@@ -78,8 +78,12 @@ window.fetch=async(input,init={})=>{
     return json({ok:true})
   }
 
-  if(path==='/helpdesk/sla/queue') return json([fixtures.helpdeskTicket])
+  if(path==='/helpdesk/sla/queue') {
+    const query=new URL(url.toString(),window.location.origin).searchParams.get('q')?.toLowerCase()??''
+    return json([fixtures.helpdeskTicket].filter(t=>!query||t.ticketNumber.toLowerCase().includes(query)||t.title.toLowerCase().includes(query)))
+  }
   if(path==='/helpdesk/review/context') return json([{id:'reviewer-1',name:'Facility Reviewer',phone:'+91 90000 00010'}])
+  if(path==='/helpdesk/review/ticket-1/photos') return json([{id:'photo-1',kind:'BEFORE',note:'Lift before repair',sizeBytes:120,createdAt:now}])
   if(path==='/helpdesk/review/assets') return json([fixtures.facilityAsset])
   if(path==='/helpdesk/review/ticket-1/activities') return json([{id:'ha-1',type:'STATUS_UPDATED',message:'Work in progress',actorName:'Facility Reviewer',occurredAt:now}])
   if(path==='/helpdesk/sla/ticket-1/history') return json([{id:'hs-1',eventType:'POLICY_APPLIED',toState:'ON_TRACK',actorName:'System',createdAt:now}])
@@ -162,6 +166,7 @@ window.fetch=async(input,init={})=>{
   })
 
   const paymentId='53aa5ce7-1dba-47ef-b939-e2385370c242'
+  if(method==='GET'&&path==='/accounting/settlements/payments/search') return json([{id:paymentId,status:'CAPTURED',amountPaise:'350000',createdAt:now,invoiceNumber:'INV-2026-09-001',unitNumber:'B-402',buildingName:'Tower B',payerName:'Resident Demo',receiptNumber:'AGR-53AA5CE7'}])
   if(method==='GET'&&path===`/accounting/settlements/payments/${paymentId}/availability`) return json({paymentId,status:'CAPTURED',amountPaise:'350000',allocatedPaise:'0',grossAllocatedPaise:'0',reversedPaise:'0',refundedPaise:'0',unallocatedPaise:'350000'})
   if(method==='GET'&&[`/accounting/settlements/payments/${paymentId}/allocations`,`/accounting/payment-exceptions/payments/${paymentId}/allocation-reversals`,`/accounting/payment-exceptions/payments/${paymentId}/refunds`].includes(path)) return json([])
   if(path==='/accounting/receivables') return json([{id:'recv-1',unitId:'unit-1',receivableNumber:'INV-2026-09-001',billingPeriod:'2026-09',description:'Monthly maintenance',amountPaise:'350000',outstandingPaise:'125000',dueDate:'2026-09-25T00:00:00.000Z',status:'PARTIALLY_PAID',issuedAt:now}])

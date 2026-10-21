@@ -110,13 +110,13 @@ export class UniversalSearchService {
               AND uo."userId"=${userId}::uuid AND uo."active"=true AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
               AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
           )`;
-      const rows = await this.prisma.$queryRaw<Array<{ id: string; title: string; status: string; category: string | null }>>(Prisma.sql`
-        SELECT ht."id", ht."title", ht."status"::text AS "status", ht."category"
+      const rows = await this.prisma.$queryRaw<Array<{ id: string; ticketNumber: string; title: string; status: string; category: string | null }>>(Prisma.sql`
+        SELECT ht."id", ht."ticketNumber", ht."title", ht."status"::text AS "status", ht."category"
         FROM "HelpdeskTicket" ht WHERE ht."societyId"=${societyId}::uuid ${scope}
-          AND (ht."title" ILIKE ${term} OR ht."description" ILIKE ${term} OR COALESCE(ht."category",'') ILIKE ${term})
+          AND (ht."ticketNumber" ILIKE ${term} OR ht."title" ILIKE ${term} OR ht."description" ILIKE ${term} OR COALESCE(ht."category",'') ILIKE ${term})
         ORDER BY ht."createdAt" DESC LIMIT 8
       `);
-      rows.forEach((row) => results.push({ type: 'HELPDESK', id: row.id, title: row.title, subtitle: row.category ? `${row.category} · ${row.status}` : row.status, path: '/helpdesk' }));
+      rows.forEach((row) => results.push({ type: 'HELPDESK', id: row.id, title: row.title, subtitle: [row.ticketNumber, row.category, row.status].filter(Boolean).join(' · '), path: '/helpdesk' }));
     }
 
     if (capabilities.notices) {

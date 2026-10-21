@@ -27,6 +27,12 @@ export class PartnerPortfolioReadController {
     return this.portfolioReader.portfolio(request.auth!.userId, partnerId);
   }
 
+  @Get(':partnerId/operations')
+  @Header('Cache-Control', 'no-store')
+  operations(@Req() request: AuthenticatedRequest, @Param('partnerId', ParseUUIDPipe) partnerId: string) {
+    return this.portfolioReader.operations(request.auth!.userId, partnerId, request.auth!.audience);
+  }
+
   @Get(':partnerId/members')
   @Header('Cache-Control', 'no-store')
   members(

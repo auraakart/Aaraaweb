@@ -33,3 +33,24 @@ database('V5.4.8 partner workspace PostgreSQL authority',()=>{
   }
  });
 });
+
+database('V5.7 two-partner operational authority',()=>{
+ it('runs real aggregate SQL only for separately authorised societies and rechecks revocation',async()=>{
+  const prisma=new PrismaService(),service=new PartnerPortfolioReadService(prisma);
+  const user=randomUUID(),a=randomUUID(),b=randomUUID(),sa=randomUUID(),sb=randomUUID();
+  try{
+   await prisma.user.create({data:{id:user,phone:'v57-'+user}});
+   await prisma.partner.createMany({data:[{id:a,slug:'v57-'+a,displayName:'Partner A',status:'ACTIVE'},{id:b,slug:'v57-'+b,displayName:'Partner B',status:'ACTIVE'}]});
+   await prisma.society.createMany({data:[{id:sa,code:'v57-'+sa,name:'Society A',productTier:'ENTERPRISE',partnerId:a},{id:sb,code:'v57-'+sb,name:'Society B',partnerId:b}]});
+   await prisma.partnerMembership.createMany({data:[{userId:user,partnerId:a,role:'OWNER'},{userId:user,partnerId:b,role:'OWNER'}]});
+   const membership=await prisma.societyMembership.create({data:{userId:user,societyId:sa,role:'SOCIETY_ADMIN'}});
+   const overview=await service.operations(user,a);
+   expect(overview.societies).toHaveLength(1);expect(overview.societies[0]).toMatchObject({societyId:sa,finance:{outstandingPaise:'0',overdueReceivables:0},helpdesk:{openTickets:0},facilities:{openWorkOrders:0}});
+   expect((await service.operations(user,b)).societies).toEqual([]);
+   await prisma.societyMembership.update({where:{id:membership.id},data:{active:false}});
+   expect((await service.operations(user,a)).societies).toEqual([]);
+  }finally{
+   try{await prisma.societyMembership.deleteMany({where:{userId:user}});await prisma.partnerMembership.deleteMany({where:{userId:user}});await prisma.society.deleteMany({where:{id:{in:[sa,sb]}}});await prisma.partner.deleteMany({where:{id:{in:[a,b]}}});await prisma.user.deleteMany({where:{id:user}})}finally{await prisma.$disconnect()}
+  }
+ });
+});

@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'v57_critical_copy.dart';
 
 /// Lightweight localization for high-frequency Resident Gate, Home, Helpdesk, Billing and Staff entry actions.
 /// Unsupported locales and missing keys fall back to English.
@@ -23,7 +24,7 @@ class AaraagateStrings {
     return AaraagateStrings._(supportedLanguageCodes.contains(code) ? code : 'en');
   }
 
-  String text(String key) => _values[languageCode]?[key] ?? _values['en']![key] ?? key;
+  String text(String key) => v57CriticalCopy[languageCode]?[key] ?? _values[languageCode]?[key] ?? _values['en']![key] ?? key;
 
   String format(String key, Map<String, Object?> values) {
     var value = text(key);
@@ -35,6 +36,11 @@ class AaraagateStrings {
 
   static const _values = <String, Map<String, String>>{
     'en': {
+      'helpdeskTicketNumber': 'Ticket number',
+      'helpdeskCopyTicketNumber': 'Copy ticket number',
+      'helpdeskTicketNumberCopied': 'Ticket number copied',
+      'helpdeskTicketNumberCopyFailed': 'Could not copy. Select the ticket number to copy it.',
+
       'staffTitle': 'Household staff',
       'staffIntro': 'Attendance, leave and ratings in one place.',
       'staffAdd': 'Add household staff',
@@ -146,6 +152,11 @@ class AaraagateStrings {
       'visitorQr': 'Visitor access QR code',
     },
     'hi': {
+      'helpdeskTicketNumber': 'टिकट नंबर',
+      'helpdeskCopyTicketNumber': 'टिकट नंबर कॉपी करें',
+      'helpdeskTicketNumberCopied': 'टिकट नंबर कॉपी किया गया',
+      'helpdeskTicketNumberCopyFailed': 'कॉपी नहीं हो सका। टिकट नंबर चुनकर कॉपी करें।',
+
       'staffTitle': 'घरेलू कर्मचारी',
       'staffIntro': 'हाज़िरी, छुट्टी और रेटिंग एक ही जगह।',
       'staffAdd': 'घरेलू कर्मचारी जोड़ें',
@@ -257,6 +268,11 @@ class AaraagateStrings {
       'visitorQr': 'विज़िटर प्रवेश QR कोड',
     },
     'ta': {
+      'helpdeskTicketNumber': 'டிக்கெட் எண்',
+      'helpdeskCopyTicketNumber': 'டிக்கெட் எண்ணை நகலெடு',
+      'helpdeskTicketNumberCopied': 'டிக்கெட் எண் நகலெடுக்கப்பட்டது',
+      'helpdeskTicketNumberCopyFailed': 'நகலெடுக்க முடியவில்லை. டிக்கெட் எண்ணைத் தேர்ந்தெடுத்து நகலெடுக்கவும்.',
+
       'staffTitle': 'வீட்டுப் பணியாளர்கள்',
       'staffIntro': 'வருகை, விடுப்பு மற்றும் மதிப்பீடுகள் ஒரே இடத்தில்.',
       'staffAdd': 'வீட்டுப் பணியாளரைச் சேர்க்கவும்',
@@ -368,6 +384,11 @@ class AaraagateStrings {
       'visitorQr': 'விருந்தினர் நுழைவு QR குறியீடு',
     },
     'te': {
+      'helpdeskTicketNumber': 'టికెట్ సంఖ్య',
+      'helpdeskCopyTicketNumber': 'టికెట్ సంఖ్యను కాపీ చేయండి',
+      'helpdeskTicketNumberCopied': 'టికెట్ సంఖ్య కాపీ చేయబడింది',
+      'helpdeskTicketNumberCopyFailed': 'కాపీ చేయలేకపోయాము. టికెట్ సంఖ్యను ఎంచుకుని కాపీ చేయండి.',
+
       'staffTitle': 'ఇంటి సిబ్బంది',
       'staffIntro': 'హాజరు, సెలవులు మరియు రేటింగ్‌లు ఒకే చోట.',
       'staffAdd': 'ఇంటి సిబ్బందిని జోడించండి',
@@ -439,6 +460,11 @@ class AaraagateStrings {
       'gateTitle': 'గేట్ & ప్రవేశం', 'gateSubtitle': 'రాకలను అనుమతించి విజిటర్ పాస్ రూపొందించండి.', 'inviteGuest': 'విజిటర్ QR పాస్ రూపొందించండి', 'deliveryNoQr': 'డెలివరీకి QR అవసరం లేదు. రైడర్ వచ్చినప్పుడు సెక్యూరిటీ మీ అనుమతి కోరుతుంది.', 'needsAttention': 'మీ అనుమతి అవసరం', 'recentActivity': 'ఇటీవలి కార్యకలాపం', 'invite': 'ఆహ్వానించండి', 'loadingActivity': 'ప్రవేశ కార్యకలాపం లోడ్ అవుతోంది…', 'loadFailed': 'ప్రవేశ కార్యకలాపం లోడ్ కాలేదు.', 'retry': 'మళ్లీ ప్రయత్నించండి', 'emptyActivity': 'ఇంకా గేట్ కార్యకలాపం లేదు.', 'waiting': 'వేచి ఉంది', 'inside': 'లోపల', 'today': 'ఈ రోజు', 'deny': 'తిరస్కరించండి', 'allow': 'అనుమతించండి', 'allowEntry': 'ప్రవేశం అనుమతించండి', 'cancelPass': 'పాస్ రద్దు', 'cancelPassConfirm': 'ఇది విజిటర్ పాస్‌ను వెంటనే రద్దు చేస్తుంది. భద్రతా సిబ్బంది ఇక దాన్ని అంగీకరించరు.', 'visitorPassReady': 'విజిటర్ పాస్ సిద్ధంగా ఉంది', 'sharePass': 'పాస్ షేర్ చేయండి', 'copyCredential': 'కోడ్ కాపీ చేయండి', 'passCopied': 'పాస్ కాపీ అయ్యింది', 'inviteTitle': 'అతిథిని ఆహ్వానించండి', 'inviteSubtitle': 'సురక్షిత పాస్ రూపొందించండి.', 'guestName': 'అతిథి పేరు', 'guestNameError': 'అతిథి పేరు నమోదు చేయండి', 'phoneOptional': 'ఫోన్ (ఐచ్చికం)', 'purposeOptional': 'ఉద్దేశ్యం (ఐచ్చికం)', 'createPass': 'విజిటర్ పాస్ రూపొందించండి', 'approvalRequired': 'అనుమతి అవసరం', 'allow15': 'తదుపరి 15 నిమిషాలకు అనుమతి', 'allow30': 'తదుపరి 30 నిమిషాలకు అనుమతి', 'visitor': 'విజిటర్', 'entry': 'ప్రవేశం', 'cab': 'క్యాబ్', 'delivery': 'డెలివరీ', 'approvedSecurity': '{label} అనుమతించబడింది. భద్రతా బృందం నవీకరించబడింది.', 'gateRequestChanged': 'ఈ గేట్ అభ్యర్థన మారింది. తాజా స్థితి: {status}.', 'validUntil': '{time} వరకు చెల్లుతుంది', 'visitorQr': 'విజిటర్ QR కోడ్',
     },
     'kn': {
+      'helpdeskTicketNumber': 'ಟಿಕೆಟ್ ಸಂಖ್ಯೆ',
+      'helpdeskCopyTicketNumber': 'ಟಿಕೆಟ್ ಸಂಖ್ಯೆಯನ್ನು ನಕಲಿಸಿ',
+      'helpdeskTicketNumberCopied': 'ಟಿಕೆಟ್ ಸಂಖ್ಯೆ ನಕಲಿಸಲಾಗಿದೆ',
+      'helpdeskTicketNumberCopyFailed': 'ನಕಲಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಟಿಕೆಟ್ ಸಂಖ್ಯೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ ನಕಲಿಸಿ.',
+
       'staffTitle': 'ಮನೆಯ ಸಿಬ್ಬಂದಿ',
       'staffIntro': 'ಹಾಜರಾತಿ, ರಜೆ ಮತ್ತು ರೇಟಿಂಗ್‌ಗಳು ಒಂದೇ ಸ್ಥಳದಲ್ಲಿ.',
       'staffAdd': 'ಮನೆಯ ಸಿಬ್ಬಂದಿಯನ್ನು ಸೇರಿಸಿ',
@@ -510,6 +536,11 @@ class AaraagateStrings {
       'gateTitle': 'ಗೇಟ್ ಮತ್ತು ಪ್ರವೇಶ', 'gateSubtitle': 'ಆಗಮನವನ್ನು ಅನುಮೋದಿಸಿ ಮತ್ತು ವಿಸಿಟರ್ ಪಾಸ್ ರಚಿಸಿ.', 'inviteGuest': 'ವಿಸಿಟರ್ QR ಪಾಸ್ ರಚಿಸಿ', 'deliveryNoQr': 'ಡೆಲಿವರಿಗೆ QR ಅಗತ್ಯವಿಲ್ಲ. ಡೆಲಿವರಿ ವ್ಯಕ್ತಿ ಬಂದಾಗ ಭದ್ರತಾ ಸಿಬ್ಬಂದಿ ನಿಮ್ಮ ಅನುಮತಿ ಕೇಳುತ್ತಾರೆ.', 'needsAttention': 'ನಿಮ್ಮ ಅನುಮತಿ ಬೇಕು', 'recentActivity': 'ಇತ್ತೀಚಿನ ಚಟುವಟಿಕೆ', 'invite': 'ಆಹ್ವಾನಿಸಿ', 'loadingActivity': 'ಪ್ರವೇಶ ಚಟುವಟಿಕೆ ಲೋಡ್ ಆಗುತ್ತಿದೆ…', 'loadFailed': 'ಪ್ರವೇಶ ಚಟುವಟಿಕೆ ಲೋಡ್ ಆಗಲಿಲ್ಲ.', 'retry': 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ', 'emptyActivity': 'ಇನ್ನೂ ಗೇಟ್ ಚಟುವಟಿಕೆ ಇಲ್ಲ.', 'waiting': 'ಕಾಯುತ್ತಿದೆ', 'inside': 'ಒಳಗೆ', 'today': 'ಇಂದು', 'deny': 'ನಿರಾಕರಿಸಿ', 'allow': 'ಅನುಮತಿಸಿ', 'allowEntry': 'ಪ್ರವೇಶ ಅನುಮತಿಸಿ', 'cancelPass': 'ಪಾಸ್ ರದ್ದು', 'cancelPassConfirm': 'ಇದು ವಿಸಿಟರ್ ಪಾಸ್ ಅನ್ನು ತಕ್ಷಣ ರದ್ದು ಮಾಡುತ್ತದೆ. ಭದ್ರತಾ ಸಿಬ್ಬಂದಿ ಅದನ್ನು ಇನ್ನು ಸ್ವೀಕರಿಸುವುದಿಲ್ಲ.', 'visitorPassReady': 'ವಿಸಿಟರ್ ಪಾಸ್ ಸಿದ್ಧವಾಗಿದೆ', 'sharePass': 'ಪಾಸ್ ಹಂಚಿ', 'copyCredential': 'ಕೋಡ್ ನಕಲಿಸಿ', 'passCopied': 'ಪಾಸ್ ನಕಲಿಸಲಾಗಿದೆ', 'inviteTitle': 'ಅತಿಥಿಯನ್ನು ಆಹ್ವಾನಿಸಿ', 'inviteSubtitle': 'ಸುರಕ್ಷಿತ ಪಾಸ್ ರಚಿಸಿ.', 'guestName': 'ಅತಿಥಿಯ ಹೆಸರು', 'guestNameError': 'ಅತಿಥಿಯ ಹೆಸರನ್ನು ನಮೂದಿಸಿ', 'phoneOptional': 'ಫೋನ್ (ಐಚ್ಛಿಕ)', 'purposeOptional': 'ಉದ್ದೇಶ (ಐಚ್ಛಿಕ)', 'createPass': 'ವಿಸಿಟರ್ ಪಾಸ್ ರಚಿಸಿ', 'approvalRequired': 'ಅನುಮತಿ ಅಗತ್ಯ', 'allow15': 'ಮುಂದಿನ 15 ನಿಮಿಷಗಳಿಗೆ ಅನುಮತಿ', 'allow30': 'ಮುಂದಿನ 30 ನಿಮಿಷಗಳಿಗೆ ಅನುಮತಿ', 'visitor': 'ವಿಸಿಟರ್', 'entry': 'ಪ್ರವೇಶ', 'cab': 'ಕ್ಯಾಬ್', 'delivery': 'ಡೆಲಿವರಿ', 'approvedSecurity': '{label} ಅನುಮೋದಿಸಲಾಗಿದೆ. ಭದ್ರತೆ ನವೀಕರಿಸಲಾಗಿದೆ.', 'gateRequestChanged': 'ಈ ಗೇಟ್ ವಿನಂತಿ ಬದಲಾಗಿದೆ. ಇತ್ತೀಚಿನ ಸ್ಥಿತಿ: {status}.', 'validUntil': '{time} ವರೆಗೆ ಮಾನ್ಯ', 'visitorQr': 'ವಿಸಿಟರ್ QR ಕೋಡ್',
     },
     'ml': {
+      'helpdeskTicketNumber': 'ടിക്കറ്റ് നമ്പർ',
+      'helpdeskCopyTicketNumber': 'ടിക്കറ്റ് നമ്പർ പകർത്തുക',
+      'helpdeskTicketNumberCopied': 'ടിക്കറ്റ് നമ്പർ പകർത്തി',
+      'helpdeskTicketNumberCopyFailed': 'പകർത്താനായില്ല. ടിക്കറ്റ് നമ്പർ തിരഞ്ഞെടുത്ത് പകർത്തുക.',
+
       'staffTitle': 'വീട്ടുജീവനക്കാർ',
       'staffIntro': 'ഹാജർ, അവധി, റേറ്റിംഗുകൾ ഒരിടത്ത്.',
       'staffAdd': 'വീട്ടുജീവനക്കാരെ ചേർക്കുക',
@@ -581,6 +612,11 @@ class AaraagateStrings {
       'gateTitle': 'ഗേറ്റും പ്രവേശനവും', 'gateSubtitle': 'വരവുകൾ അംഗീകരിച്ച് വിസിറ്റർ പാസ് സൃഷ്ടിക്കുക.', 'inviteGuest': 'വിസിറ്റർ QR പാസ് സൃഷ്ടിക്കുക', 'deliveryNoQr': 'ഡെലിവറിക്ക് QR ആവശ്യമില്ല. റൈഡർ എത്തുമ്പോൾ സുരക്ഷാ ജീവനക്കാർ നിങ്ങളുടെ അനുമതി ചോദിക്കും.', 'needsAttention': 'നിങ്ങളുടെ അനുമതി വേണം', 'recentActivity': 'സമീപകാല പ്രവർത്തനം', 'invite': 'ക്ഷണിക്കുക', 'loadingActivity': 'പ്രവേശന പ്രവർത്തനം ലോഡാകുന്നു…', 'loadFailed': 'പ്രവേശന പ്രവർത്തനം ലോഡ് ചെയ്യാനായില്ല.', 'retry': 'വീണ്ടും ശ്രമിക്കുക', 'emptyActivity': 'ഇനിയും ഗേറ്റ് പ്രവർത്തനം ഇല്ല.', 'waiting': 'കാത്തിരിക്കുന്നു', 'inside': 'അകത്ത്', 'today': 'ഇന്ന്', 'deny': 'നിരസിക്കുക', 'allow': 'അനുവദിക്കുക', 'allowEntry': 'പ്രവേശനം അനുവദിക്കുക', 'cancelPass': 'പാസ് റദ്ദാക്കുക', 'cancelPassConfirm': 'ഇത് വിസിറ്റർ പാസ് ഉടൻ റദ്ദാക്കും. സുരക്ഷാ സംഘം ഇനി അത് സ്വീകരിക്കില്ല.', 'visitorPassReady': 'വിസിറ്റർ പാസ് തയ്യാറാണ്', 'sharePass': 'പാസ് പങ്കിടുക', 'copyCredential': 'കോഡ് പകർത്തുക', 'passCopied': 'പാസ് പകർത്തി', 'inviteTitle': 'അതിഥിയെ ക്ഷണിക്കുക', 'inviteSubtitle': 'സുരക്ഷിത പാസ് സൃഷ്ടിക്കുക.', 'guestName': 'അതിഥിയുടെ പേര്', 'guestNameError': 'അതിഥിയുടെ പേര് നൽകുക', 'phoneOptional': 'ഫോൺ (ഐച്ഛികം)', 'purposeOptional': 'ഉദ്ദേശ്യം (ഐച്ഛികം)', 'createPass': 'വിസിറ്റർ പാസ് സൃഷ്ടിക്കുക', 'approvalRequired': 'അനുമതി ആവശ്യമാണ്', 'allow15': 'അടുത്ത 15 മിനിറ്റിലേക്ക് അനുവദിക്കുക', 'allow30': 'അടുത്ത 30 മിനിറ്റിലേക്ക് അനുവദിക്കുക', 'visitor': 'വിസിറ്റർ', 'entry': 'പ്രവേശനം', 'cab': 'കാബ്', 'delivery': 'ഡെലിവറി', 'approvedSecurity': '{label} അംഗീകരിച്ചു. സുരക്ഷാ സംഘം അപ്ഡേറ്റ് ചെയ്തു.', 'gateRequestChanged': 'ഈ ഗേറ്റ് അഭ്യർത്ഥന മാറിയിരിക്കുന്നു. ഏറ്റവും പുതിയ നില: {status}.', 'validUntil': '{time} വരെ സാധുവാണ്', 'visitorQr': 'വിസിറ്റർ QR കോഡ്',
     },
     'mr': {
+      'helpdeskTicketNumber': 'तिकीट क्रमांक',
+      'helpdeskCopyTicketNumber': 'तिकीट क्रमांक कॉपी करा',
+      'helpdeskTicketNumberCopied': 'तिकीट क्रमांक कॉपी केला',
+      'helpdeskTicketNumberCopyFailed': 'कॉपी करता आले नाही. तिकीट क्रमांक निवडून कॉपी करा.',
+
       'staffTitle': 'घरगुती कर्मचारी',
       'staffIntro': 'हजेरी, रजा आणि रेटिंग एकाच ठिकाणी.',
       'staffAdd': 'घरगुती कर्मचारी जोडा',
@@ -652,6 +688,11 @@ class AaraagateStrings {
       'gateTitle': 'गेट आणि प्रवेश', 'gateSubtitle': 'आगमन मंजूर करा आणि व्हिजिटर पास तयार करा.', 'inviteGuest': 'व्हिजिटर QR पास तयार करा', 'deliveryNoQr': 'डिलिव्हरीसाठी QR लागत नाही. रायडर आल्यावर सुरक्षा कर्मचारी तुमची परवानगी मागतील.', 'needsAttention': 'तुमची मंजुरी आवश्यक', 'recentActivity': 'अलीकडील हालचाल', 'invite': 'बोलवा', 'loadingActivity': 'प्रवेश माहिती लोड होत आहे…', 'loadFailed': 'प्रवेश माहिती लोड झाली नाही.', 'retry': 'पुन्हा प्रयत्न करा', 'emptyActivity': 'अजून गेट हालचाल नाही.', 'waiting': 'प्रतीक्षा', 'inside': 'आत', 'today': 'आज', 'deny': 'नाकारा', 'allow': 'परवानगी द्या', 'allowEntry': 'प्रवेश द्या', 'cancelPass': 'पास रद्द करा', 'cancelPassConfirm': 'यामुळे व्हिजिटर पास त्वरित रद्द होईल. सुरक्षा तो पुढे स्वीकारणार नाही.', 'visitorPassReady': 'व्हिजिटर पास तयार आहे', 'sharePass': 'पास शेअर करा', 'copyCredential': 'कोड कॉपी करा', 'passCopied': 'पास कॉपी झाला', 'inviteTitle': 'पाहुण्याला बोलवा', 'inviteSubtitle': 'सुरक्षित पास तयार करा.', 'guestName': 'पाहुण्याचे नाव', 'guestNameError': 'पाहुण्याचे नाव द्या', 'phoneOptional': 'फोन (ऐच्छिक)', 'purposeOptional': 'उद्देश (ऐच्छिक)', 'createPass': 'व्हिजिटर पास तयार करा', 'approvalRequired': 'मंजुरी आवश्यक', 'allow15': 'पुढील 15 मिनिटांसाठी परवानगी', 'allow30': 'पुढील 30 मिनिटांसाठी परवानगी', 'visitor': 'व्हिजिटर', 'entry': 'प्रवेश', 'cab': 'कॅब', 'delivery': 'डिलिव्हरी', 'approvedSecurity': '{label} मंजूर. सुरक्षा अद्ययावत केली आहे.', 'gateRequestChanged': 'ही गेट विनंती बदलली आहे. नवीनतम स्थिती: {status}.', 'validUntil': '{time} पर्यंत वैध', 'visitorQr': 'व्हिजिटर QR कोड',
     },
     'bn': {
+      'helpdeskTicketNumber': 'টিকিট নম্বর',
+      'helpdeskCopyTicketNumber': 'টিকিট নম্বর কপি করুন',
+      'helpdeskTicketNumberCopied': 'টিকিট নম্বর কপি হয়েছে',
+      'helpdeskTicketNumberCopyFailed': 'কপি করা যায়নি। টিকিট নম্বর নির্বাচন করে কপি করুন।',
+
       'staffTitle': 'গৃহকর্মী',
       'staffIntro': 'হাজিরা, ছুটি ও রেটিং এক জায়গায়।',
       'staffAdd': 'গৃহকর্মী যোগ করুন',
