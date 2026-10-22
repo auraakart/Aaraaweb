@@ -1,3 +1,4 @@
+import '../data/resident_history.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,6 +28,28 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   String? _loadedForUnit;
   int _loadEpoch = 0;
   late final ResidentSpeech speech;
+  ResidentHistoryCursor? _before;
+  ResidentHistoryCursor? _next;
+  final List<ResidentHistoryCursor?> _previous = [];
+  String _search = '';
+  String? _status;
+
+  Future<void> _searchHistory() async {
+    final input = TextEditingController(text: _search);
+    final strings = AaraagateStrings.device();
+    final value = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
+      title: Text(strings.text('historySearch')),
+      content: TextField(controller: input, maxLength:120, autofocus:true, decoration:InputDecoration(hintText:strings.text('historySearchHint')),
+        onSubmitted:(value)=>Navigator.pop(dialogContext,value)),
+      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:Text(strings.text('historyCancel'))),
+        TextButton(onPressed:()=>Navigator.pop(dialogContext,input.text),child:Text(strings.text('historySearch')))],
+    ));
+    input.dispose();
+    if (!mounted || value == null) return;
+    _search = value.trim(); _before = null; _previous.clear();
+    await _load();
+  }
+
 
   @override
   void initState() {
@@ -44,9 +67,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   @override
   void didUpdateWidget(covariant HelpdeskScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.controller, widget.controller)) {
+    if (!identical(oldWidget.controller, widget.controller) || _loadedForUnit != widget.controller.primaryUnitId) {
       // A switched property/controller must not display a previous list.
       _tickets = const [];
+      _before = null; _next = null; _previous.clear(); _search = ''; _status = null;
       _loadedForController = null;
       _loadedForUnit = null;
       _error = null;
@@ -67,15 +91,17 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
       _error = null;
     });
     try {
-      final tickets = await requestController.repository.helpdeskTickets();
+      final tickets = await requestController.repository.helpdeskHistory(unitId:requestedUnit, search:_search, status:_status, before:_before);
+      final page = ResidentHistoryPage(tickets);
       final scoped = requestedUnit == null
-          ? tickets
-          : tickets
+          ? page.items
+          : page.items
               .where((ticket) => ticket['unitId']?.toString() == requestedUnit)
               .toList(growable: false);
       if (currentRequest()) {
         setState(() {
           _tickets = scoped;
+          _next = page.next;
           _loadedForController = requestController;
           _loadedForUnit = requestedUnit;
         });
@@ -102,7 +128,12 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     final strings = AaraagateStrings.device();
 
     return Scaffold(
-      appBar: AppBar(title: Text(strings.text('helpdeskPageTitle'))),
+      appBar: AppBar(title: Text(strings.text('helpdeskPageTitle')), actions:[
+        IconButton(tooltip:strings.text('historySearch'),onPressed:_loading?null:_searchHistory,icon:const Icon(Icons.search)),
+        PopupMenuButton<String>(tooltip:strings.text('historyFilter'), enabled:!_loading,
+          onSelected:(value){_status=value.isEmpty?null:value;_before=null;_previous.clear();_load();},
+          itemBuilder:(_)=>['','OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map((value)=>PopupMenuItem(value:value,child:Text(strings.text(value.isEmpty?'historyAll':{'OPEN':'helpdeskOpen','IN_PROGRESS':'helpdeskInProgress','RESOLVED':'helpdeskResolved','CLOSED':'helpdeskClosed'}[value]!)))).toList()),
+      ]),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -126,6 +157,8 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 label: Text(strings.text('helpdeskNewComplaint'), softWrap: true, textAlign: TextAlign.center),
               ),
             ),
+            if (_search.isNotEmpty || _status != null)
+              TextButton(onPressed:(){_search='';_status=null;_before=null;_previous.clear();_load();},child:Text(strings.text('historyClear'))),
             SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
             if (_loading && visibleTickets.isEmpty)
               AppStateCard(
@@ -163,6 +196,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 _TicketCard(ticket: ticket, onTap: () => _openTicket(ticket)),
                 SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               ],
+              Wrap(spacing:12,children:[
+                if(_previous.isNotEmpty) TextButton(onPressed:_loading?null:(){_before=_previous.removeLast();_load();},child:Text(strings.text('historyNewer'))),
+                if(_next!=null) TextButton(onPressed:_loading?null:(){_previous.add(_before);_before=_next;_load();},child:Text(strings.text('historyOlder'))),
+              ]),
             ],
           ],
         ),
@@ -189,6 +226,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     bool assetBusy = false;
     String? validationMessage;
     String? voiceStatus;
+    int submissionAttempts = 0;
     String? submissionKey;
     String? submissionShape;
     bool submitting = false;
@@ -355,11 +393,15 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                                 .toRadixString(36);
                             submissionKey = 'resident-helpdesk-${stamp.toRadixString(36)}-$suffix';
                             submissionShape = shape;
+                            submissionAttempts = 0;
                           }
                           setModalState(() {
                             submitting = true;
                             validationMessage = null;
                           });
+                          final timer = Stopwatch()..start();
+                          final operationRepository = widget.controller.repository;
+                          submissionAttempts++;
                           try {
                             if (selectedAsset != null) {
                               await widget.controller.repository.createAssetHelpdeskTicket(
@@ -376,8 +418,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                               priority: priority,
                             );
                             }
+                            operationRepository.recordJourney('HELPDESK_SUBMIT','SUCCEEDED',timer.elapsedMilliseconds,retryCount:submissionAttempts-1).ignore();
                             if (sheetContext.mounted) Navigator.pop(sheetContext, true);
                           } catch (_) {
+                            operationRepository.recordJourney('HELPDESK_SUBMIT','FAILED',timer.elapsedMilliseconds,retryCount:submissionAttempts-1).ignore();
                             if (sheetContext.mounted) {
                               setModalState(() {
                                 submitting = false;
@@ -402,7 +446,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     title.dispose();
     description.dispose();
     category.dispose();
-    if (created == true) await _load();
+    if (created == true && mounted) { _before=null; _next=null; _previous.clear(); _search=''; _status=null; await _load(); }
   }
 
   Future<void> _openTicket(Map<String, dynamic> ticket) async {
@@ -708,17 +752,17 @@ class _TicketDetailState extends State<_TicketDetail> {
                 const SizedBox(height: AaraagateTokens.space2),
                 Text(nextAction, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                 const SizedBox(height: AaraagateTokens.space4),
-                _RecoveryRow(label: 'First response target', value: _formatTarget(widget.ticket['firstResponseDueAt'])),
+                _RecoveryRow(label: AaraagateStrings.device().text('helpdeskResponseTarget'), value: _formatTarget(widget.ticket['firstResponseDueAt'])),
                 const SizedBox(height: AaraagateTokens.space2),
-                _RecoveryRow(label: 'Resolution target', value: _formatTarget(widget.ticket['resolutionDueAt'])),
+                _RecoveryRow(label: AaraagateStrings.device().text('helpdeskResolutionTarget'), value: _formatTarget(widget.ticket['resolutionDueAt'])),
                 if (resolutionCode != null || closureCode != null) ...[
                   const SizedBox(height: AaraagateTokens.space4),
                   Text('Resolution evidence', style: theme.textTheme.titleSmall),
                   const SizedBox(height: AaraagateTokens.space2),
-                  if (resolutionCode != null) _RecoveryRow(label: 'Resolution code', value: _displayLabel(resolutionCode)),
+                  if (resolutionCode != null) _RecoveryRow(label: AaraagateStrings.device().text('helpdeskResolutionCode'), value: _displayLabel(resolutionCode)),
                   if (closureCode != null) ...[
                     if (resolutionCode != null) const SizedBox(height: AaraagateTokens.space2),
-                    _RecoveryRow(label: 'Closure code', value: _displayLabel(closureCode)),
+                    _RecoveryRow(label: AaraagateStrings.device().text('helpdeskClosureCode'), value: _displayLabel(closureCode)),
                   ],
                 ],
               ],
@@ -889,18 +933,18 @@ class _ActivityRow extends StatelessWidget {
 String _ticketNextAction(Map<String, dynamic> ticket) {
   final status = ticket['status']?.toString().toUpperCase() ?? 'OPEN';
   final sla = ticket['computedSlaState']?.toString().toUpperCase() ?? ticket['slaState']?.toString().toUpperCase() ?? 'UNTRACKED';
-  if (status == 'CLOSED') return 'This complaint is closed. The activity timeline keeps the recorded resolution and any reopen history.';
-  if (status == 'RESOLVED') return 'The society team has marked this resolved. Review the recorded resolution and add a comment if more context is needed.';
-  if (sla == 'RESOLUTION_BREACHED') return 'The resolution target has passed. The society team can review or escalate the ticket under its SLA process.';
-  if (sla == 'RESPONSE_BREACHED') return 'The first-response target has passed. Your complaint remains active and visible to the society helpdesk team.';
-  if (status == 'IN_PROGRESS') return 'The society team is working on this complaint. Add any new details in the same thread.';
-  if (sla == 'UNTRACKED') return 'Your complaint is open. A service target may appear after the society applies its helpdesk SLA policy.';
-  return 'Your complaint is open and currently within its configured service target.';
+  if (status == 'CLOSED') return AaraagateStrings.device().text('helpdeskNextClosed');
+  if (status == 'RESOLVED') return AaraagateStrings.device().text('helpdeskNextResolved');
+  if (sla == 'RESOLUTION_BREACHED') return AaraagateStrings.device().text('helpdeskNextLateResolution');
+  if (sla == 'RESPONSE_BREACHED') return AaraagateStrings.device().text('helpdeskNextLateResponse');
+  if (status == 'IN_PROGRESS') return AaraagateStrings.device().text('helpdeskNextProgress');
+  if (sla == 'UNTRACKED') return AaraagateStrings.device().text('helpdeskNextUntracked');
+  return AaraagateStrings.device().text('helpdeskNextOnTrack');
 }
 
 String _formatTarget(dynamic raw) {
   final date = DateTime.tryParse(raw?.toString() ?? '');
-  if (date == null) return 'Not set';
+  if (date == null) return AaraagateStrings.device().text('helpdeskNotSet');
   final local = date.toLocal();
   final day = local.day.toString().padLeft(2, '0');
   final month = local.month.toString().padLeft(2, '0');
@@ -953,6 +997,10 @@ AaraagateStatusTone _priorityTone(String priority) {
 }
 
 String _displayLabel(String raw) {
+  final normalized=raw.trim().toUpperCase();
+  if(['ON_TRACK','RESPONSE_BREACHED','RESOLUTION_BREACHED','UNTRACKED','MET'].contains(normalized)) {
+    return AaraagateStrings.device().text('status$normalized');
+  }
   final key = {'OPEN':'helpdeskOpen','IN_PROGRESS':'helpdeskInProgress','RESOLVED':'helpdeskResolved','CLOSED':'helpdeskClosed'}[raw.trim().toUpperCase()];
   if (key != null) return AaraagateStrings.device().text(key);
   return raw

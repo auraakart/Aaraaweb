@@ -72,6 +72,28 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     } });
   }
 
+  it('exports current-property activity without disclosing another payer receipt to a tenant', async () => {
+    const first = await invoice(), second = await invoice();
+    const ownerPayment = await prisma.payment.create({data:{societyId,invoiceId:first.id,payerUserId:ownerId,
+      idempotencyKey:randomUUID(),provider:'TEST',providerOrderId:randomUUID(),amountPaise:1000,status:'CAPTURED'}});
+    const tenantPayment = await prisma.payment.create({data:{societyId,invoiceId:second.id,payerUserId:tenantId,
+      idempotencyKey:randomUUID(),provider:'TEST',providerOrderId:randomUUID(),amountPaise:1000,status:'REFUNDED'}});
+    const day=new Date(Date.now()+19800000).toISOString().slice(0,10), service=new BillingService(prisma);
+    const tenant=await service.statement(societyId,tenantId,unitId,day,day);
+    expect(tenant.payments.map(row=>row.id)).toContain(tenantPayment.id);
+    expect(tenant.payments.map(row=>row.id)).not.toContain(ownerPayment.id);
+    const owner=await service.statement(societyId,ownerId,unitId,day,day);
+    expect(owner.payments.map(row=>row.id)).toEqual(expect.arrayContaining([ownerPayment.id,tenantPayment.id]));
+    const receipt=await service.getReceipt(societyId,ownerId,ownerPayment.id) as {receiptNumber:string;legacyReceiptNumber:string};
+    expect(receipt.receiptNumber).toBe('AGRP-'+ownerPayment.id.replaceAll('-','').toUpperCase());
+    expect(receipt.legacyReceiptNumber).toBe('AGR-'+ownerPayment.id.slice(0,8).toUpperCase());
+    await expect(service.getReceipt(societyId,tenantId,ownerPayment.id)).rejects.toThrow('Receipt not found');
+    await expect(service.statement(societyId,tenantId,otherUnitId,day,day)).rejects.toThrow('Property not found');
+    await prisma.unitOccupancy.updateMany({where:{societyId,unitId,userId:tenantId},data:{active:false}});
+    try { await expect(service.statement(societyId,tenantId,unitId,day,day)).rejects.toThrow('Property not found'); }
+    finally { await prisma.unitOccupancy.updateMany({where:{societyId,unitId,userId:tenantId},data:{active:true}}); }
+  });
+
   it('routes gate notifications to the current occupant rather than the non-resident owner', async () => {
     const recipients = new GateRecipientService(prisma);
     await expect(recipients.notificationRecipients(societyId, unitId)).resolves.toEqual([

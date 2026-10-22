@@ -14,7 +14,9 @@ database('V5.7 native payment search',()=>{
    await db.maintenanceInvoice.createMany({data:[{id:ia,societyId:a,unitId:ua,createdById:user,invoiceNumber:'V57-INV',billingPeriod:'2026-10',amountPaise:12000,dueDate:new Date('2026-10-01')},{id:ib,societyId:b,unitId:ub,createdById:user,invoiceNumber:'V57-INV',billingPeriod:'2026-10',amountPaise:5000,dueDate:new Date('2026-10-01')}]});
    await db.payment.createMany({data:[{id:one,societyId:a,invoiceId:ia,payerUserId:user,idempotencyKey:'search',provider:'MOCK',providerOrderId:one,providerPaymentId:'COMMON-'+user,amountPaise:12000,status:'CAPTURED'},{id:two,societyId:b,invoiceId:ib,payerUserId:user,idempotencyKey:'search',provider:'MOCK',providerOrderId:two,providerPaymentId:'COMMON-'+user,amountPaise:5000,status:'CREATED'}]});
    const rows=await service.searchPayments(a,'COMMON-'+user) as Array<{id:string;receiptNumber:string}>;
-   expect(rows.map(r=>r.id)).toEqual([one]);expect(rows[0].receiptNumber).toBe('AGR-'+one.slice(0,8).toUpperCase());
+   expect(rows.map(r=>r.id)).toEqual([one]);expect(rows[0].receiptNumber).toBe('AGRP-'+one.replaceAll('-','').toUpperCase());
+   expect(await service.searchPayments(a,'AGR-'+one.slice(0,8))).toHaveLength(1);
+   expect(await service.searchPayments(a,'AGRP-'+one.replaceAll('-',''))).toHaveLength(1);
    const pending=await service.searchPayments(b,'COMMON-'+user) as Array<{receiptNumber:unknown}>;expect(pending[0].receiptNumber).toBeNull();
    expect(await service.searchPayments(b,'AGR-'+two.slice(0,8))).toEqual([]);
    expect(await service.searchPayments(a,'V57 payer '+user)).toHaveLength(1);

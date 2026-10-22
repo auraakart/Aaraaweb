@@ -1,3 +1,4 @@
+import { ResidentHistoryQuery } from '../reliability/resident-history';
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
@@ -14,6 +15,12 @@ import { BillingService } from './billing.service';
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
   ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
 );
+
+class ResidentStatementDto {
+  @IsUUID() unitId!: string;
+  @IsString() @Matches(/^\d{4}-\d{2}-\d{2}$/) from!: string;
+  @IsString() @Matches(/^\d{4}-\d{2}-\d{2}$/) to!: string;
+}
 
 class CreateInvoiceDto {
   @IsUUID() unitId!: string;
@@ -51,6 +58,13 @@ class PaymentWebhookDto {
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 export class BillingController {
   constructor(private readonly billing: BillingService) {}
+
+  @Get('statement')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  statement(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Query() query: ResidentStatementDto) {
+    return this.billing.statement(societyId, this.requireUser(userId), query.unitId, query.from, query.to);
+  }
 
   @Get('invoices/mine')
   @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
@@ -129,8 +143,8 @@ export class BillingController {
   @Get('payments/mine')
   @RequiresFeature(ProductFeature.PAYMENTS)
   @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
-  paymentsMine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
-    return this.billing.listPaymentsMine(societyId, this.requireUser(userId));
+  paymentsMine(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Query() query: ResidentHistoryQuery) {
+    return this.billing.listPaymentsMine(societyId, this.requireUser(userId), query.unitId, query);
   }
 
   @Get('payments/:paymentId/receipt')
