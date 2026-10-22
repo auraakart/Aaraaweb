@@ -72,6 +72,24 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     } });
   }
 
+  it('pages payment history without rounding microseconds or losing UUID ties', async () => {
+    const ids:string[]=[randomUUID(),randomUUID(),randomUUID()].sort();
+    const timestamps=['2026-10-22T00:00:00.123455Z','2026-10-22T00:00:00.123456Z','2026-10-22T00:00:00.123456Z'];
+    for(let index=0;index<ids.length;index++) {
+      const bill=await invoice();
+      await prisma.$executeRaw(Prisma.sql`INSERT INTO "Payment"
+        ("id","societyId","invoiceId","payerUserId","idempotencyKey","provider","providerOrderId","amountPaise","status","createdAt","updatedAt")
+        VALUES (${ids[index]}::uuid,${societyId}::uuid,${bill.id}::uuid,${ownerId}::uuid,
+          ${ids[index]},'TEST',${ids[index]},1000,'CAPTURED',${timestamps[index]}::timestamptz,CURRENT_TIMESTAMP)`);
+    }
+    const service=new BillingService(prisma);
+    const rows=await service.listPaymentsMine(societyId,ownerId,unitId,{beforeDate:timestamps[2],beforeId:ids[2]}) as Array<{id:string;historyTimestamp:string}>;
+    expect(rows.filter(row=>ids.includes(row.id)).map(row=>row.id)).toEqual([ids[1],ids[0]]);
+    expect(rows.find(row=>row.id===ids[1])?.historyTimestamp).toBe(timestamps[1]);
+    const tail=await service.listPaymentsMine(societyId,ownerId,unitId,{beforeDate:timestamps[1],beforeId:ids[1]}) as Array<{id:string}>;
+    expect(tail.filter(row=>ids.includes(row.id)).map(row=>row.id)).toEqual([ids[0]]);
+  });
+
   it('exports current-property activity without disclosing another payer receipt to a tenant', async () => {
     const first = await invoice(), second = await invoice();
     const ownerPayment = await prisma.payment.create({data:{societyId,invoiceId:first.id,payerUserId:ownerId,
