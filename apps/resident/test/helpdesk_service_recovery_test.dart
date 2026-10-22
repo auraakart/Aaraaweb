@@ -1,3 +1,4 @@
+import 'package:aaraagate_resident/data/resident_history.dart';
 import 'dart:async';
 
 import 'package:aaraagate_resident/data/api_client.dart';
@@ -18,6 +19,9 @@ class _HelpdeskRepository extends ResidentRepository {
   int commentCalls = 0;
   bool failFirstComment = false;
   final List<String> commentKeys = <String>[];
+
+  @override
+  Future<List<Map<String,dynamic>>> helpdeskHistory({String? unitId,String search='',String? status,ResidentHistoryCursor? before}) async => showcaseHistory(await helpdeskTickets(),unitId:unitId,search:search,status:status,before:before);
 
   @override
   Future<List<Map<String,dynamic>>> helpdeskTickets() async => [

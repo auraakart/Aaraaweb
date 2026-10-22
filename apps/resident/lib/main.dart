@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:aaraagate_branding_runtime/society_logo_fetcher.dart';
 import 'auth/auth_repository.dart';
 import 'auth/auth_screen.dart';
@@ -123,6 +124,8 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
           final easyMode = widget.experiencePreferences.easyMode;
           final societyBrand = _branding.current;
           return MaterialApp(
+      localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
+      supportedLocales: AaraagateStrings.supportedLanguageCodes.map((code)=>Locale(code)).toList(),
             title: societyBrand?.displayName ?? 'Aaraagate',
             debugShowCheckedModeBanner: false,
             theme: AaraagateTheme.light(societyBrand: societyBrand),

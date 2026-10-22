@@ -1,3 +1,5 @@
+import { JourneyMeasurementDto, recordJourneyMeasurement } from './journey-measurement';
+import { TelemetryService } from '../observability/telemetry.service';
 import { Body, Controller, ExecutionContext, Post, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsIn, IsInt, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
@@ -25,7 +27,7 @@ class UsageEventDto {
 @Controller('analytics')
 @UseGuards(BearerGuard)
 export class OperationalUsageController {
-  constructor(private readonly usage:OperationalUsageService) {}
+  constructor(private readonly usage:OperationalUsageService, private readonly telemetry:TelemetryService = new TelemetryService()) {}
 
   @Post('guard-sync')
   @UseGuards(TenantGuard,PermissionsGuard)
@@ -34,6 +36,13 @@ export class OperationalUsageController {
     if(!auth?.societyId) return {recorded:false};
     await this.usage.recordGuardSync(auth.societyId,dto);
     return {recorded:true};
+  }
+
+  @Post('journey')
+  recordJourney(@CurrentPrincipal() auth:AuthenticatedRequest['auth'], @Body() dto:JourneyMeasurementDto) {
+    if(!auth?.userId || !auth.societyId) return {recorded:false};
+    recordJourneyMeasurement(this.telemetry,dto);
+    return {recorded:true,source:'CLIENT_REPORTED',authoritativeBusinessEvidence:false};
   }
 
   @Post('usage')
