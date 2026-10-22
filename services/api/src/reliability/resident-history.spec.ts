@@ -7,7 +7,7 @@ describe('Resident history keyset boundaries', () => {
     expect(validateHistory(query)).toBe('%\\%\\_%');
     expect(query.beforeDate).toContain('123456');
   });
-  it.each([{beforeId:'123'}, {beforeDate:'2026-10-22'}, {beforeDate:'bad',beforeId:'bad'}, {search:'x'.repeat(121)}])('rejects malformed cursor/search %j', query => {
+  it.each([{beforeId:'123'}, {beforeDate:'2026-10-22'}, {beforeDate:'bad',beforeId:'bad'}, {beforeDate:'2026-02-30T00:00:00.000000Z',beforeId:'12345678-1111-4111-8111-111111111111'}, {search:'x'.repeat(121)}])('rejects malformed cursor/search %j', query => {
     expect(() => validateHistory(query)).toThrow();
   });
 });

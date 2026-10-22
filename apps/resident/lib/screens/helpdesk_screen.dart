@@ -1,3 +1,4 @@
+import '../widgets/history_search_dialog.dart';
 import '../data/resident_history.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -35,17 +36,11 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   String? _status;
 
   Future<void> _searchHistory() async {
-    final input = TextEditingController(text: _search);
-    final strings = AaraagateStrings.device();
-    final value = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
-      title: Text(strings.text('historySearch')),
-      content: TextField(controller: input, maxLength:120, autofocus:true, decoration:InputDecoration(hintText:strings.text('historySearchHint')),
-        onSubmitted:(value)=>Navigator.pop(dialogContext,value)),
-      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:Text(strings.text('historyCancel'))),
-        TextButton(onPressed:()=>Navigator.pop(dialogContext,input.text),child:Text(strings.text('historySearch')))],
-    ));
-    input.dispose();
-    if (!mounted || value == null) return;
+    final controller=widget.controller;
+    final unitId=controller.primaryUnitId;
+    final epoch=_loadEpoch;
+    final value=await showDialog<String>(context:context,builder:(_)=>HistorySearchDialog(initialQuery:_search));
+    if (!mounted || value==null || epoch!=_loadEpoch || !identical(controller,widget.controller) || unitId!=widget.controller.primaryUnitId) return;
     _search = value.trim(); _before = null; _previous.clear();
     await _load();
   }

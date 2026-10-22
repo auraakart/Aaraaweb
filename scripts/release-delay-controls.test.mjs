@@ -259,6 +259,22 @@ test('changed Flutter gate selects only added/modified tests for the requested a
   assert.equal(run('run-changed-flutter-tests.sh', ['other', base, 'HEAD']).status, 2);
 });
 
+test('source-only Helpdesk changes run unchanged critical recovery fixtures early', t => {
+  const {dir,git,run}=repository(t);
+  mkdirSync(join(dir,'apps/resident/lib/screens'),{recursive:true});
+  mkdirSync(join(dir,'apps/resident/test'),{recursive:true});
+  writeFileSync(join(dir,'apps/resident/lib/screens/helpdesk_screen.dart'),'// baseline');
+  writeFileSync(join(dir,'apps/resident/test/helpdesk_service_recovery_test.dart'),'// unchanged recovery test');
+  git('add','.');git('commit','-m','Existing critical flow');const base=git('rev-parse','HEAD');
+  writeFileSync(join(dir,'apps/resident/lib/screens/helpdesk_screen.dart'),'// changed transport seam');
+  git('add','.');git('commit','-m','Source only');
+  const bin=join(dir,'bin');mkdirSync(bin);
+  writeFileSync(join(bin,'flutter'),'#!/bin/sh\nprintf "%s\\n" "$PWD" "$@"\n',{mode:0o755});
+  const result=run('run-changed-flutter-tests.sh',['resident',base,'HEAD'],{PATH:`${bin}:${process.env.PATH}`});
+  assert.equal(result.status,0,result.stderr);
+  assert.deepEqual(result.stdout.trim().split('\n'),[join(dir,'apps/resident'),'test','test/helpdesk_service_recovery_test.dart']);
+});
+
 test('workflow keeps full gates while preflight avoids repeated toolchain installation', () => {
   const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
   const preflight = ci.split('\n  mastermind-preflight:\n')[1].split('\n  api-validation-full:\n')[0];
