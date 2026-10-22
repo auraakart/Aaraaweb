@@ -38,6 +38,9 @@ class _PropertyScopedRepository extends ResidentRepository {
       ];
 
   @override
+  Future<List<Map<String, dynamic>>> maintenancePaymentHistory({String? unitId, ResidentHistoryCursor? before}) => maintenancePayments();
+
+  @override
   Future<List<Map<String, dynamic>>> maintenancePayments() async => [
         {
           'id': 'payment-a',

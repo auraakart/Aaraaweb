@@ -1,4 +1,5 @@
 import { ResidentHistoryQuery } from '../reliability/resident-history';
+import { StatementFeatureGuard } from './statement-feature.guard';
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
@@ -60,6 +61,7 @@ export class BillingController {
   constructor(private readonly billing: BillingService) {}
 
   @Get('statement')
+  @UseGuards(StatementFeatureGuard)
   @RequiresFeature(ProductFeature.PAYMENTS)
   @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
   statement(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Query() query: ResidentStatementDto) {
