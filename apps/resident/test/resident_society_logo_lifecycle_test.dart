@@ -157,4 +157,18 @@ void main(){
     scope.dispose();
   });
 
+  test('revision-specific image requests follow the displayed partner/society theme',() async {
+    final scope=Scope();
+    final revisions=<String>[];
+    final branding=ResidentBrandingController(
+      scopeChanges:scope,currentSession:()=>scope.session,
+      fetchContext:(session) async=>context(session.societyId),
+      fetchRevisionLogo:(session,revision) async {revisions.add(revision);return Uint8List.fromList([1]);},
+    );
+    scope.use(auth('revision-session',a));await settle();await settle();
+    expect(revisions,['society-$a-v1']);
+    expect(branding.logoBytes,Uint8List.fromList([1]));
+    scope.use(null);expect(branding.logoBytes,isNull);
+    branding.dispose();scope.dispose();
+  });
 }

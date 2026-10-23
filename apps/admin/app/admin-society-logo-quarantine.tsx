@@ -87,6 +87,13 @@ export function AdminSocietyLogoQuarantine({session,onAssetsChanged}:{session:Se
     setError('')
   }
 
+  const cancelLogo=async(item:SocietyLogoAsset)=>{
+    if(busy)return
+    setBusy(true);setError('')
+    try{await api('/branding/manage/logos/'+encodeURIComponent(item.id)+'/cancel',{method:'POST'},session);await refresh();setNotice('Unused upload cancelled. You can upload another logo.')}
+    catch(e){setError(e instanceof Error?e.message:'Unable to cancel upload')}
+    finally{setBusy(false)}
+  }
   return <section className="panel brand-editor-history" aria-labelledby="society-logo-title">
     <h2 id="society-logo-title">Private society logo review</h2>
     <p className="brand-editor-help">
@@ -114,6 +121,7 @@ export function AdminSocietyLogoQuarantine({session,onAssetsChanged}:{session:Se
         <strong>PNG logo</strong> · {item.status} · {(item.contentLengthBytes/1024).toFixed(1)} KiB
         <span> · {new Date(item.createdAt).toLocaleDateString()}</span>
         {item.status==='VERIFIED'&&<span> · Safety verified</span>}
+        {item.status==='PENDING'&&<button type="button" disabled={busy} onClick={()=>void cancelLogo(item)}>Cancel unused upload</button>}
         {item.status==='PENDING'&&<button type="button" disabled={busy}
           onClick={()=>void verifyLogo(item)}>Verify after link expiry</button>}
       </li>)}</ul>}

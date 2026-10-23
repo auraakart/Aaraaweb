@@ -42,6 +42,7 @@ bool allowedPublishedLogoUri(Uri uri) {
 Future<Uint8List?> fetchPublishedSocietyLogo({
   required String baseUrl,
   required String accessToken,
+  String? expectedRevision,
 }) async {
   if (accessToken.isEmpty) return null;
   final root = baseUrl.replaceFirst(RegExp(r'/$'), '');
@@ -51,6 +52,10 @@ Future<Uint8List?> fetchPublishedSocietyLogo({
   try {
     final request = await client.getUrl(uri).timeout(_timeout);
     request.followRedirects = false;
+    if (expectedRevision != null) {
+      if (!RegExp(r'^society-[0-9a-fA-F-]{36}-v(?:0|[1-9][0-9]*)(?:-p[1-9][0-9]*)?$').hasMatch(expectedRevision)) return null;
+      request.headers.set(HttpHeaders.ifMatchHeader, '"$expectedRevision"');
+    }
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
     request.headers.set(HttpHeaders.acceptHeader, 'image/png');
     request.headers.set(HttpHeaders.cacheControlHeader, 'no-store');

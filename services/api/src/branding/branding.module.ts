@@ -1,3 +1,9 @@
+import { PartnerReadinessService } from './partner-readiness.service';
+import { PartnerReadinessController } from './partner-readiness.controller';
+import { PartnerApplicationService } from './partner-application.service';
+import { PartnerApplicationController, ApplicationScopeController } from './partner-application.controller';
+import { PartnerBrandService } from './partner-brand.service';
+import { PartnerBrandController } from './partner-brand.controller';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
@@ -15,9 +21,10 @@ import { PrismaMembershipRepository } from '../auth/prisma-membership.repository
 
 @Module({
   imports: [AuthModule, EntitlementsModule, PrivateObjectStorageModule],
-  controllers: [BrandingController, BrandingContextController, BrandingManageController, BrandLogoController, BrandLogoReadController],
+  controllers: [PartnerReadinessController, PartnerApplicationController, ApplicationScopeController, PartnerBrandController, BrandingController, BrandingContextController, BrandingManageController, BrandLogoController, BrandLogoReadController],
+  exports: [BrandingService],
   providers: [
-    PrismaService, BrandingService, BrandLogoService, PublishedBrandLogoService, PrismaMembershipRepository,
+    PrismaService, PartnerReadinessService, PartnerApplicationService, PartnerBrandService, BrandingService, BrandLogoService, PublishedBrandLogoService, PrismaMembershipRepository,
     {
       provide: SOCIETY_LOGO_SCANNER,
       inject: [PRIVATE_OBJECT_STORAGE],

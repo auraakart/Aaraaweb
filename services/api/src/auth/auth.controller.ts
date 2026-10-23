@@ -10,6 +10,7 @@ import { AppRole } from './auth.types';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
 
+class BindApplicationDto { @IsUUID() applicationId!: string; }
 class RequestOtpDto { @IsPhoneNumber() phone!: string; }
 class VerifyOtpDto { @IsString() challengeId!: string; @IsString() @Length(6, 6) code!: string; }
 class SelectSocietyDto { @IsUUID() userId!: string; @IsUUID() societyId!: string; @IsString() @IsNotEmpty() selectionToken!: string; }
@@ -162,11 +163,19 @@ export class AuthController {
     };
   }
 
+  @Post('application-session')
+  @UseGuards(BearerGuard)
+  async applicationSession(@Req() request: AuthenticatedRequest, @Body() input: BindApplicationDto) {
+    const principal = request.auth!;
+    if (!principal.societyId || principal.partnerApplicationId && principal.partnerApplicationId !== input.applicationId) throw new UnauthorizedException('Application scope unavailable');
+    return this.sessions.bindApplicationSession(request.header('authorization')!.slice(7), input.applicationId);
+  }
+
   @Post('society/switch')
   @UseGuards(BearerGuard)
-  async switchSociety(@CurrentUser() userId: string, @Body() dto: SwitchSocietyDto) {
+  async switchSociety(@CurrentUser() userId: string, @Body() dto: SwitchSocietyDto, @Req() request?: AuthenticatedRequest) {
     if (!userId) throw new UnauthorizedException('Authentication required');
-    const result=await this.createSocietySession(userId, dto.societyId);
+    const result=await this.createSocietySession(userId, dto.societyId, request?.auth?.partnerApplicationId);
     await this.usage?.record(userId,dto.societyId,'PROPERTY_CONTEXT_SWITCHED');
     return result;
   }
@@ -174,14 +183,14 @@ export class AuthController {
   @Post('refresh') refresh(@Body() dto: RefreshDto, @Req() request: AuthenticatedRequest) { return request ? this.sessions.refresh(dto.sessionId, dto.refreshToken, request) : this.sessions.refresh(dto.sessionId, dto.refreshToken); }
   @Post('logout') async logout(@Body() dto: LogoutDto) { await this.sessions.revoke(dto.sessionId, dto.refreshToken); return { success: true }; }
 
-  private async createSocietySession(userId: string, societyId: string) {
+  private async createSocietySession(userId: string, societyId: string, partnerApplicationId?: string) {
     const memberships = await this.prisma.societyMembership.findMany({
       where: { userId, societyId, active: true, society: { status: 'ACTIVE' } },
       select: { role: true },
     });
     if (!memberships.length) throw new UnauthorizedException('User is not an active member of this society');
     const roles = memberships.map((membership) => membership.role as AppRole);
-    const session = await this.sessions.create(userId, societyId, roles);
+    const session = partnerApplicationId ? await this.sessions.create(userId, societyId, roles, { partnerApplicationId }) : await this.sessions.create(userId, societyId, roles);
     return { contextType: 'SOCIETY', societyId, role: memberships[0].role, roles, session };
   }
 

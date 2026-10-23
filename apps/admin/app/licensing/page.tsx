@@ -1,4 +1,5 @@
 'use client'
+import { PartnerApplicationScopes } from '../../components/partner-application-scopes'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DetailPanel, EmptyState, ErrorState, FormField, PageHeader, PageShell, PrimaryButton, QueuePanel, ReadinessPanel, SecondaryButton, StatusPill } from '../../components/admin-ui'
 import { api, type Session } from '../../lib/admin-client'
@@ -88,5 +89,5 @@ export default function LicensingPage(){
   </PageShell.Columns>
   {overview.domainPreviewEnabled&&<DetailPanel title="Test domain inspection"><p>Inspect a configured test hostname for this society. This preview does not activate DNS, login routing or permissions.</p><FormField label="Test domain hostname" value={hostname} maxLength={253} disabled={busy} onChange={e=>{setHostname(e.target.value);setPreview('')}}/><SecondaryButton disabled={busy||!hostname.trim()} onClick={()=>void inspectDomain()}>Inspect test domain</SecondaryButton>{preview&&<p role="status">Configured test candidate: {preview}</p>}</DetailPanel>}
   </>:null}
- </PageShell>
+ {platform&&session&&overview&&<PartnerApplicationScopes key={licensingSessionKey(session)} session={session} overview={overview} license={selected}/>}</PageShell>
 }

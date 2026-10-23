@@ -72,14 +72,9 @@ withDatabase('V5.3.2 branding publication and society isolation on PostgreSQL', 
         .rejects.toBeInstanceOf(ForbiddenException);
       await expect(service.history(societyA, admin)).rejects.toBeInstanceOf(ForbiddenException);
     } finally {
-      try {
-        await prisma.societyBrandRevision.deleteMany({ where: { societyId: { in: [societyA, societyB] } } });
-        await prisma.societyMembership.deleteMany({ where: { societyId: { in: [societyA, societyB] } } });
-        await prisma.society.deleteMany({ where: { id: { in: [societyA, societyB] } } });
-        await prisma.user.deleteMany({ where: { id: { in: [admin, tenant] } } });
-      } finally {
-        await prisma.$disconnect();
-      }
+      // Publication records are append-only. The isolated CI database is
+      // disposable; do not weaken production evidence to delete test fixtures.
+      await prisma.$disconnect();
     }
   });
 });

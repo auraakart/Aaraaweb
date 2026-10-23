@@ -1,3 +1,4 @@
+import 'package:aaraagate_branding_runtime/branding_runtime.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -13,7 +14,7 @@ Uint8List financeCsv(List<List<Object?>> rows) => Uint8List.fromList(
 );
 
 List<List<Object?>> receiptExportRows(Map<String, dynamic> receipt) => [
-  ['Aaraagate maintenance payment receipt'],
+  ['${PackagedBrand.displayName} maintenance payment receipt'],
   ['Receipt reference', receipt['receiptNumber']],
   ['Historical lookup alias', receipt['legacyReceiptNumber']],
   ['Society', receipt['societyName']],
@@ -29,7 +30,7 @@ List<List<Object?>> receiptExportRows(Map<String, dynamic> receipt) => [
 
 List<List<Object?>> statementExportRows(Map<String, dynamic> statement) {
   final rows = <List<Object?>>[
-    ['Aaraagate maintenance activity statement'],
+    ['${PackagedBrand.displayName} maintenance activity statement'],
     ['Society', statement['societyName'], 'Building', statement['buildingName'], 'Unit', statement['unitNumber']],
     ['From', statement['from'], 'To', statement['to'], 'Date basis', statement['dateBasis']],
     ['Scope', statement['boundary']],

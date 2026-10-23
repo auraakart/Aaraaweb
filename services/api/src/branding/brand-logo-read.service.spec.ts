@@ -56,7 +56,7 @@ function setup() {
     $queryRaw:vi.fn().mockResolvedValue([]),
     society:{findFirst:vi.fn().mockResolvedValue({id:societyId})},
     societyBrandRevision:{findFirst:vi.fn().mockResolvedValue({
-      config,digest:societyBrandDigest(config),
+      version:1,config,digest:societyBrandDigest(config),
     })},
     societyBrandLogoAsset:{findFirst:vi.fn().mockResolvedValue(asset)},
   };
@@ -144,4 +144,11 @@ describe('V5.3.15 authenticated published PNG delivery', () => {
     f.tx.societyBrandLogoAsset.findFirst.mockResolvedValue({...f.asset,sha256:'f'.repeat(64)});
     await expect(f.service.readPublished(principal)).rejects.toBeInstanceOf(NotFoundException);
   });
+});
+
+it('rejects a logo read after a different brand revision was published',async()=>{
+ const f=setup();
+ await expect(f.service.readPublished(principal,`society-${societyId}-v1`)).resolves.toEqual(f.bytes);
+ await expect(f.service.readPublished(principal,`society-${societyId}-v2`)).rejects.toThrow(/branding changed/);
+ expect(f.storage.getObjectBytes).toHaveBeenCalledTimes(1);
 });

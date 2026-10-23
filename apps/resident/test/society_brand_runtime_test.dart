@@ -78,4 +78,11 @@ void main() {
     expect(dark.colorScheme.onPrimary, const Color(0xFFFFFFFF));
     expect(AaraagateTheme.light().colorScheme.primary, const Color(0xFF05879A));
   });
+  test('accepts partner presentation revision without changing selected society identity',(){
+    final id='11111111-1111-4111-8111-111111111111';
+    final payload={'society':{'id':id},'branding':{'schemaVersion':1,'revision':'society-$id-v0-p2','brand':{'id':'aaraagate','displayName':'Partner One','colors':{'primary':'#155E75','primaryDeep':'#164E63'}}}};
+    final result=SocietyBrandTokens.tryParseContext(payload,societyId:id);
+    expect(result?.revision,'society-$id-v0-p2');
+    expect(SocietyBrandTokens.tryParseContext(payload,societyId:'other'),isNull);
+  });
 }

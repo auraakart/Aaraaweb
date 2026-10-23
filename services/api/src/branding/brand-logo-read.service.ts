@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, Inject, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { PartnerBrandService } from './partner-brand.service';
+import { ForbiddenException, Injectable, Inject, NotFoundException, UnauthorizedException, PreconditionFailedException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PrismaMembershipRepository } from '../auth/prisma-membership.repository';
 import { AuthPrincipal } from '../auth/auth.types';
@@ -16,9 +17,10 @@ export class PublishedBrandLogoService {
     private readonly prisma: PrismaService,
     private readonly memberships: PrismaMembershipRepository,
     @Inject(PRIVATE_OBJECT_STORAGE) private readonly storage: ObjectStoragePort,
+    @Optional() private readonly partnerBrands?: PartnerBrandService,
   ) {}
 
-  async readPublished(principal: AuthPrincipal | undefined): Promise<Buffer> {
+  async readPublished(principal: AuthPrincipal | undefined, expectedRevision?: string): Promise<Buffer> {
     if (!principal?.userId) throw new UnauthorizedException('Authentication required');
     if (!principal.societyId) throw new ForbiddenException('A selected society is required');
     const societyId = principal.societyId;
@@ -26,18 +28,29 @@ export class PublishedBrandLogoService {
       const memberships = await this.memberships.findActiveByUserAndSociety(principal.userId, societyId, tx);
       if (!memberships.length) throw new ForbiddenException('Current society membership required');
       const society = await tx.society.findFirst({
-        where: { id: societyId, status: 'ACTIVE' }, select: { id: true },
+        where: { id: societyId, status: 'ACTIVE' }, select: { id: true, partnerId: true, ownershipVersion: true },
       });
       if (!society) throw new ForbiddenException('Active society required');
       const published = await tx.societyBrandRevision.findFirst({
         where: { societyId, publishedAt: { not: null } },
         orderBy: [{ publishedAt: 'desc' }, { version: 'desc' }],
-        select: { config: true, digest: true },
+        select: { version: true, config: true, digest: true },
       });
-      if (!published) return null;
+      let config: import('./branding-contract').SocietyBrandPresentation = {};
+      let societyVersion = 0;
+      if (published) {
+        try {
+          const candidate = validateSocietyBrandPresentation(published.config);
+          if (societyBrandDigest(candidate) === published.digest) { config = candidate; societyVersion = published.version; }
+        } catch { /* Fail closed for corrupt presentation. */ }
+      }
+      const effective = this.partnerBrands ? await this.partnerBrands.resolve(tx, society, config) : { config, partnerVersion: 0 };
+      const revision = `society-${societyId}-v${societyVersion}${effective.partnerVersion ? '-p' + effective.partnerVersion : ''}`;
+      if (expectedRevision !== undefined && expectedRevision !== revision)
+        throw new PreconditionFailedException('Published branding changed; refresh the current theme');
+      if (!effective.config.logoAssetId) return null;
       try {
-        const config = validateSocietyBrandPresentation(published.config);
-        if (!config.logoAssetId || societyBrandDigest(config) !== published.digest) return null;
+        const config = effective.config;
         return tx.societyBrandLogoAsset.findFirst({
           where: {
             id: config.logoAssetId, societyId, status: 'VERIFIED',
