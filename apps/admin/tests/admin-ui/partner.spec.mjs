@@ -52,8 +52,10 @@ test('partner branding saves a draft then publishes with an explicit reason',asy
  await page.getByRole('button',{name:'Save immutable draft'}).click();
  await expect(page.getByRole('button',{name:'Publish revision 1'})).toBeDisabled();
  await page.getByLabel('Publication reason',{exact:true}).fill('Reviewed partner presentation');
- page.once('dialog',dialog=>dialog.accept());
  await page.getByRole('button',{name:'Publish revision 1'}).click();
+ const confirmation=page.getByRole('dialog',{name:'Confirm action'});
+ await expect(confirmation).toContainText('Publish partner presentation revision 1');
+ await confirmation.getByRole('button',{name:'Confirm',exact:true}).click();
  await expect(page.getByText('Brand: Published revision 1',{exact:true})).toBeVisible();
  await page.evaluate(()=>{sessionStorage.removeItem('aaraagate.partner.session');sessionStorage.removeItem('aaraagate.admin.session');window.dispatchEvent(new Event('storage'))});
  await expect(page.getByRole('heading',{name:'Partner presentation',exact:true})).toHaveCount(0);

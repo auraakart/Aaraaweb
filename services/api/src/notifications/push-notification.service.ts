@@ -280,7 +280,7 @@ export class PushNotificationService {
         if(invalidIds.length)await this.prisma.devicePushToken.updateMany({where:{id:{in:invalidIds}},data:{active:false}});
       }
     }
-    if(transientFailures+routingFailures>0)throw new Error(`FCM resident delivery had ${transientFailures} transient and ${routingFailures} routing failure(s)`);
+    if(transientFailures+routingFailures>0)throw new Error(`FCM resident delivery had ${transientFailures} transient failure(s) and ${routingFailures} routing failure(s)`);
   }
 
   private residentPushContent(event: ResidentMessageEvent): { title: string; body: string; data: Record<string, string> } {

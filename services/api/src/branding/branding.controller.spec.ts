@@ -70,7 +70,9 @@ describe('V5.3.2 brand editor HTTP authority', () => {
     controller.publish(request, 'revision-a', { expectedPublishedVersion:0 });
     controller.history(request);
     expect(createDraft).toHaveBeenCalledWith('society-a','actor-a',input);
-    expect(publish).toHaveBeenCalledWith('society-a','actor-a','revision-a',0);
+    expect(publish).toHaveBeenCalledWith('society-a','actor-a','revision-a',0,undefined,undefined);
+    controller.publish(request, 'revision-b', { expectedPublishedVersion:1, reason:'Restore approved appearance', restoredFromRevisionId:'previous-revision' });
+    expect(publish).toHaveBeenLastCalledWith('society-a','actor-a','revision-b',1,'Restore approved appearance','previous-revision');
     expect(history).toHaveBeenCalledWith('society-a','actor-a');
   });
 
