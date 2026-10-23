@@ -86,6 +86,12 @@ class GuardApi {
         final message = decoded is Map ? decoded['message']?.toString() : null;
         throw GuardApiException(message ?? 'Request failed', statusCode: response.statusCode);
       }
+      const applicationId=String.fromEnvironment('AARAGATE_PARTNER_APPLICATION_ID');
+      if(applicationId.isNotEmpty && ['/auth/otp/verify','/auth/society/select'].contains(path) && decoded is Map && decoded['session'] is Map){
+        final source=decoded['session'] as Map;
+        final bound=await _send('POST','/auth/application-session',body:{'applicationId':applicationId},extraHeaders:{HttpHeaders.authorizationHeader:'Bearer ${source['accessToken']}'});
+        return {...Map<String,dynamic>.from(decoded),'session':bound};
+      }
       return decoded;
     } on TimeoutException {
       throw GuardApiException('Request timed out. Check the current status before retrying.', transport: true);

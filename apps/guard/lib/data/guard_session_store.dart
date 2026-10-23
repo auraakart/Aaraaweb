@@ -17,10 +17,13 @@ class GuardSession {
 
 class GuardSessionStore {
   const GuardSessionStore();
+  static const _applicationId = String.fromEnvironment('AARAGATE_PARTNER_APPLICATION_ID');
+  static const _applicationKey = 'guard.applicationId';
   static const _storage = FlutterSecureStorage();
 
   Future<void> save(GuardSession session) async {
     await Future.wait([
+      if (_applicationId.isNotEmpty) _storage.write(key: _applicationKey, value: _applicationId),
       _storage.write(key: 'guard.sessionId', value: session.sessionId),
       _storage.write(key: 'guard.accessToken', value: session.accessToken),
       _storage.write(key: 'guard.refreshToken', value: session.refreshToken),
@@ -30,6 +33,7 @@ class GuardSessionStore {
   }
 
   Future<GuardSession?> read() async {
+    if (_applicationId.isNotEmpty && await _storage.read(key: _applicationKey) != _applicationId) return null;
     final values = await Future.wait([
       _storage.read(key: 'guard.sessionId'),
       _storage.read(key: 'guard.accessToken'),
@@ -48,6 +52,7 @@ class GuardSessionStore {
   }
 
   Future<void> clear() async {
+    if (_applicationId.isNotEmpty) await _storage.delete(key: _applicationKey);
     for (final key in const ['guard.sessionId', 'guard.accessToken', 'guard.refreshToken', 'guard.userId', 'guard.societyId']) {
       await _storage.delete(key: key);
     }

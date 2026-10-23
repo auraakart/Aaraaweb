@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BrandingService } from '../branding/branding.service';
+import { applicationPushRoutes, applicationPushProject, ApplicationPushRoute } from './application-push-routing';
+import { assertApplicationSociety } from '../auth/partner-application-binding';
+import { AppRole } from '../auth/auth.types';
+import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { DevicePlatform, Prisma } from '@prisma/client';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -47,8 +51,22 @@ export function residentPushDedupeKey(event: ResidentMessageEvent) {
 export class PushNotificationService {
   private readonly logger = new Logger(PushNotificationService.name);
   private readonly firebaseApp?: App;
+  private applicationRoutes: ApplicationPushRoute[] = [];
+  private readonly applicationApps = new Map<string,App>();
+  private hasTransport() { return Boolean(this.firebaseApp || this.applicationApps.size); }
 
-  constructor(private readonly prisma: PrismaService, private readonly outbox?: PushDeliveryOutboxService) {
+  constructor(private readonly prisma: PrismaService, private readonly outbox?: PushDeliveryOutboxService, @Optional() private readonly branding?: BrandingService) {
+    try {
+      this.applicationRoutes = applicationPushRoutes(process.env);
+      for (const route of this.applicationRoutes) {
+        const account = JSON.parse(process.env[route.credentialsEnv] ?? '{}') as { project_id:string; client_email:string; private_key:string };
+        if(account.project_id !== route.projectId) throw new Error('Application credential project differs from registry');
+        const name='aaraagate-application-'+route.applicationId;
+        const app=getApps().find(item=>item.name===name) ?? initializeApp({projectId:route.projectId,credential:cert({projectId:account.project_id,clientEmail:account.client_email,privateKey:account.private_key})},name);
+        if(app.options.projectId!==route.projectId)throw new Error('Application Firebase project mismatch');
+        this.applicationApps.set(route.applicationId,app);
+      }
+    } catch { this.applicationRoutes=[];this.applicationApps.clear();this.logger.error('Application push routes unavailable'); }
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
     if (!raw) {
       this.logger.log('FCM disabled: FIREBASE_SERVICE_ACCOUNT_JSON is not configured');
@@ -64,12 +82,19 @@ export class PushNotificationService {
     }
   }
 
-  register(societyId: string, userId: string, token: string, platform: DevicePlatform, deviceId?: string) {
+  async register(societyId: string, userId: string, token: string, platform: DevicePlatform, deviceId?: string, applicationId?: string, roles: AppRole[] = []) {
+    let routing: {applicationId:string;firebaseProjectId:string} | undefined;
+    if(applicationId){
+      await assertApplicationSociety(this.prisma,applicationId,societyId,roles,'OPERATE');
+      const route=applicationPushProject(this.applicationRoutes,applicationId);
+      if(!this.applicationApps.has(applicationId))throw new Error('Application push transport unavailable');
+      routing={applicationId,firebaseProjectId:route.projectId};
+    }
     const normalized = token.trim();
     return this.prisma.devicePushToken.upsert({
       where: { token: normalized },
-      create: { societyId, userId, token: normalized, platform, deviceId: deviceId?.trim() || null, active: true, lastSeenAt: new Date() },
-      update: { societyId, userId, platform, deviceId: deviceId?.trim() || null, active: true, lastSeenAt: new Date() },
+      create: { societyId, userId, token: normalized, platform, deviceId: deviceId?.trim() || null, active: true, lastSeenAt: new Date(), ...(routing??{}) },
+      update: { societyId, userId, platform, deviceId: deviceId?.trim() || null, active: true, lastSeenAt: new Date(), applicationId:routing?.applicationId??null,firebaseProjectId:routing?.firebaseProjectId??null },
     });
   }
 
@@ -128,7 +153,7 @@ export class PushNotificationService {
     if (!event.userId) return;
     // Scheduled notices already have recipient-level durable retry in NoticeDispatch.
     if (event.type === 'GENERAL_NOTICE_PUBLISHED' || !this.outbox) {
-      if (this.firebaseApp) await this.deliverResidentEvent(event);
+      if (this.hasTransport()) await this.deliverResidentEvent(event);
       return;
     }
     const queued = await this.outbox.enqueue({
@@ -139,12 +164,12 @@ export class PushNotificationService {
       dedupeKey: residentPushDedupeKey(event),
       payload: event as unknown as Record<string, unknown>,
     });
-    if (!queued || queued.status === 'DISPATCHED' || !this.firebaseApp) return;
+    if (!queued || queued.status === 'DISPATCHED' || !this.hasTransport()) return;
     await this.outbox.attempt(queued.id, (work) => this.deliverOutbox(work));
   }
 
   drainDurableOutbox() {
-    if (!this.firebaseApp || !this.outbox) {
+    if (!this.hasTransport() || !this.outbox) {
       return Promise.resolve({ dispatched: 0, deferred: 0, failed: 0, claimed: 0 });
     }
     return this.outbox.drainDue((work) => this.deliverOutbox(work));
@@ -206,28 +231,56 @@ export class PushNotificationService {
   }
 
   private async deliverResidentEvent(event: ResidentMessageEvent) {
-    if (!this.firebaseApp) throw new Error('FCM transport is unavailable');
+    if (!this.hasTransport()) throw new Error('FCM transport is unavailable');
     if (!event.userId) return;
-    const registrations = await this.prisma.devicePushToken.findMany({ where: { societyId: event.societyId, userId: event.userId, active: true }, select: { id: true, token: true } });
-    if (registrations.length === 0) return;
+    const registrations = await this.prisma.devicePushToken.findMany({ where: { societyId: event.societyId, userId: event.userId, active: true }, select: { id: true, token: true, applicationId:true, firebaseProjectId:true } });
     const content = this.residentPushContent(event);
-    const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
-      tokens: registrations.map((item) => item.token), notification: { title: content.title, body: content.body },
-      data: { type: event.type, societyId: event.societyId, ...content.data }, android: { priority: 'high' }, apns: { payload: { aps: { sound: 'default', contentAvailable: true } } },
-    });
-    const invalidIds: string[] = [];
-    let transientFailures = 0;
-    response.responses.forEach((result, index) => {
-      if (result.success) return;
-      const code = result.error?.code;
-      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') invalidIds.push(registrations[index].id);
-      else {
-        transientFailures += 1;
-        this.logger.warn(`FCM delivery failed for resident event ${event.type}: ${code ?? 'unknown error'}`);
+    const groups=new Map<App,typeof registrations>();
+    let routingFailures=0;
+    const brandedApps=new Set<App>();
+    for(const registration of registrations){
+      let app=this.firebaseApp;
+      if(registration.applicationId){
+       try {
+        const route=applicationPushProject(this.applicationRoutes,registration.applicationId,registration.firebaseProjectId);
+        const memberships=await this.prisma.societyMembership.findMany({where:{societyId:event.societyId,userId:event.userId,active:true,user:{is:{status:'ACTIVE'}}},select:{role:true}});
+        await assertApplicationSociety(this.prisma,route.applicationId,event.societyId,memberships.map(m=>m.role as AppRole),'OPERATE');
+        app=this.applicationApps.get(route.applicationId);
+        if(app)brandedApps.add(app);
+       }catch(error){
+        if(error instanceof UnauthorizedException)await this.prisma.devicePushToken.updateMany({where:{id:registration.id},data:{active:false}});
+        else routingFailures++;
+        continue;
+       }
       }
-    });
-    if (invalidIds.length > 0) await this.prisma.devicePushToken.updateMany({ where: { id: { in: invalidIds } }, data: { active: false } });
-    if (transientFailures > 0) throw new Error(`FCM resident delivery had ${transientFailures} transient failure(s)`);
+      if(!app){routingFailures++;continue;}
+      const group=groups.get(app)??[];group.push(registration);groups.set(app,group);
+    }
+    let transientFailures=0;
+    for(const [app,group] of groups){
+      let title=content.title;
+      if(brandedApps.has(app)&&this.branding){
+        try{const context=await this.branding.context({userId:event.userId,societyId:event.societyId,roles:[]});title=context.branding.brand.displayName+' · '+title;}
+        catch{routingFailures++;continue;}
+      }
+      // FCM multicast supports at most 500 registrations per request.
+      for(let start=0;start<group.length;start+=500){
+        const batch=group.slice(start,start+500);
+        const response=await getMessaging(app).sendEachForMulticast({
+          tokens:batch.map(item=>item.token),notification:{title,body:content.body},
+          data:{type:event.type,societyId:event.societyId,...content.data},android:{priority:'high'},apns:{payload:{aps:{sound:'default',contentAvailable:true}}},
+        });
+        const invalidIds:string[]=[];
+        response.responses.forEach((result,index)=>{
+          if(result.success)return;
+          const code=result.error?.code;
+          if(code==='messaging/registration-token-not-registered'||code==='messaging/invalid-registration-token')invalidIds.push(batch[index].id);
+          else transientFailures++;
+        });
+        if(invalidIds.length)await this.prisma.devicePushToken.updateMany({where:{id:{in:invalidIds}},data:{active:false}});
+      }
+    }
+    if(transientFailures+routingFailures>0)throw new Error(`FCM resident delivery had ${transientFailures} transient failure(s) and ${routingFailures} routing failure(s)`);
   }
 
   private residentPushContent(event: ResidentMessageEvent): { title: string; body: string; data: Record<string, string> } {

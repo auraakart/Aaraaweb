@@ -30,6 +30,12 @@ export class BrandLogoController {
     return this.service.createUpload(req.auth!.societyId!, req.auth!.userId, input);
   }
 
+  @Post(':assetId/cancel')
+  @Header('Cache-Control', 'no-store')
+  cancel(@Req() req: AuthenticatedRequest, @Param('assetId', ParseUUIDPipe) id: string) {
+    return this.service.cancelUpload(req.auth!.societyId!, req.auth!.userId, id);
+  }
+
   @Post(':assetId/confirm')
   @Header('Cache-Control', 'no-store')
   confirm(@Req() req: AuthenticatedRequest, @Param('assetId', ParseUUIDPipe) id: string) {

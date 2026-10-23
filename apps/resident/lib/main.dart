@@ -91,8 +91,8 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
           accessToken: session.accessToken,
         );
       },
-      fetchLogo: (session) => fetchPublishedSocietyLogo(
-        baseUrl: widget.apiBaseUrl, accessToken: session.accessToken),
+      fetchRevisionLogo: (session, revision) => fetchPublishedSocietyLogo(
+        baseUrl: widget.apiBaseUrl, accessToken: session.accessToken, expectedRevision: revision),
       fetchContext: (session) async {
         final api = ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken);
         try {
@@ -144,6 +144,7 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
               experiencePreferences: widget.experiencePreferences,
               societyLogoBytes: _branding.logoBytes,
               societyDisplayName: societyBrand?.displayName,
+              supportEmail: societyBrand?.supportEmail, supportPhone: societyBrand?.supportPhone,
             ),
           );
         },
@@ -151,12 +152,13 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
 }
 
 class _ResidentSessionGate extends StatefulWidget {
-  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences, this.societyLogoBytes, this.societyDisplayName});
+  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences, this.societyLogoBytes, this.societyDisplayName, this.supportEmail, this.supportPhone});
   final String apiBaseUrl;
   final ResidentAuthController authController;
   final ResidentExperiencePreferences experiencePreferences;
   final Uint8List? societyLogoBytes;
   final String? societyDisplayName;
+  final String? supportEmail, supportPhone;
   @override
   State<_ResidentSessionGate> createState() => _ResidentSessionGateState();
 }
@@ -223,6 +225,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           controller: _dataController!,
           societyLogoBytes: widget.societyLogoBytes,
           societyDisplayName: widget.societyDisplayName,
+          supportEmail: widget.supportEmail, supportPhone: widget.supportPhone,
           consumerApiClient: consumerApiClient,
           onSignOut: _signOut,
           canManageFamilyMembers: widget.authController.isActivePropertyOwner,
@@ -240,10 +243,11 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged, this.societyLogoBytes, this.societyDisplayName});
+  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged, this.societyLogoBytes, this.societyDisplayName, this.supportEmail, this.supportPhone});
   final ResidentDataController controller;
   final Uint8List? societyLogoBytes;
   final String? societyDisplayName;
+  final String? supportEmail, supportPhone;
   final ApiClient consumerApiClient;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
@@ -306,6 +310,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
   ProfileScreen _profile(ResidentDataController controller) => ProfileScreen(
         controller: controller,
         onSignOut: widget.onSignOut,
+        supportEmail: widget.supportEmail, supportPhone: widget.supportPhone,
         canManageFamilyMembers: widget.canManageFamilyMembers,
         propertyContexts: widget.propertyContexts,
         currentSocietyId: widget.currentSocietyId,

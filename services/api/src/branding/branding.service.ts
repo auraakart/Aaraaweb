@@ -1,4 +1,5 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { PartnerBrandService } from './partner-brand.service';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuthPrincipal } from '../auth/auth.types';
 import { AppPermission, hasPermission } from '../auth/permission.types';
@@ -14,6 +15,7 @@ export class BrandingService {
     private readonly prisma: PrismaService,
     private readonly entitlements: EntitlementService,
     private readonly memberships: PrismaMembershipRepository,
+    @Optional() private readonly partnerBrands?: PartnerBrandService,
   ) {}
 
   bootstrap(): BrandBootstrap {
@@ -45,7 +47,7 @@ export class BrandingService {
       const [society, entitlements, published] = await Promise.all([
         tx.society.findFirst({
           where: { id: societyId, status: 'ACTIVE' },
-          select: { id: true, name: true },
+          select: { id: true, name: true, partnerId: true, ownershipVersion: true },
         }),
         this.entitlements.current(societyId, tx),
         tx.societyBrandRevision.findFirst({
@@ -59,22 +61,22 @@ export class BrandingService {
       // A corrupt/stale published presentation may not poison the scoped
       // identity/entitlement response; fall back to the exact default theme.
       const branding = this.bootstrap();
+      let config: import('./branding-contract').SocietyBrandPresentation = {};
+      let societyVersion = 0;
       if (published) {
         try {
-          const config = validateSocietyBrandPresentation(published.config);
-          if (societyBrandDigest(config) === published.digest) {
-            branding.revision = `society-${societyId}-v${published.version}`;
-            if (config.displayName) branding.brand.displayName = config.displayName;
-            if (config.colors) branding.brand.colors = { ...config.colors };
-            if (config.support) branding.brand.support = { ...config.support };
-          }
-        } catch {
-          // Malformed unpublished data never becomes executable styles or flags.
-        }
+          const checked = validateSocietyBrandPresentation(published.config);
+          if (societyBrandDigest(checked) === published.digest) { config = checked; societyVersion = published.version; }
+        } catch { /* Corrupt presentation falls back without changing authority. */ }
       }
+      const effective = this.partnerBrands ? await this.partnerBrands.resolve(tx, society, config) : { config, partnerVersion: 0 };
+      if (societyVersion || effective.partnerVersion) branding.revision = `society-${societyId}-v${societyVersion}${effective.partnerVersion ? '-p' + effective.partnerVersion : ''}`;
+      if (effective.config.displayName) branding.brand.displayName = effective.config.displayName;
+      if (effective.config.colors) branding.brand.colors = { ...effective.config.colors };
+      if (effective.config.support) branding.brand.support = { ...effective.config.support };
       return {
         branding,
-        society,
+        society: { id: society.id, name: society.name },
         // Preserve the existing resolver, including authorized legacy overrides.
         entitlements: { ...entitlements, enabledFeatures: [...entitlements.enabledFeatures] },
       };
@@ -103,12 +105,25 @@ export class BrandingService {
   async history(societyId: string, userId: string) {
     return this.prisma.withTenantContext(societyId, async tx => {
       await this.requireEditor(societyId, userId, tx);
-      return tx.societyBrandRevision.findMany({
-        where: { societyId },
-        orderBy: { version: 'desc' },
-        take: 100,
-        select: { id: true, version: true, schemaVersion: true, config: true, digest: true, publishedAt: true, createdAt: true },
+      const select = { id: true, version: true, schemaVersion: true, config: true, digest: true, publishedAt: true, createdAt: true } as const;
+      const rows = await tx.societyBrandRevision.findMany({
+        where: { societyId }, orderBy: { version: 'desc' }, take: 100, select,
       });
+      const published = await tx.societyBrandRevision.findFirst({
+        where: { societyId, publishedAt: { not: null } },
+        orderBy: [{ publishedAt: 'desc' }, { version: 'desc' }], select,
+      });
+      // Preserve the legacy bounded array contract, pinning authoritative
+      // publication even when more than 100 newer unpublished drafts exist.
+      return published && !rows.some(row => row.id === published.id)
+        ? [...rows.slice(0, 99), published] : rows;
+    });
+  }
+
+  publications(societyId: string, userId: string) {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.requireEditor(societyId, userId, tx);
+      return tx.societyBrandPublication.findMany({ where: { societyId }, orderBy: { createdAt: 'desc' }, take: 50 });
     });
   }
 
@@ -145,7 +160,8 @@ export class BrandingService {
     });
   }
 
-  async publish(societyId: string, userId: string, revisionId: string, expectedPublishedVersion: number) {
+  async publish(societyId: string, userId: string, revisionId: string, expectedPublishedVersion: number, reason = 'Publish society branding', restoredFromRevisionId?: string) {
+    if (typeof reason !== 'string' || reason.trim().length < 3 || reason.trim().length > 500) throw new ConflictException('Publication reason required');
     if (!Number.isSafeInteger(expectedPublishedVersion) || expectedPublishedVersion < 0)
       throw new ConflictException('Expected published branding version is invalid');
     return this.prisma.withTenantContext(societyId, async tx => {
@@ -154,7 +170,7 @@ export class BrandingService {
       const current = await tx.societyBrandRevision.findFirst({
         where: { societyId, publishedAt: { not: null } },
         orderBy: [{ publishedAt: 'desc' }, { version: 'desc' }],
-        select: { version: true },
+        select: { id: true, version: true },
       });
       if ((current?.version ?? 0) !== expectedPublishedVersion)
         throw new ConflictException('Published society branding has changed');
@@ -168,12 +184,18 @@ export class BrandingService {
       const config = validateSocietyBrandPresentation(draft.config);
       if (societyBrandDigest(config) !== draft.digest)
         throw new ConflictException('Branding revision failed integrity verification');
+      if (restoredFromRevisionId) {
+        const original = await tx.societyBrandRevision.findFirst({ where: { id: restoredFromRevisionId, societyId, publishedAt: { not: null }, version: { lt: draft.version } } });
+        if (!original || original.digest !== draft.digest || societyBrandDigest(validateSocietyBrandPresentation(original.config)) !== draft.digest)
+          throw new ConflictException('Restore source differs from the published historical appearance');
+      }
       if (config.logoAssetId) await this.requireVerifiedLogo(societyId, config.logoAssetId, tx);
       const result = await tx.societyBrandRevision.updateMany({
         where: { id: draft.id, societyId, publishedAt: null },
         data: { publishedAt: new Date() },
       });
       if (result.count !== 1) throw new ConflictException('Branding revision is no longer publishable');
+      await tx.societyBrandPublication.create({ data: { societyId, revisionId: draft.id, publisherId: userId, reason: reason.trim(), previousRevisionId: current?.id ?? null, restoredFromRevisionId: restoredFromRevisionId ?? null } });
       return { id: draft.id, version: draft.version, revision: `society-${societyId}-v${draft.version}`, published: true };
     });
   }

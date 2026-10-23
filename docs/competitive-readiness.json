@@ -168,11 +168,11 @@
     }
   ],
   "currentReview": {
-    "asOf": "2026-10-22",
-    "milestone": "V5.8",
-    "baselineDevelopSha": "3add09c4c85c131e0e6f3af6c577a0d62b1fe79d",
+    "asOf": "2026-10-23",
+    "milestone": "V5.9",
+    "baselineDevelopSha": "52aae8ab11bab50bafce3e4594ed570b09e25c6c",
     "status": "SOFTWARE_SCOPE_IMPLEMENTED_PROTECTED_PR_ACCEPTANCE_REQUIRED",
-    "scopeDocument": "docs/V5.8-COMPETITIVE-WORKFLOW-DEPTH.md",
+    "scopeDocument": "docs/V5.9-WHITE-LABEL-COMPLETION.md",
     "marketRatingClaim": false,
     "productionizationClaim": false
   }

@@ -6,8 +6,9 @@ import 'guard_field_operations_screen.dart';
 import 'guard_school_transport_screen.dart';
 
 class GuardToolsScreen extends StatefulWidget {
-  const GuardToolsScreen({super.key, required this.controller});
+  const GuardToolsScreen({super.key, required this.controller, this.supportEmail, this.supportPhone});
   final GuardController controller;
+  final String? supportEmail, supportPhone;
 
   @override
   State<GuardToolsScreen> createState() => _GuardToolsScreenState();
@@ -43,6 +44,12 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
+            if (widget.supportEmail != null || widget.supportPhone != null)
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+                const Text('Support'),
+                if (widget.supportEmail != null) SelectableText(widget.supportEmail!),
+                if (widget.supportPhone != null) SelectableText(widget.supportPhone!),
+              ]))),
             DropdownButtonFormField<String>(
               initialValue: c.languageCode,
               isExpanded: true,

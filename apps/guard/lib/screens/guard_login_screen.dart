@@ -1,3 +1,4 @@
+import 'package:aaraagate_branding_runtime/branding_runtime.dart';
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
 import '../widgets/guard_state_card.dart';
@@ -47,7 +48,7 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Security shift',
+                  PackagedBrand.displayName == 'Aaraagate' ? 'Security shift' : '${PackagedBrand.displayName} security shift',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.5),
                 ),

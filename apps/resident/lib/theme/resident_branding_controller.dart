@@ -25,6 +25,7 @@ class ResidentBrandingController extends ChangeNotifier {
     required this.currentSession,
     required this.fetchContext,
     this.fetchLogo,
+    this.fetchRevisionLogo,
   }) {
     scopeChanges.addListener(_onScopeChanged);
     _onScopeChanged();
@@ -34,6 +35,7 @@ class ResidentBrandingController extends ChangeNotifier {
   final ResidentBrandSession? Function() currentSession;
   final Future<Object?> Function(ResidentBrandSession) fetchContext;
   final Future<Uint8List?> Function(ResidentBrandSession)? fetchLogo;
+  final Future<Uint8List?> Function(ResidentBrandSession, String revision)? fetchRevisionLogo;
 
   SocietyBrandTokens? current;
   Uint8List? logoBytes;
@@ -82,7 +84,7 @@ class ResidentBrandingController extends ChangeNotifier {
     if (next?.revision != current?.revision) logoBytes = null;
     current = next;
     notifyListeners();
-    if (next != null && fetchLogo != null) {
+    if (next != null && (fetchLogo != null || fetchRevisionLogo != null)) {
       unawaited(_loadLogo(session, generation));
     }
   }
@@ -90,7 +92,12 @@ class ResidentBrandingController extends ChangeNotifier {
   Future<void> _loadLogo(ResidentBrandSession session, int generation) async {
     Uint8List? bytes;
     try {
-      bytes = await fetchLogo!(session);
+      final revision = current?.revision;
+      if (fetchRevisionLogo != null && revision != null) {
+        bytes = await fetchRevisionLogo!(session, revision);
+      } else {
+        bytes = await fetchLogo?.call(session);
+      }
     } catch (_) {
       // Logo transport is cosmetic; never break resident workflows or login.
       bytes = null;
