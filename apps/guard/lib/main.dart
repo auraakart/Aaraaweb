@@ -47,8 +47,8 @@ class _AaraagateGuardAppState extends State<AaraagateGuardApp> with WidgetsBindi
     _branding = GuardBrandingController(
       sessionChanges: widget.controller,
       currentSession: () => widget.controller.session,
-      fetchLogo: (session) => fetchPublishedSocietyLogo(
-        baseUrl: widget.controller.api.baseUrl, accessToken: session.accessToken),
+      fetchRevisionLogo: (session, revision) => fetchPublishedSocietyLogo(
+        baseUrl: widget.controller.api.baseUrl, accessToken: session.accessToken, expectedRevision: revision),
       fetchContext: (session) => widget.controller.api.brandingContext(
         sessionAccessToken: session.accessToken,
       ),
@@ -105,7 +105,7 @@ class _AaraagateGuardAppState extends State<AaraagateGuardApp> with WidgetsBindi
                     const SizedBox(height: 10),
                     FloatingActionButton.extended(
                       heroTag: 'tools',
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuardToolsScreen(controller: widget.controller))),
+                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuardToolsScreen(controller: widget.controller, supportEmail: _branding.current?.supportEmail, supportPhone: _branding.current?.supportPhone))),
                       icon: const Icon(Icons.manage_search_rounded),
                       label: Text(strings.get('tools').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900)),
                     ),

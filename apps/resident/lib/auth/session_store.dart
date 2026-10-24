@@ -47,6 +47,8 @@ class SessionStore {
   SessionStore({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage();
   final FlutterSecureStorage _storage;
 
+  static const _applicationId = String.fromEnvironment('AARAGATE_PARTNER_APPLICATION_ID');
+  static const _applicationKey = 'resident.session.application_id';
   static const _sessionId = 'resident.session.id';
   static const _accessToken = 'resident.session.access_token';
   static const _refreshToken = 'resident.session.refresh_token';
@@ -56,6 +58,7 @@ class SessionStore {
   static const _activeUnitId = 'resident.session.active_unit_id';
 
   Future<ResidentSession?> read() async {
+    if (_applicationId.isNotEmpty && await _storage.read(key: _applicationKey) != _applicationId) return null;
     final values = await Future.wait([
       _storage.read(key: _sessionId),
       _storage.read(key: _accessToken),
@@ -81,6 +84,7 @@ class SessionStore {
 
   Future<void> write(ResidentSession session) async {
     await Future.wait([
+      if (_applicationId.isNotEmpty) _storage.write(key: _applicationKey, value: _applicationId),
       _storage.write(key: _sessionId, value: session.sessionId),
       _storage.write(key: _accessToken, value: session.accessToken),
       _storage.write(key: _refreshToken, value: session.refreshToken),
@@ -93,6 +97,7 @@ class SessionStore {
 
   Future<void> clear() async {
     await Future.wait([
+      if (_applicationId.isNotEmpty) _storage.delete(key: _applicationKey),
       _storage.delete(key: _sessionId),
       _storage.delete(key: _accessToken),
       _storage.delete(key: _refreshToken),

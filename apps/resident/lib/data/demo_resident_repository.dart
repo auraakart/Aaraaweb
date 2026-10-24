@@ -1,3 +1,4 @@
+import 'resident_history.dart';
 import 'dart:typed_data';
 import 'api_client.dart';
 import 'resident_repository.dart';
@@ -5,6 +6,15 @@ import 'resident_repository.dart';
 class DemoResidentRepository extends ResidentRepository {
   DemoResidentRepository()
       : super(ApiClient(baseUrl: 'http://demo.invalid', accessToken: 'demo'));
+
+  @override
+  Future<void> recordJourney(String journey,String outcome,int durationMs,{int retryCount=0}) async {}
+  @override
+  Future<Map<String, dynamic>> maintenanceStatement({required String unitId, required String from, required String to}) async => throw StateError('Financial exports require a live authorized session');
+  @override
+  Future<List<Map<String,dynamic>>> helpdeskHistory({String? unitId, String search = '', String? status, ResidentHistoryCursor? before}) async => showcaseHistory(await helpdeskTickets(), unitId:unitId, search:search, status:status, before:before);
+  @override
+  Future<List<Map<String,dynamic>>> maintenancePaymentHistory({String? unitId, ResidentHistoryCursor? before}) async => showcaseHistory(await maintenancePayments(), before:before);
 
   final Map<String,List<Map<String,dynamic>>> _complaintPhotos = {};
   final Map<String,Uint8List> _complaintPhotoBytes = {};

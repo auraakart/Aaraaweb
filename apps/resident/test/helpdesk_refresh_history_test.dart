@@ -1,3 +1,4 @@
+import 'package:aaraagate_resident/data/resident_history.dart';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
@@ -12,6 +13,9 @@ class _RefreshHelpdeskRepository extends ResidentRepository {
     ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test'),
   );
   bool failLoad = false;
+
+  @override
+  Future<List<Map<String, dynamic>>> helpdeskHistory({String? unitId, String search = '', String? status, ResidentHistoryCursor? before}) async => showcaseHistory(await helpdeskTickets(), unitId:unitId, search:search, status:status, before:before);
 
   @override
   Future<List<Map<String, dynamic>>> helpdeskTickets() async {

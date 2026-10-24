@@ -22,4 +22,6 @@ export interface AuthPrincipal {
   audience?: "PARTNER";
   /** Derived from the persisted verified domain claim, never client input. */
   hostPartnerId?: string;
+  /** Persisted application restriction; never a membership grant. */
+  partnerApplicationId?: string;
 }

@@ -1,3 +1,4 @@
+import 'resident_history.dart';
 import 'api_client.dart';
 import 'dart:typed_data';
 import 'models/resident_boundary_models.dart';
@@ -315,6 +316,19 @@ class ResidentRepository {
   Future<Map<String, dynamic>> resolveHelpdeskAsset(String unitId, String code) async =>
       Map<String, dynamic>.from(await api.get('/api/v1/helpdesk/assets/resolve?unitId=${Uri.encodeQueryComponent(unitId)}&code=${Uri.encodeQueryComponent(code)}') as Map);
 
+  Future<List<Map<String, dynamic>>> helpdeskHistory({String? unitId, String search = '', String? status, ResidentHistoryCursor? before}) async {
+    final query = Uri(queryParameters: {if(unitId != null) 'unitId':unitId, if(search.isNotEmpty) 'search':search,
+      if(status != null) 'status':status, if(before != null) 'beforeDate':before.timestamp, if(before != null) 'beforeId':before.id}).query;
+    final value = await api.get('/api/v1/helpdesk/mine${query.isEmpty ? '' : '?$query'}');
+    return _list(value).map((row) => {...ResidentHelpdeskTicket.fromJson(row).toJson(), 'historyTimestamp':row['historyTimestamp']}).toList(growable:false);
+  }
+
+  Future<List<Map<String, dynamic>>> maintenancePaymentHistory({String? unitId, ResidentHistoryCursor? before}) async {
+    final query = Uri(queryParameters: {if(unitId != null) 'unitId':unitId,
+      if(before != null) 'beforeDate':before.timestamp, if(before != null) 'beforeId':before.id}).query;
+    return _list(await api.get('/api/v1/billing/payments/mine${query.isEmpty ? '' : '?$query'}'));
+  }
+
   Future<List<Map<String, dynamic>>> helpdeskTickets() async {
     final value = await api.get('/api/v1/helpdesk/mine');
     return _list(value).map((row) => ResidentHelpdeskTicket.fromJson(row).toJson()).toList(growable: false);
@@ -380,6 +394,18 @@ class ResidentRepository {
   Future<List<Map<String, dynamic>>> maintenancePayments() async {
     final value = await api.get('/api/v1/billing/payments/mine');
     return _list(value);
+  }
+
+  Future<void> recordJourney(String journey, String outcome, int durationMs, {int retryCount=0}) async {
+    try {
+      await api.post('/api/v1/analytics/journey', {'journey':journey,'outcome':outcome,
+        'durationMs':durationMs.clamp(0,3600000),'retryCount':retryCount.clamp(0,5)});
+    } catch (_) { /* Observability must never change the user's operation result. */ }
+  }
+
+  Future<Map<String, dynamic>> maintenanceStatement({required String unitId, required String from, required String to}) async {
+    final query = Uri(queryParameters: {'unitId': unitId, 'from': from, 'to': to}).query;
+    return Map<String, dynamic>.from(await api.get('/api/v1/billing/statement?$query') as Map);
   }
 
   Future<Map<String, dynamic>> maintenanceReceipt(String paymentId) async {

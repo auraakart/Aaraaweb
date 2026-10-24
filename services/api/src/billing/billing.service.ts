@@ -1,3 +1,6 @@
+import { ResidentHistoryQuery, validateHistory } from '../reliability/resident-history';
+import { ResidentStatementService } from './resident-statement.service';
+import { receiptReferenceSql, legacyReceiptReferenceSql } from './receipt-reference';
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -173,9 +176,11 @@ export class BillingService {
     `);
   }
 
-  listPaymentsMine(societyId: string, userId: string, unitId?: string) {
+  listPaymentsMine(societyId: string, userId: string, unitId?: string, history?: ResidentHistoryQuery) {
+    if (history) validateHistory(history);
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT p."id", p."invoiceId", p."amountPaise", p."status",
+        to_char(p."createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "historyTimestamp",
         p."createdAt", p."completedAt", i."invoiceNumber", i."billingPeriod",
         u."number" AS "unitNumber", b."name" AS "buildingName"
       FROM "Payment" p
@@ -192,13 +197,19 @@ export class BillingService {
             AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         ))
-      ORDER BY p."createdAt" DESC
+        ${history?.beforeDate ? Prisma.sql`AND (p."createdAt",p."id")<(${history.beforeDate}::timestamptz,${history.beforeId}::uuid)` : Prisma.empty}
+      ORDER BY p."createdAt" DESC, p."id" DESC
+      ${history ? Prisma.sql`LIMIT 51` : Prisma.empty}
     `);
+  }
+
+  statement(societyId: string, userId: string, unitId: string, from: string, to: string) {
+    return new ResidentStatementService(this.prisma).statement(societyId, userId, unitId, from, to);
   }
 
   getReceipt(societyId: string, userId: string, paymentId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT p."id" AS "paymentId", CONCAT('AGR-', UPPER(SUBSTRING(p."id"::text, 1, 8))) AS "receiptNumber",
+      SELECT p."id" AS "paymentId", ${receiptReferenceSql} AS "receiptNumber", ${legacyReceiptReferenceSql} AS "legacyReceiptNumber",
         p."amountPaise", p."status", p."completedAt",
         i."invoiceNumber", i."billingPeriod", i."paidAt",
         u."number" AS "unitNumber", b."name" AS "buildingName", s."name" AS "societyName"

@@ -1,3 +1,6 @@
+import '../data/maintenance_receipt.dart';
+import '../widgets/billing_receipt_sheet.dart';
+import '../data/resident_history.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
@@ -6,6 +9,7 @@ import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
+import '../widgets/billing_export.dart';
 
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key, required this.repository, this.activeUnitId});
@@ -24,6 +28,12 @@ class _BillingScreenState extends State<BillingScreen> {
   Map<String, dynamic>? utilityInsights;
   Map<String, dynamic>? financeSummary;
   Map<String, dynamic>? autopayPreference;
+  ResidentHistoryCursor? _paymentBefore;
+  ResidentHistoryCursor? _paymentNext;
+  final List<ResidentHistoryCursor?> _paymentPrevious = [];
+  int _loadEpoch = 0;
+  int _contextEpoch = 0;
+  final Map<String,int> _preparationAttempts = {};
   bool autopayBusy = false;
   String? autopayError;
   bool loading = true;
@@ -34,56 +44,69 @@ class _BillingScreenState extends State<BillingScreen> {
   @override
   void initState() { super.initState(); _load(); }
 
+  @override
+  void didUpdateWidget(covariant BillingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.repository, widget.repository) || oldWidget.activeUnitId != widget.activeUnitId) {
+      _contextEpoch++; _paymentAttemptKeys.clear(); _preparationAttempts.clear(); payingInvoiceId=null;
+      _paymentBefore=null; _paymentNext=null; _paymentPrevious.clear(); payments=const []; invoices=const []; _load();
+    }
+  }
+
   Future<void> _load() async {
+    final repository=widget.repository;
+    final selected=widget.activeUnitId;
+    final epoch=++_loadEpoch;
+    bool current()=>mounted && epoch==_loadEpoch && identical(repository,widget.repository) && selected==widget.activeUnitId;
     setState(() { loading = true; error = null; autopayError = null; });
     try {
-      final result = await Future.wait([widget.repository.maintenanceInvoices(), widget.repository.maintenancePayments()]);
-      final selected = widget.activeUnitId;
+      final result = await Future.wait([repository.maintenanceInvoices(), repository.maintenancePaymentHistory(unitId:selected,before:_paymentBefore)]);
+      final paymentPage = ResidentHistoryPage(result[1]);
       Map<String, dynamic>? summaryResult;
       try {
-        summaryResult = await widget.repository.maintenanceSummary(unitId: selected);
+        summaryResult = await repository.maintenanceSummary(unitId: selected);
       } catch (_) {
         summaryResult = null;
       }
       Map<String, dynamic>? autopayResult;
       if (selected != null && selected.isNotEmpty) {
         try {
-          autopayResult = await widget.repository.autopayPreference(unitId: selected);
+          autopayResult = await repository.autopayPreference(unitId: selected);
         } catch (_) {
           autopayResult = null;
         }
       }
       List<Map<String, dynamic>> utilityResult = const [];
       try {
-        utilityResult = await widget.repository.issuedUtilityCharges();
+        utilityResult = await repository.issuedUtilityCharges();
       } catch (_) {
         utilityResult = const [];
       }
       List<Map<String, dynamic>> utilityUsageResult = const [];
       try {
-        utilityUsageResult = await widget.repository.utilityUsageHistory(unitId: selected);
+        utilityUsageResult = await repository.utilityUsageHistory(unitId: selected);
       } catch (_) {
         utilityUsageResult = const [];
       }
       Map<String, dynamic>? utilityInsightResult;
       try {
-        utilityInsightResult = await widget.repository.utilityInsights(unitId: selected);
+        utilityInsightResult = await repository.utilityInsights(unitId: selected);
       } catch (_) {
         utilityInsightResult = null;
       }
       final scopedInvoices = selected == null ? result[0] : result[0].where((invoice) => invoice['unitId']?.toString() == selected).toList(growable: false);
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
-      final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
+      final scopedPayments = selected == null ? paymentPage.items : paymentPage.items.where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
       final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
       final payableInvoiceIds = scopedInvoices.where((invoice) => invoice['status'] == 'ISSUED').map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       _paymentAttemptKeys.removeWhere((invoiceId, _) => !payableInvoiceIds.contains(invoiceId));
-      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; utilityUsage = utilityUsageResult; utilityInsights = utilityInsightResult; financeSummary = summaryResult; autopayPreference = autopayResult; });
+      if (current()) setState(() { _paymentNext=paymentPage.next; invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; utilityUsage = utilityUsageResult; utilityInsights = utilityInsightResult; financeSummary = summaryResult; autopayPreference = autopayResult; });
     } on ApiException catch (exception) {
-      if (mounted) setState(() => error = exception.statusCode == 403 ? AaraagateStrings.device().text('billingLoadDenied') : AaraagateStrings.device().text('billingLoadFailed'));
+      if (current()) setState(() => error = exception.statusCode == 403 ? AaraagateStrings.device().text('billingLoadDenied') : AaraagateStrings.device().text('billingLoadFailed'));
     } catch (_) {
-      if (mounted) setState(() => error = AaraagateStrings.device().text('billingLoadFailed'));
+      if (current()) setState(() => error = AaraagateStrings.device().text('billingLoadFailed'));
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (current()) setState(() => loading = false);
     }
   }
 
@@ -144,40 +167,23 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   Future<void> _showReceipt(Map<String, dynamic> payment) async {
+    final repository=widget.repository;
+    final selected=widget.activeUnitId;
+    final epoch=_contextEpoch;
+    bool current()=>mounted && epoch==_contextEpoch && identical(repository,widget.repository) && selected==widget.activeUnitId;
     setState(() => error = null);
     try {
-      final receipt = await widget.repository.maintenanceReceipt(payment['id'].toString());
-      if (!mounted) return;
+      final receipt = MaintenanceReceipt.fromJson(await repository.maintenanceReceipt(payment['id'].toString()));
+      if (!current()) return;
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
         useSafeArea: true,
-        builder: (sheetContext) {
-          final theme = Theme.of(sheetContext);
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space1, AaraagateTokens.pageGutter, AaraagateTokens.space6),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(width: AaraagateTokens.iconContainer, height: AaraagateTokens.iconContainer, decoration: BoxDecoration(color: theme.colorScheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl)), child: Icon(Icons.receipt_long_outlined, color: theme.colorScheme.onPrimaryContainer)),
-                const SizedBox(width: AaraagateTokens.space3),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Receipt ${receipt['receiptNumber'] ?? ''}', style: theme.textTheme.titleLarge),
-                  Text('Server-verified payment', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                ])),
-              ]),
-              const SizedBox(height: AaraagateTokens.space5),
-              Text(_money((receipt['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.headlineMedium),
-              const SizedBox(height: AaraagateTokens.space2),
-              Text('${receipt['societyName']}\n${receipt['buildingName']} · ${receipt['unitNumber']}\nInvoice ${receipt['invoiceNumber']}\n${receipt['status']}', style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
-              const SizedBox(height: AaraagateTokens.space5),
-              SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: Text(AaraagateStrings.device().text('billingDone')))),
-            ]),
-          );
-        },
+        builder: (_) => BillingReceiptSheet(repository:repository,receipt:receipt,isCurrent:current),
       );
     } catch (_) {
-      if (mounted) setState(() => error = AaraagateStrings.device().text('billingReceiptFailed'));
+      if (current()) setState(() => error = AaraagateStrings.device().text('billingReceiptFailed'));
     }
   }
 
@@ -189,12 +195,18 @@ class _BillingScreenState extends State<BillingScreen> {
       setState(() => error = AaraagateStrings.device().text('billingPropertyMismatch'));
       return;
     }
-    widget.repository.recordUsage('PAYMENT_CHECKOUT_STARTED').ignore();
+    final repository=widget.repository;
+    final epoch=_contextEpoch;
+    bool current()=>mounted && epoch==_contextEpoch && identical(repository,widget.repository);
+    final timer=Stopwatch()..start();
+    final attempt=_preparationAttempts.update(id,(value)=>value+1,ifAbsent:()=>1);
+    repository.recordUsage('PAYMENT_CHECKOUT_STARTED').ignore();
     setState(() { payingInvoiceId = id; error = null; });
     try {
       final attemptKey = _paymentAttemptKeys.putIfAbsent(id, () => 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');
-      final order = await widget.repository.createMaintenancePayment(invoiceId: id, idempotencyKey: attemptKey);
-      if (!mounted) return;
+      final order = await repository.createMaintenancePayment(invoiceId: id, idempotencyKey: attemptKey);
+      repository.recordJourney('PAYMENT_PREPARATION','SUCCEEDED',timer.elapsedMilliseconds,retryCount:attempt-1).ignore();
+      if (!current()) return;
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
@@ -216,11 +228,12 @@ class _BillingScreenState extends State<BillingScreen> {
           );
         },
       );
-      await _load();
+      if(current()) { _paymentBefore=null; _paymentNext=null; _paymentPrevious.clear(); await _load(); }
     } catch (_) {
-      if (mounted) setState(() => error = AaraagateStrings.device().text('billingPreparationFailed'));
+      repository.recordJourney('PAYMENT_PREPARATION','FAILED',timer.elapsedMilliseconds,retryCount:attempt-1).ignore();
+      if (current()) setState(() => error = AaraagateStrings.device().text('billingPreparationFailed'));
     } finally {
-      if (mounted) setState(() => payingInvoiceId = null);
+      if (current()) setState(() => payingInvoiceId = null);
     }
   }
 
@@ -248,6 +261,7 @@ class _BillingScreenState extends State<BillingScreen> {
             else if (invoices.isEmpty && utilityCharges.isEmpty && (widget.activeUnitId == null || widget.activeUnitId!.isEmpty))
               AppStateCard(icon: Icons.receipt_long_outlined, message: strings.text('billingNoBills'))
             else ...[
+              BillingExportButton(repository: widget.repository, unitId: widget.activeUnitId),
               _SummaryCard(
                 outstanding: outstanding,
                 summary: financeSummary,
@@ -293,9 +307,9 @@ class _BillingScreenState extends State<BillingScreen> {
               ],
               if (recoveryPayments.isNotEmpty) ...[
                 SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
-                const PremiumSectionHeader(
-                  title: 'Payment activity',
-                  supportingText: 'Pending and failed attempts remain visible until the gateway confirms the final state.',
+                PremiumSectionHeader(
+                  title: strings.text('billingPaymentActivity'),
+                  supportingText: strings.text('billingPaymentActivityNote'),
                 ),
                 const SizedBox(height: AaraagateTokens.space2),
                 for (final payment in recoveryPayments) ...[
@@ -316,11 +330,15 @@ class _BillingScreenState extends State<BillingScreen> {
                   _PaymentCard(payment: payment, onReceipt: () => _showReceipt(payment)),
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
+              Wrap(spacing:12,children:[
+                if(_paymentPrevious.isNotEmpty) TextButton(onPressed:loading?null:(){_paymentBefore=_paymentPrevious.removeLast();_load();},child:Text(strings.text('historyNewer'))),
+                if(_paymentNext!=null) TextButton(onPressed:loading?null:(){_paymentPrevious.add(_paymentBefore);_paymentBefore=_paymentNext;_load();},child:Text(strings.text('historyOlder'))),
+              ]),
               if (utilityCharges.isNotEmpty) ...[
                 SizedBox(height: compact ? AaraagateTokens.space3 : AaraagateTokens.space5),
                 PremiumSectionHeader(
-                  title: 'Utility usage',
-                  supportingText: 'Issued meter-based charges for this property.',
+                  title: strings.text('billingUtilityUsage'),
+                  supportingText: strings.text('billingUtilityUsageNote'),
                   trailing: AaraagateStatusPill(label: '${utilityCharges.length}', tone: AaraagateStatusTone.neutral),
                 ),
                 const SizedBox(height: AaraagateTokens.space2),
@@ -738,7 +756,7 @@ class _InvoiceCard extends StatelessWidget {
         PremiumSectionHeader(
           title: '${invoice['buildingName'] ?? 'Building'} · ${invoice['unitNumber'] ?? 'Unit'}',
           trailing: AaraagateStatusPill(
-            label: overdue ? 'OVERDUE' : 'DUE',
+            label: AaraagateStrings.device().text(overdue ? 'billingOverdue' : 'billingDue'),
             tone: overdue ? AaraagateStatusTone.danger : AaraagateStatusTone.warning,
           ),
         ),
@@ -756,7 +774,7 @@ class _InvoiceCard extends StatelessWidget {
           child: FilledButton(
             onPressed: busy ? null : onPay,
             child: PremiumActionLabel(
-              label: 'Pay securely',
+              label: AaraagateStrings.device().text('billingPaySecurely'),
               icon: Icons.lock_outline_rounded,
               busy: busy,
             ),
@@ -778,11 +796,7 @@ class _PaymentRecoveryCard extends StatelessWidget {
     final status = payment['status']?.toString() ?? 'CREATED';
     final failed = status == 'FAILED';
     final authorized = status == 'AUTHORIZED';
-    final message = failed
-        ? 'Payment was not confirmed. Retry from the outstanding bill; no successful receipt is available.'
-        : authorized
-            ? 'Gateway authorization received. Waiting for captured confirmation before marking the bill paid.'
-            : 'Payment order created. Complete the gateway step; no amount is treated as paid yet.';
+    final message = AaraagateStrings.device().text(failed ? 'billingPendingFailed' : authorized ? 'billingPendingAuthorized' : 'billingPendingCreated');
     return PremiumSurface(
       color: failed ? scheme.errorContainer.withValues(alpha: .45) : scheme.surfaceContainerLow,
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -791,7 +805,7 @@ class _PaymentRecoveryCard extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           PremiumSectionHeader(
             title: _money((payment['amountPaise'] as num?)?.toInt() ?? 0),
-            trailing: AaraagateStatusPill(label: status, tone: failed ? AaraagateStatusTone.danger : AaraagateStatusTone.warning),
+            trailing: AaraagateStatusPill(label: AaraagateStrings.device().text('status$status'), tone: failed ? AaraagateStatusTone.danger : AaraagateStatusTone.warning),
           ),
           const SizedBox(height: AaraagateTokens.space1),
           Text(message, style: theme.textTheme.bodySmall?.copyWith(color: failed ? scheme.onErrorContainer : scheme.onSurfaceVariant)),
@@ -811,7 +825,7 @@ class _PaymentCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return PremiumSurface(
       onTap: onReceipt,
-      semanticLabel: 'Receipt for invoice ${payment['invoiceNumber'] ?? ''}',
+      semanticLabel: AaraagateStrings.device().format('billingReceiptReference', {'reference':payment['invoiceNumber'] ?? ''}),
       color: scheme.surfaceContainerLow,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         PremiumIdentityHeader(
@@ -821,7 +835,7 @@ class _PaymentCard extends StatelessWidget {
         ),
         const SizedBox(height: AaraagateTokens.space3),
         Row(children: [
-          Text('Receipt', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurface)),
+          Text(AaraagateStrings.device().format('billingReceiptReference', {'reference':''}).trim(), style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurface)),
           const SizedBox(width: AaraagateTokens.space1),
           Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
         ]),

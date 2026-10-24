@@ -132,6 +132,9 @@ withDatabase('distribution and legacy subscription native PostgreSQL',()=>{
     ...f.context(),expectedDigest:two.digest,reason:'Review update revision'
    });
    expect((await android.latest(f.principal(),f.societyId,initial.id,f.context())).version).toBe(2);
+   const jobs=new PartnerAndroidBuildReservationService(f.licenses);
+   const reservation=await jobs.reserve(f.principal(),f.societyId,initial.id,{...f.context(),revisionId:two.id,expectedDigest:two.digest});
+   expect(await jobs.checkpoint(f.principal(),f.societyId,initial.id,reservation.id,{...f.context(),revisionId:two.id,expectedDigest:two.digest,versionCode:reservation.versionCode,stage:'BEFORE_DISPATCH'})).toMatchObject({dispatchAllowed:false});
    await f.service.revoke(f.principal(),f.societyId,initial.id,{idempotencyKey:randomUUID(),reason:'Revoke test identity'});
    await expect(android.latest(f.principal(),f.societyId,initial.id,f.context())).rejects.toThrow(/approval/);
   }finally{await p.$disconnect();}
@@ -180,6 +183,53 @@ withDatabase('distribution and legacy subscription native PostgreSQL',()=>{
     ...f.context(),revisionId:revision.id,expectedDigest:revision.digest
    })).rejects.toThrow(/approval/);
    expect(await p.partnerAndroidBuildReservation.count({where:{proposalId:proposal.id}})).toBe(2);
+  }finally{await p.$disconnect();}
+ });
+});
+
+withDatabase('V5.9 partner presentation and application native boundaries',()=>{
+ it('inherits only current opted-in partner presentation and records publisher accountability',async()=>{
+  const p=new PrismaService();try{
+   const f=await fixture(p);
+   await p.partnerMembership.create({data:{partnerId:f.partnerId,userId:f.maker,role:'BRAND_MANAGER'}});
+   const {PartnerBrandService}=await import('../branding/partner-brand.service');
+   const {BrandingService}=await import('../branding/branding.service');
+   const {PrismaMembershipRepository}=await import('../auth/prisma-membership.repository');
+   const brands=new PartnerBrandService(p);
+   const draft=await brands.draft(f.maker,f.partnerId,0,{presentation:{displayName:'Partner native brand',colors:{primary:'#155E75',primaryDeep:'#164E63'}},societyOverrideFields:['support','logoAssetId']});
+   await brands.publish(f.maker,f.partnerId,draft.id,0,'Native approved presentation');
+   await expect(p.partnerBrandRevision.update({where:{id:draft.id},data:{reason:'Rewrite'}})).rejects.toThrow(/immutable/);
+   const branding=new BrandingService(p,f.entitlements,new PrismaMembershipRepository(p),brands);
+   expect(await branding.context(f.principal())).toMatchObject({branding:{brand:{displayName:'Partner native brand'},revision:`society-${f.societyId}-v0-p1`}});
+   const societyDraft=await branding.createDraft(f.societyId,f.maker,{expectedVersion:0,config:{displayName:'Society override'}});
+   await branding.publish(f.societyId,f.checker,societyDraft.id,0,'Reviewed society appearance');
+   expect(await p.societyBrandPublication.findUnique({where:{revisionId:societyDraft.id}})).toMatchObject({publisherId:f.checker,reason:'Reviewed society appearance'});
+   expect(await branding.context(f.principal())).toMatchObject({branding:{brand:{displayName:'Partner native brand'}}});
+   await f.licenses.consent(f.principal(f.maker),f.societyId,{...f.ctx(),decision:'WITHDRAW',expectedFeatures:[]});
+   expect(await branding.context(f.principal())).toMatchObject({branding:{brand:{displayName:'Society override'},revision:`society-${f.societyId}-v1`}});
+   expect(await f.entitlements.current(f.societyId)).toEqual(f.before);
+  }finally{await p.$disconnect();}
+ });
+ it('keeps partner application identity immutable and revalidates independently approved society scope',async()=>{
+  const p=new PrismaService();try{
+   const f=await fixture(p);
+   await p.partnerMembership.create({data:{partnerId:f.partnerId,userId:f.maker,role:'OWNER'}});
+   const {PartnerBrandService}=await import('../branding/partner-brand.service');
+   const {PartnerApplicationService}=await import('../branding/partner-application.service');
+   const {assertApplicationSociety}=await import('../auth/partner-application-binding');
+   const applications=new PartnerApplicationService(p,new PartnerBrandService(p),f.licenses,new SocietyOwnershipTransferService(p));
+   const app=await applications.register(f.maker,f.partnerId,{applicationId:f.manifest.applicationId,appRole:'RESIDENT',signerFingerprint:'f'.repeat(64)});
+   await expect(p.partnerApplication.update({where:{id:app.id},data:{signerFingerprint:'0'.repeat(64)}})).rejects.toThrow(/immutable/);
+   const scope=await applications.proposeScope(f.principal(f.maker),f.societyId,app.id,f.context());
+   await expect(applications.approveScope(f.principal(f.maker),f.societyId,app.id,scope.id,f.context())).rejects.toThrow(/Independent/);
+   await applications.approveScope(f.principal(),f.societyId,app.id,scope.id,f.context());
+   vi.stubEnv('NODE_ENV','test');vi.stubEnv('AARAGATE_ENABLE_TEST_APP_SESSIONS','true');
+   expect(await assertApplicationSociety(p,app.id,f.societyId,[AppRole.OWNER])).toMatchObject({id:app.id});
+   await expect(assertApplicationSociety(p,app.id,randomUUID(),[AppRole.OWNER])).rejects.toThrow();
+   await applications.revokeScope(f.principal(),f.societyId,app.id,scope.id);
+   await expect(assertApplicationSociety(p,app.id,f.societyId,[AppRole.OWNER])).rejects.toThrow(/allocation/);
+   await expect(p.partnerApplicationScope.update({where:{id:scope.id},data:{revokedAt:null,revokedById:null}})).rejects.toThrow(/Revoked/);
+   expect(await f.entitlements.current(f.societyId)).toEqual(f.before);
   }finally{await p.$disconnect();}
  });
 });

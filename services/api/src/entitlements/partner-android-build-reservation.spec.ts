@@ -143,10 +143,9 @@ describe('V5.5.5 read-only TEST builder live-authority checkpoints',()=>{
   f.proposal.digest=digest(original);f.revision.digest='0'.repeat(64);
   await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/digest/);
  });
- it('rejects changes in immutable package/source/brand/signer fields',async()=>{
+ it('rejects changes in immutable package/signer fields',async()=>{
   const f=prepared();
-  for(const [key,value] of [['applicationId','in.foreign.other'],['sourceSha','b'.repeat(40)],
-   ['configDigest','0'.repeat(64)],['signingProfile','TEST_FOREIGN'],['appRole','GUARD'],
+  for(const [key,value] of [['applicationId','in.foreign.other'],['signingProfile','TEST_FOREIGN'],['appRole','GUARD'],
    ['signerFingerprint','bad']] as const){
    const changed={...manifest,[key]:value};
    f.revision.manifest=changed;
@@ -155,6 +154,14 @@ describe('V5.5.5 read-only TEST builder live-authority checkpoints',()=>{
    await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,
     {...context(),expectedDigest:f.revision.digest})).rejects.toThrow(/identity/);
   }
+ });
+ it.each(['BEFORE_DISPATCH','BEFORE_COMPLETION'] as const)('accepts exact reviewed source and brand updates at %s',async stage=>{
+  const f=prepared();
+  const updated={...manifest,sourceSha:'b'.repeat(40),configDigest:'0'.repeat(64),label:'Updated brand'};
+  f.revision.manifest=updated;f.revision.digest=digest(updated);
+  f.tx.partnerAndroidBuildReservation.findFirst.mockResolvedValue({...f.job,digest:f.revision.digest});
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,{...context(stage),expectedDigest:f.revision.digest})).resolves.toMatchObject({dispatchAllowed:false});
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context(stage))).rejects.toThrow(/digest/);
  });
  it('propagates license allocation/consent revocation at both stages',async()=>{
   const f=prepared();f.run.mockRejectedValue(new Error('Current consent withdrawn'));

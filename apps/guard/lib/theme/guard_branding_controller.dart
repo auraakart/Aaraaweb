@@ -14,6 +14,7 @@ class GuardBrandingController extends ChangeNotifier {
     required this.currentSession,
     required this.fetchContext,
     this.fetchLogo,
+    this.fetchRevisionLogo,
   }) {
     sessionChanges.addListener(_onSessionChange);
     _onSessionChange();
@@ -23,6 +24,7 @@ class GuardBrandingController extends ChangeNotifier {
   final GuardSession? Function() currentSession;
   final Future<Object?> Function(GuardSession) fetchContext;
   final Future<Uint8List?> Function(GuardSession)? fetchLogo;
+  final Future<Uint8List?> Function(GuardSession, String revision)? fetchRevisionLogo;
   String? _identity;
   int _generation = 0;
   bool _disposed = false;
@@ -70,7 +72,7 @@ class GuardBrandingController extends ChangeNotifier {
     if (next?.revision != current?.revision) logoBytes = null;
     current = next;
     notifyListeners();
-    if (next != null && fetchLogo != null) {
+    if (next != null && (fetchLogo != null || fetchRevisionLogo != null)) {
       unawaited(_loadLogo(session, generation));
     }
   }
@@ -78,7 +80,12 @@ class GuardBrandingController extends ChangeNotifier {
   Future<void> _loadLogo(GuardSession session, int generation) async {
     Uint8List? bytes;
     try {
-      bytes = await fetchLogo!(session);
+      final revision = current?.revision;
+      if (fetchRevisionLogo != null && revision != null) {
+        bytes = await fetchRevisionLogo!(session, revision);
+      } else {
+        bytes = await fetchLogo?.call(session);
+      }
     } catch (_) {
       // A logo failure cannot affect gate operations, offline queue or sign-in.
       bytes = null;

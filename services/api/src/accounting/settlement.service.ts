@@ -1,3 +1,4 @@
+import { receiptReferenceSql, legacyReceiptReferenceSql } from '../billing/receipt-reference';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -49,7 +50,7 @@ export class SettlementService {
         p."providerPaymentId", p."providerOrderId", i."invoiceNumber", u."number" AS "unitNumber",
         b."name" AS "buildingName", payer."name" AS "payerName",
         CASE WHEN p."status" IN ('CAPTURED','REFUNDED') AND p."purposeType"='MAINTENANCE_INVOICE'
-          THEN CONCAT('AGR-', UPPER(SUBSTRING(p."id"::text, 1, 8))) ELSE NULL END AS "receiptNumber"
+          THEN ${receiptReferenceSql} ELSE NULL END AS "receiptNumber"
       FROM "Payment" p
       LEFT JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
       LEFT JOIN "Unit" u ON u."id"=i."unitId" AND u."societyId"=p."societyId"
@@ -59,7 +60,7 @@ export class SettlementService {
         p."id"::text ILIKE ${term} OR p."providerOrderId" ILIKE ${term} OR
         COALESCE(p."providerPaymentId",'') ILIKE ${term} OR COALESCE(i."invoiceNumber",'') ILIKE ${term} OR
         COALESCE(u."number",'') ILIKE ${term} OR COALESCE(payer."name",'') ILIKE ${term} OR
-        (p."status" IN ('CAPTURED','REFUNDED') AND p."purposeType"='MAINTENANCE_INVOICE' AND CONCAT('AGR-', UPPER(SUBSTRING(p."id"::text, 1, 8))) ILIKE ${term})
+        (p."status" IN ('CAPTURED','REFUNDED') AND p."purposeType"='MAINTENANCE_INVOICE' AND (${receiptReferenceSql} ILIKE ${term} OR ${legacyReceiptReferenceSql} ILIKE ${term}))
       ) ORDER BY p."createdAt" DESC, p."id" LIMIT 30
     `);
   }

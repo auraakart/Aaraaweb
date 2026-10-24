@@ -8,6 +8,13 @@ datasource db {
 }
 
 model User {
+  partnerBrandCreated PartnerBrandRevision[] @relation("PartnerBrandCreator")
+  partnerBrandPublished PartnerBrandRevision[] @relation("PartnerBrandPublisher")
+  societyBrandPublications SocietyBrandPublication[]
+  partnerApplications PartnerApplication[]
+  applicationScopesCreated PartnerApplicationScope[] @relation("ApplicationScopeCreator")
+  applicationScopesApproved PartnerApplicationScope[] @relation("ApplicationScopeApprover")
+  applicationScopesRevoked PartnerApplicationScope[] @relation("ApplicationScopeRevoker")
   id                        String                     @id @default(uuid()) @db.Uuid
   phone                     String                     @unique
   email                     String?                    @unique
@@ -74,6 +81,8 @@ model User {
 }
 
 model Society {
+  brandPublications SocietyBrandPublication[]
+  applicationScopes PartnerApplicationScope[]
   id                   String                     @id @default(uuid()) @db.Uuid
   name                 String
   code                 String                     @unique
@@ -139,6 +148,8 @@ model Society {
 
 // Commercial ownership is separate from society operational authorization.
 model Partner {
+  brandRevisions PartnerBrandRevision[]
+  applications PartnerApplication[]
   id          String              @id @default(uuid()) @db.Uuid
   slug        String              @unique
   displayName String
@@ -324,6 +335,7 @@ model SocietyBrandLogoAsset {
 }
 
 model SocietyBrandRevision {
+  publication SocietyBrandPublication?
   id            String   @id @default(uuid()) @db.Uuid
   societyId     String   @db.Uuid
   version       Int
@@ -493,6 +505,7 @@ model SocietyLicenseConsent {
 }
 
 model SocietyLicenseAllocation {
+  applicationScopes PartnerApplicationScope[]
   id               String @id @default(uuid()) @db.Uuid
   approvalId       String @db.Uuid
   societyId        String @db.Uuid
@@ -1186,6 +1199,8 @@ model GateMutationReceipt {
 }
 
 model DevicePushToken {
+  applicationId String? @db.Uuid
+  firebaseProjectId String? @db.VarChar(150)
   id         String         @id @default(uuid()) @db.Uuid
   societyId  String         @db.Uuid
   userId     String         @db.Uuid
@@ -1204,6 +1219,7 @@ model DevicePushToken {
 }
 
 model Session {
+  partnerApplicationId String? @db.Uuid
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @db.Uuid
   societyId        String?   @db.Uuid
@@ -2040,4 +2056,71 @@ model HelpdeskPhoto {
   ticket HelpdeskTicket @relation(fields: [ticketId, societyId], references: [id, societyId], onDelete: Cascade)
   @@unique([societyId, createdById, idempotencyKey])
   @@index([societyId, ticketId, createdAt])
+}
+
+// V5.9 presentation and application identity; never operational permission grants.
+model PartnerBrandRevision {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  version Int
+  config Json
+  digest String @db.VarChar(64)
+  createdById String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  publishedAt DateTime? @db.Timestamptz(6)
+  publishedById String? @db.Uuid
+  reason String? @db.VarChar(500)
+  partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
+  creator User @relation("PartnerBrandCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  publisher User? @relation("PartnerBrandPublisher",fields:[publishedById],references:[id],onDelete:Restrict)
+  @@unique([partnerId,version])
+  @@index([partnerId,publishedAt(sort:Desc),version(sort:Desc)])
+}
+model SocietyBrandPublication {
+  id String @id @default(uuid()) @db.Uuid
+  societyId String @db.Uuid
+  revisionId String @unique @db.Uuid
+  publisherId String @db.Uuid
+  reason String @db.VarChar(500)
+  previousRevisionId String? @db.Uuid
+  restoredFromRevisionId String? @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  society Society @relation(fields:[societyId],references:[id],onDelete:Restrict)
+  revision SocietyBrandRevision @relation(fields:[revisionId],references:[id],onDelete:Restrict)
+  publisher User @relation(fields:[publisherId],references:[id],onDelete:Restrict)
+  @@index([societyId,createdAt])
+}
+model PartnerApplication {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  applicationId String @unique @db.VarChar(150)
+  appRole String @db.VarChar(16)
+  signerFingerprint String @db.VarChar(64)
+  createdById String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
+  creator User @relation(fields:[createdById],references:[id],onDelete:Restrict)
+  scopes PartnerApplicationScope[]
+  @@index([partnerId,appRole])
+}
+model PartnerApplicationScope {
+  id String @id @default(uuid()) @db.Uuid
+  applicationId String @db.Uuid
+  societyId String @db.Uuid
+  allocationId String @db.Uuid
+  ownershipVersion Int
+  createdById String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  approvedById String? @db.Uuid
+  approvedAt DateTime? @db.Timestamptz(6)
+  revokedById String? @db.Uuid
+  revokedAt DateTime? @db.Timestamptz(6)
+  application PartnerApplication @relation(fields:[applicationId],references:[id],onDelete:Restrict)
+  society Society @relation(fields:[societyId],references:[id],onDelete:Restrict)
+  allocation SocietyLicenseAllocation @relation(fields:[allocationId],references:[id],onDelete:Restrict)
+  creator User @relation("ApplicationScopeCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  approver User? @relation("ApplicationScopeApprover",fields:[approvedById],references:[id],onDelete:Restrict)
+  revoker User? @relation("ApplicationScopeRevoker",fields:[revokedById],references:[id],onDelete:Restrict)
+  @@unique([applicationId,allocationId])
+  @@index([societyId,applicationId])
 }

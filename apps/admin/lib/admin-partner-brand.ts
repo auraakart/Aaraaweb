@@ -1,0 +1,11 @@
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const object=(v:unknown):Record<string,unknown>=>{if(!v||typeof v!=='object'||Array.isArray(v))throw Error('Invalid partner readiness');return v as Record<string,unknown>}
+const count=(v:unknown)=>{if(!Number.isSafeInteger(v)||(v as number)<0)throw Error('Invalid readiness count');return v as number}
+export type PartnerReadiness={partnerId:string;branding:{published:boolean;version:number|null};domains:{verified:number;expiringSoon:number};applications:{id:string;applicationId:string;appRole:string;pushRouteConfigured:boolean}[];scopes:{pending:number;approved:number};licensing:{approvedActiveGrant:boolean;ambiguous:boolean};hasMoreApplications:boolean}
+export function parsePartnerReadiness(value:unknown,partnerId:string):PartnerReadiness{
+ const v=object(value),brand=object(v.branding),domains=object(v.domains),scopes=object(v.scopes),licensing=object(v.licensing)
+ if(v.partnerId!==partnerId||!uuid.test(partnerId)||v.dispatchAllowed!==false||v.productionReady!==false||typeof brand.published!=='boolean'||typeof v.hasMoreApplications!=='boolean'||typeof licensing.approvedActiveGrant!=='boolean'||typeof licensing.ambiguous!=='boolean'||!Array.isArray(v.applications)||v.applications.length>50)throw Error('Partner readiness scope changed')
+ if(brand.version!==null&&(!Number.isSafeInteger(brand.version)||(brand.version as number)<1))throw Error('Invalid brand version')
+ const applications=v.applications.map(value=>{const a=object(value);if(typeof a.id!=='string'||!uuid.test(a.id)||typeof a.applicationId!=='string'||a.applicationId.length>150||!['RESIDENT','GUARD'].includes(String(a.appRole))||typeof a.pushRouteConfigured!=='boolean')throw Error('Invalid application readiness');return {id:a.id,applicationId:a.applicationId,appRole:String(a.appRole),pushRouteConfigured:a.pushRouteConfigured}})
+ return {partnerId,branding:{published:brand.published,version:brand.version as number|null},domains:{verified:count(domains.verified),expiringSoon:count(domains.expiringSoon)},applications,scopes:{pending:count(scopes.pending),approved:count(scopes.approved)},licensing:{approvedActiveGrant:licensing.approvedActiveGrant as boolean,ambiguous:licensing.ambiguous as boolean},hasMoreApplications:v.hasMoreApplications as boolean}
+}

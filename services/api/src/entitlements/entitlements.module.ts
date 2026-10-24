@@ -34,6 +34,6 @@ import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 @Module({
   controllers: [PartnerDistributionController, PartnerLicenseOverviewController, PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController, PartnerMemberLifecycleController, PartnerDomainClaimController],
   providers: [PartnerDistributionService, PartnerAndroidBuildRevisionService, PartnerAndroidBuildReservationService, PartnerAndroidBuildWorkerClaimService, PartnerAndroidBuildWorkerConsumptionService, PartnerAndroidRunnerChallengeService, PartnerAndroidRunnerEvidenceAcceptanceService, LegacySubscriptionConversionService, PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService, PartnerDomainClaimService, PartnerDomainVerificationService],
-  exports: [EntitlementService, FeatureGuard],
+  exports: [EntitlementService, FeatureGuard, PartnerLicenseLifecycleService, SocietyOwnershipTransferService],
 })
 export class EntitlementsModule {}

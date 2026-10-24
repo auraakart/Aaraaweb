@@ -1,3 +1,4 @@
+import 'package:aaraagate_resident/data/resident_history.dart';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
@@ -35,6 +36,9 @@ class _PropertyScopedRepository extends ResidentRepository {
           'unitNumber': '202',
         },
       ];
+
+  @override
+  Future<List<Map<String, dynamic>>> maintenancePaymentHistory({String? unitId, ResidentHistoryCursor? before}) => maintenancePayments();
 
   @override
   Future<List<Map<String, dynamic>>> maintenancePayments() async => [
@@ -75,6 +79,9 @@ class _PropertyScopedRepository extends ResidentRepository {
         'debitDaysBefore': 1,
         'boundary': 'Test preference only; no automatic debit is active.',
       };
+
+  @override
+  Future<List<Map<String, dynamic>>> helpdeskHistory({String? unitId, String search = '', String? status, ResidentHistoryCursor? before}) async => showcaseHistory(await helpdeskTickets(), unitId:unitId, search:search, status:status, before:before);
 
   @override
   Future<List<Map<String, dynamic>>> helpdeskTickets() async => [

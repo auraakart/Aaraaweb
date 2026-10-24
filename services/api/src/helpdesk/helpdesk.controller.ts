@@ -1,3 +1,4 @@
+import { ResidentHistoryQuery } from '../reliability/resident-history';
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
@@ -70,8 +71,8 @@ export class HelpdeskController {
 
   @Get('mine')
   @RequiresPermissions(AppPermission.HELPDESK_READ_OWN)
-  mine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
-    return this.helpdesk.listMine(societyId, this.requireUser(userId));
+  mine(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Query() query: ResidentHistoryQuery) {
+    return this.helpdesk.listMine(societyId, this.requireUser(userId), query);
   }
 
   @Get('assets/resolve')
