@@ -1,3 +1,4 @@
+import { BrandingModule } from '../branding/branding.module';
 import { Global, Module } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerNotificationsController } from './consumer-notifications.controller';
@@ -13,6 +14,7 @@ import { WHATSAPP_PROVIDER } from './whatsapp.provider';
 
 @Global()
 @Module({
+  imports: [BrandingModule],
   controllers: [NotificationsController, ConsumerNotificationsController],
   providers: [
     PrismaService,

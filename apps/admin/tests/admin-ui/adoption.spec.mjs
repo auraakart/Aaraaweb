@@ -66,3 +66,14 @@ test('quoted CSV reaches preview intact and creates only one dry-run batch',asyn
   await reply(page,1,{id:'batch',status:'READY',entityType:'BUILDING',checksum:'a'.repeat(64),idempotentReplay:false});await expect(page.getByText('Dry-run migration batch created.',{exact:true})).toBeVisible()
   expect(await page.evaluate(()=>window.adoption.created)).toBe(1);await expect(page.getByRole('button',{name:'Create dry-run batch'})).toBeDisabled()
 })
+
+test('guided onboarding follows current blockers without marking visits complete',async({page})=>{
+  await page.goto('/adoption.html?mode=onboarding');await count(page,1);await plan(page,0,'First')
+  const guidance=page.getByRole('region',{name:'Continue society setup'})
+  await expect(guidance.getByText('First setup',{exact:true})).toBeVisible()
+  await expect(guidance.getByRole('link')).toHaveAttribute('href','/residents')
+  await expect(guidance).toContainText('Visiting a workspace does not mark a check complete')
+  await page.evaluate(()=>window.adoption.switchSession({societyId:'society-next',societyName:'Next'}));await count(page,2)
+  await expect(page.getByText('First setup',{exact:true})).toHaveCount(0)
+  await plan(page,1,'Next');await expect(guidance.getByText('Next setup',{exact:true})).toBeVisible()
+})

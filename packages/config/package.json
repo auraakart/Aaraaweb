@@ -28,12 +28,20 @@
     "./android-test-assembled-verification": "./src/android-test-assembled-verification.mjs",
     "./android-test-archive-inspector": "./src/android-test-archive-inspector.mjs",
     "./android-test-install-isolation": "./src/android-test-install-isolation.mjs",
-    "./android-test-apk-inspection": "./src/android-test-apk-inspection.mjs"
+    "./android-test-apk-inspection": "./src/android-test-apk-inspection.mjs",
+    "./android-identity": {
+      "types": "./src/android-identity.d.cts",
+      "require": "./src/android-identity.cjs",
+      "default": "./src/android-identity.cjs"
+    }
   },
   "typesVersions": {
     "*": {
       "partner-domain-loader": [
         "src/partner-domain-loader.d.cts"
+      ],
+      "android-identity": [
+        "src/android-identity.d.cts"
       ]
     }
   }

@@ -14,6 +14,7 @@ import 'vehicles_screen.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({
     super.key,
+    this.supportEmail, this.supportPhone,
     required this.controller,
     required this.onSignOut,
     required this.canManageFamilyMembers,
@@ -24,6 +25,7 @@ class ProfileScreen extends StatelessWidget {
     required this.easyMode,
     required this.onEasyModeChanged,
   });
+  final String? supportEmail, supportPhone;
   final ResidentDataController controller;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
@@ -68,6 +70,12 @@ class ProfileScreen extends StatelessWidget {
             compact ? AaraagateTokens.space6 : AaraagateTokens.space8,
           ),
           children: [
+            if (supportEmail != null || supportPhone != null)
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Support'),
+                if (supportEmail != null) SelectableText(supportEmail!),
+                if (supportPhone != null) SelectableText(supportPhone!),
+              ]))),
             PremiumPageIntro(
               icon: Icons.home_outlined,
               eyebrow: _propertyChoiceCount() > 1 ? _currentPropertyLabel() : null,

@@ -66,6 +66,12 @@ export class BrandLogoService {
       await this.authorize(societyId,userId,tx);
       // Society-row lock serializes pending quota reservations.
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
+      // Preserve a full day after PUT expiry for confirmation/retry. Abandoned
+      // reservations no longer consume the four-slot quota indefinitely.
+      await tx.societyBrandLogoAsset.updateMany({
+        where: { societyId, status: 'PENDING', uploadExpiresAt: { lt: new Date(Date.now() - 86400000) } },
+        data: { status: 'REJECTED' },
+      });
       const pending = await tx.societyBrandLogoAsset.count({
         where: { societyId, status: 'PENDING' },
       });
@@ -86,6 +92,18 @@ export class BrandLogoService {
         upload: { method: upload.method, url: upload.uploadUrl,
           headers: upload.headers, expiresAt: upload.expiresAt },
       };
+    });
+  }
+
+  async cancelUpload(societyId: string, userId: string, id: string) {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.authorize(societyId, userId, tx);
+      const asset = await tx.societyBrandLogoAsset.findFirst({ where: { id, societyId } });
+      if (!asset) throw new NotFoundException('Society logo not found');
+      if (asset.status === 'VERIFIED') throw new ConflictException('A verified logo cannot be cancelled');
+      await tx.societyBrandLogoAsset.updateMany({ where: { id, societyId, status: 'PENDING' }, data: { status: 'REJECTED' } });
+      // Never delete potentially writable objects before their PUT expires.
+      return { id, status: 'REJECTED' as const };
     });
   }
 

@@ -8,6 +8,8 @@ environment:
   flutter: '>=3.47.0'
 
 dependencies:
+  flutter_localizations:
+    sdk: flutter
   aaraagate_branding_runtime:
     path: ../../packages/branding_runtime
   flutter:

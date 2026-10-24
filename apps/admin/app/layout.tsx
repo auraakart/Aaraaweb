@@ -7,7 +7,7 @@ import './property-workspace.css'
 
 export const metadata: Metadata = {
   title: 'Aaraagate Admin',
-  description: 'Society operations dashboard for Aaraagate.',
+  description: 'Society operations dashboard.',
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

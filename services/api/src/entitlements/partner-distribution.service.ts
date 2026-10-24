@@ -1,3 +1,4 @@
+import { validAndroidIdentity } from '@aaraagate/config/android-identity';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
@@ -11,7 +12,6 @@ export type TestDistributionManifest = {
   appRole:'RESIDENT'|'GUARD'; label:string; sourceSha:string; configDigest:string;
   signingProfile:string; apiOrigin:string;
 };
-const packageName=/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}$/;
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const manifestKeys=['schemaVersion','environment','applicationId','namespace','appRole','label','sourceSha','configDigest','signingProfile','apiOrigin'];
 
@@ -26,8 +26,7 @@ export class PartnerDistributionService {
     const m=value as Record<string,unknown>;
     if(Object.keys(m).length!==manifestKeys.length||Object.keys(m).some(k=>!manifestKeys.includes(k))||
       m.schemaVersion!==1||m.environment!=='TEST'||!['RESIDENT','GUARD'].includes(String(m.appRole))||
-      typeof m.applicationId!=='string'||m.applicationId.length>150||!packageName.test(m.applicationId)||
-      m.namespace!==m.applicationId||/^(com\.example|com\.aaraagate|in\.aaraagate|com\.aaraaweb)(\.|$)/.test(m.applicationId)||
+      !validAndroidIdentity(m.applicationId)||m.namespace!==m.applicationId||
       typeof m.label!=='string'||m.label.trim()!==m.label||m.label.length<1||m.label.length>60||/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069<>]/.test(m.label)||
       typeof m.sourceSha!=='string'||!/^[0-9a-f]{40}$/.test(m.sourceSha)||
       typeof m.configDigest!=='string'||!/^[0-9a-f]{64}$/.test(m.configDigest)||

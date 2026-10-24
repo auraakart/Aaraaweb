@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Post, Sse, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Post, Req, Sse, UseGuards, createParamDecorator } from '@nestjs/common';
 import { DevicePlatform } from '@prisma/client';
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
@@ -34,9 +34,11 @@ export class NotificationsController {
 
   @Post('devices/register')
   @RequiresPermissions(AppPermission.ACCESS_READ_OWN)
-  registerDevice(@Body() dto: RegisterPushDeviceDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  registerDevice(@Body() dto: RegisterPushDeviceDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string, @Req() request?: AuthenticatedRequest) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.push.register(societyId, userId, dto.token, dto.platform, dto.deviceId);
+    return request?.auth?.partnerApplicationId
+      ? this.push.register(societyId,userId,dto.token,dto.platform,dto.deviceId,request.auth.partnerApplicationId,request.auth.roles)
+      : this.push.register(societyId,userId,dto.token,dto.platform,dto.deviceId);
   }
 
   @Post('devices/unregister')

@@ -7,6 +7,7 @@ export default defineConfig({
       'src/access/visitor-management.e2e.spec.ts',
       'src/accounting/payment-availability.service.spec.ts',
       'src/auth/session.service.spec.ts',
+      'src/auth/application-session.spec.ts',
       'src/auth/partner-session-audience.spec.ts',
       'src/auth/partner-host-session.spec.ts',
       'src/ai-operations/ai-operations.controlled-assignment.spec.ts',

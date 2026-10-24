@@ -22,7 +22,7 @@ export function AdminPublishedSocietyLogo({session,revision,enabled}:{
           const response=await fetch(apiBase+'/api/v1/context/logo',{
             method:'GET',credentials:'omit',cache:'no-store',redirect:'error',
             referrerPolicy:'no-referrer',signal:controller.signal,
-            headers:{Authorization:'Bearer '+session.accessToken,Accept:'image/png'},
+            headers:{Authorization:'Bearer '+session.accessToken,Accept:'image/png','If-Match':'"'+revision+'"'},
           })
           if(!response.ok || response.headers.get('content-type')?.split(';',1)[0]?.trim().toLowerCase()!=='image/png')return
           const length=Number(response.headers.get('content-length')??0)

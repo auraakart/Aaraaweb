@@ -1,3 +1,4 @@
+import { ResidentHistoryQuery, validateHistory } from '../reliability/resident-history';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,9 +38,10 @@ type TicketRow = {
 export class HelpdeskService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listMine(societyId: string, userId: string) {
+  listMine(societyId: string, userId: string, history?: ResidentHistoryQuery) {
+    const term = history ? validateHistory(history) : null;
     return this.prisma.$queryRaw<TicketRow[]>(Prisma.sql`
-      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", asset."code" AS "assetCode",asset."name" AS "assetName",
+      SELECT ht.*, to_char(ht."createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "historyTimestamp", u."number" AS "unitNumber", b."name" AS "buildingName", asset."code" AS "assetCode",asset."name" AS "assetName",
         ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       FROM "HelpdeskTicket" ht
       JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
@@ -55,7 +57,12 @@ export class HelpdeskService {
             AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         )
-      ORDER BY ht."createdAt" DESC
+        ${history?.unitId ? Prisma.sql`AND ht."unitId"=${history.unitId}::uuid` : Prisma.empty}
+        ${history?.status ? Prisma.sql`AND ht."status"::text=${history.status}` : Prisma.empty}
+        ${history?.search?.trim() ? Prisma.sql`AND (ht."ticketNumber" ILIKE ${term} OR ht."title" ILIKE ${term})` : Prisma.empty}
+        ${history?.beforeDate ? Prisma.sql`AND (ht."createdAt",ht."id")<(${history.beforeDate}::timestamptz,${history.beforeId}::uuid)` : Prisma.empty}
+      ORDER BY ht."createdAt" DESC, ht."id" DESC
+      LIMIT 51
     `);
   }
 

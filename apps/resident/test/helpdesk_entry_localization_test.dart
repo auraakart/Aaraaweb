@@ -1,3 +1,4 @@
+import 'package:aaraagate_resident/data/resident_history.dart';
 import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:aaraagate_resident/localization/aaraagate_strings.dart';
@@ -8,10 +9,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _EmptyHelpdeskRepository extends DemoResidentRepository {
   @override
+  Future<List<Map<String, dynamic>>> helpdeskHistory({String? unitId, String search = '', String? status, ResidentHistoryCursor? before}) async => showcaseHistory(await helpdeskTickets(), unitId:unitId, search:search, status:status, before:before);
+
+  @override
   Future<List<Map<String, dynamic>>> helpdeskTickets() async => const [];
 }
 
 class _FailedHelpdeskRepository extends DemoResidentRepository {
+  @override
+  Future<List<Map<String, dynamic>>> helpdeskHistory({String? unitId, String search = '', String? status, ResidentHistoryCursor? before}) async => showcaseHistory(await helpdeskTickets(), unitId:unitId, search:search, status:status, before:before);
+
   @override
   Future<List<Map<String, dynamic>>> helpdeskTickets() async =>
       throw StateError('Connection unavailable');

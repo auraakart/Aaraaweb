@@ -46,7 +46,8 @@ describe('immutable test distribution approval and legacy conversion',()=>{
  });
  it.each([
   {environment:'PRODUCTION'}, {privateKey:'secret'}, {applicationId:'com.aaraagate.resident',namespace:'com.aaraagate.resident'},
-  {namespace:'in.other.app'}, {label:'Unsafe\u202eLabel'}, {sourceSha:'main'}, {configDigest:'latest'},
+  {applicationId:'com.aaraaplatforms.partner.resident',namespace:'com.aaraaplatforms.partner.resident'},
+  {applicationId:'in.fixture.class.resident',namespace:'in.fixture.class.resident'}, {namespace:'in.other.app'}, {label:'Unsafe\u202eLabel'}, {sourceSha:'main'}, {configDigest:'latest'},
   {apiOrigin:'https://foreign.in'}, {apiOrigin:manifest.apiOrigin+'/'}, {signingProfile:'LIVE_KEY'},
  ])('rejects unsafe or production manifest before data access: %j',async(change)=>{
   const f=fixture();await expect(f.service.propose(principal,societyId,{...context,manifest:{...manifest,...change}})).rejects.toThrow();expect(f.run).not.toHaveBeenCalled();

@@ -185,7 +185,7 @@ describe('Durable push routing boundary', () => {
     await expect(deliver(resident)).resolves.toBeUndefined();
     expect(findMany).toHaveBeenCalledWith({
       where: { societyId: resident.societyId, userId: resident.userId, active: true },
-      select: { id: true, token: true },
+      select: { id: true, token: true, applicationId:true, firebaseProjectId:true },
     });
     expect(queryRaw).not.toHaveBeenCalled();
   });
@@ -207,4 +207,13 @@ describe('Durable push routing boundary', () => {
     } })).resolves.toBeUndefined();
     expect(findMany).toHaveBeenCalledOnce();
   });
+});
+
+it('never falls back to default Firebase for an unknown branded application',async()=>{
+ const prisma={devicePushToken:{findMany:vi.fn().mockResolvedValue([{id:'device',token:'token',applicationId:'11111111-1111-4111-8111-111111111111',firebaseProjectId:'partner-project'}]),updateMany:vi.fn()}};
+ const service=new PushNotificationService(prisma as never);
+ Object.assign(service,{firebaseApp:{}});
+ const deliver=(service as unknown as {deliverResidentEvent(event:unknown):Promise<void>}).deliverResidentEvent.bind(service);
+ await expect(deliver({userId:'user',societyId:'society',type:'PARCEL_RECEIVED',parcelId:'parcel',unitId:'unit',title:'Parcel',body:'Arrived'})).rejects.toThrow(/routing failure/);
+ expect(prisma.devicePushToken.updateMany).not.toHaveBeenCalled();
 });
