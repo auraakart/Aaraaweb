@@ -42,3 +42,21 @@ test('commercial membership without society grants reveals no operational metric
  await expect(page.getByText('No authorised operational summaries',{exact:true})).toBeVisible()
  await expect(page.getByText('Open maintenance work',{exact:true})).toHaveCount(0)
 })
+
+
+test('partner branding saves a draft then publishes with an explicit reason',async({page})=>{
+ await page.goto('/partner.html?branding');
+ await expect(page.getByRole('heading',{name:'Partner branding and readiness'})).toBeVisible();
+ await expect(page.getByText('No published partner brand',{exact:false})).toBeVisible();
+ await page.getByLabel('Display name',{exact:true}).fill('Partner A Presentation');
+ await page.getByRole('button',{name:'Save immutable draft'}).click();
+ await expect(page.getByRole('button',{name:'Publish revision 1'})).toBeDisabled();
+ await page.getByLabel('Publication reason',{exact:true}).fill('Reviewed partner presentation');
+ await page.getByRole('button',{name:'Publish revision 1'}).click();
+ const confirmation=page.getByRole('dialog',{name:'Confirm action'});
+ await expect(confirmation).toContainText('Publish partner presentation revision 1');
+ await confirmation.getByRole('button',{name:'Confirm',exact:true}).click();
+ await expect(page.getByText('Brand: Published revision 1',{exact:true})).toBeVisible();
+ await page.evaluate(()=>{sessionStorage.removeItem('aaraagate.partner.session');sessionStorage.removeItem('aaraagate.admin.session');window.dispatchEvent(new Event('storage'))});
+ await expect(page.getByRole('heading',{name:'Partner presentation',exact:true})).toHaveCount(0);
+});

@@ -13,6 +13,7 @@ const json=(data:unknown)=>new Response(JSON.stringify(data),{status:200,headers
 Object.assign(window,{changeLicensingContext:()=>{session={...session,sessionId:'88888888-8888-4888-8888-888888888888',societyId:otherSociety,societyName:'Second society'};sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(session));window.dispatchEvent(new Event('focus'))}})
 window.fetch=async(input,init={})=>{
  const raw=typeof input==='string'?input:input instanceof URL?input.href:input.url,url=new URL(raw,window.location.origin),path=url.pathname,method=(init.method??'GET').toUpperCase()
+ if(path.endsWith('/partner-applications'))return json({applications:[],scopes:[],hasMore:false})
  if(path.endsWith('/overview')){
   const captured={...session};count++
   if(mode==='stale'&&count===1)return new Promise<Response>(resolve=>Object.assign(window,{resolveFirstLicensingOverview:()=>resolve(json(overview(captured)))}))

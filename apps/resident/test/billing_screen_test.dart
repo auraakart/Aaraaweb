@@ -1,3 +1,4 @@
+import 'package:aaraagate_resident/data/resident_history.dart';
 import 'dart:async';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
@@ -10,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _BillingRepository extends ResidentRepository {
   _BillingRepository({this.denied = false}) : super(ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test'));
+  @override
+  Future<List<Map<String, dynamic>>> maintenancePaymentHistory({String? unitId, ResidentHistoryCursor? before}) => maintenancePayments();
   final bool denied;
   int paymentCalls = 0;
   int receiptCalls = 0;
@@ -320,15 +323,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Payment activity'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('CREATED'),
+      find.text(AaraagateStrings.device().text('statusCREATED')),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    expect(find.text('CREATED'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('FAILED'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text(AaraagateStrings.device().text('statusCREATED')), findsOneWidget);
+    await tester.scrollUntilVisible(find.text(AaraagateStrings.device().text('statusFAILED')), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
-    expect(find.text('FAILED'), findsOneWidget);
+    expect(find.text(AaraagateStrings.device().text('statusFAILED')), findsOneWidget);
     expect(find.textContaining('no amount is treated as paid yet'), findsOneWidget);
     expect(find.textContaining('no successful receipt is available'), findsOneWidget);
     expect(find.text('Receipt'), findsNothing);

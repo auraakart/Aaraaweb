@@ -117,7 +117,7 @@ export class PartnerAndroidBuildReservationService {
       !['RESIDENT','GUARD'].includes(String(manifest.appRole))||
       manifest.distributionId!==proposalId||manifest.approvalId!==proposal.approval.id||
       manifest.partnerId!==scope.partnerId||manifest.societyId!==societyId||
-      !['applicationId','namespace','appRole','label','sourceSha','configDigest','apiOrigin','signingProfile']
+      !['applicationId','namespace','appRole','signingProfile']
        .every(k=>manifest[k]===approved[k])||
       typeof manifest.signerFingerprint!=='string'||!hex.test(manifest.signerFingerprint))
     throw new ConflictException('Android TEST identity or immutable inputs drifted');

@@ -16,6 +16,7 @@ function fixture() {
     $queryRaw: vi.fn().mockResolvedValue([]),
     withTenantContext: vi.fn(),
     society: { findFirst: vi.fn().mockResolvedValue({ id: societyId, name: 'Society A' }) },
+    societyBrandPublication: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     societyBrandRevision: { findFirst: vi.fn().mockResolvedValue(null) },
   };
   prisma.withTenantContext.mockImplementation(async (_id, callback) => callback(prisma));
@@ -94,7 +95,7 @@ describe('BrandingService V5 default compatibility', () => {
       where: { userId: 'user-a', societyId, active: true },
     });
     expect(prisma.society.findFirst).toHaveBeenCalledWith({
-      where: { id: societyId, status: 'ACTIVE' }, select: { id: true, name: true },
+      where: { id: societyId, status: 'ACTIVE' }, select: { id: true, name: true, partnerId: true, ownershipVersion: true },
     });
     expect(entitlements.current).toHaveBeenCalledWith(societyId, prisma);
     expect(result.society).toEqual({ id: societyId, name: 'Society A' });
@@ -140,7 +141,8 @@ describe('BrandingService V5 default compatibility', () => {
       societyMembership: { findMany: vi.fn().mockResolvedValue([{ userId: principal.userId, societyId, role: AppRole.TENANT, active: true }]) },
       $queryRaw: vi.fn().mockResolvedValue([]),
       society: { findFirst: vi.fn().mockResolvedValue({ id: societyId, name: 'Transaction society' }) },
-      societyBrandRevision: { findFirst: vi.fn().mockResolvedValue(null) },
+      societyBrandPublication: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    societyBrandRevision: { findFirst: vi.fn().mockResolvedValue(null) },
     };
     prisma.withTenantContext.mockImplementation(async (_id, callback) => callback(tx));
     await expect(service.context(principal)).resolves.toHaveProperty('society.name', 'Transaction society');

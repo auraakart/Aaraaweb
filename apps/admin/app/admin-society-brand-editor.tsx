@@ -17,6 +17,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
   const[busy,setBusy]=useState(false)
   const[error,setError]=useState('')
   const[notice,setNotice]=useState('')
+  const[publicationReason,setPublicationReason]=useState('Update society appearance')
   const[name,setName]=useState(session.societyName)
   const[primary,setPrimary]=useState('#155E75')
   const[primaryDeep,setPrimaryDeep]=useState('#164E63')
@@ -72,7 +73,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
     setBusy(true);setError('');setNotice('')
     try{
       await api('/branding/manage/drafts/'+encodeURIComponent(item.id)+'/publish',{
-        method:'POST',body:JSON.stringify({expectedPublishedVersion:published?.version??0}),
+        method:'POST',body:JSON.stringify({expectedPublishedVersion:published?.version??0,reason:publicationReason}),
       },session)
       await refresh()
       onPublished()
@@ -94,7 +95,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
       },session)
       savedDraftId=draft.id
       await api('/branding/manage/drafts/'+encodeURIComponent(draft.id)+'/publish',{
-        method:'POST',body:JSON.stringify({expectedPublishedVersion:plan.expectedPublishedVersion}),
+        method:'POST',body:JSON.stringify({expectedPublishedVersion:plan.expectedPublishedVersion,reason:publicationReason,restoredFromRevisionId:item.id}),
       },session)
       await refresh()
       onPublished()
@@ -149,12 +150,13 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
         <h2>Live preview (not yet published)</h2>
         <div className="brand-editor-swatch" style={previewStyle}><strong>{preview?.displayName??'Preview unavailable'}</strong><span>Resident · Guard · Admin</span><span>Example navigation and primary action</span>{draft?.support&&<span>Support: {[draft.support.email,draft.support.phone].filter(Boolean).join(' · ')}</span>}</div>
         <p>Currently published: <strong>{published?'Version '+published.version:'Built-in Aaraagate default'}</strong></p>
-        <AdminPublishedSocietyLogo session={session} revision={published?.id??'default'} enabled={!!published?.config.logoAssetId}/>
+        <AdminPublishedSocietyLogo session={session} revision={published?'society-'+session.societyId+'-v'+published.version:'default'} enabled={!!published?.config.logoAssetId}/>
         <p>Next draft version: <strong>{latestVersion+1}</strong></p>
       </section>
     </div>
     <AdminSocietyLogoQuarantine key={session.societyId} session={session} onAssetsChanged={onLogoAssetsChanged}/>
     <section className="panel brand-editor-history">
+      <label>Publication reason<input value={publicationReason} minLength={3} maxLength={500} onChange={event=>setPublicationReason(event.target.value)} /></label>
       <h2>Immutable revision history</h2>
       {loading?<p>Loading revisions…</p>:revisions.length===0?<p>No society-specific revisions. The default Aaraagate brand remains active.</p>:
         <ul>{revisions.map(item=><li key={item.id}>

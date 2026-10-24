@@ -18,6 +18,7 @@ function setup(role: AppRole | null = AppRole.SOCIETY_ADMIN) {
     $queryRaw: vi.fn().mockResolvedValue([{ id: societyId }]),
     society: { findFirst: vi.fn().mockResolvedValue({ id: societyId }) },
     societyBrandLogoAsset: { findFirst: vi.fn().mockResolvedValue({id:'44444444-4444-4444-8444-444444444444'}) },
+    societyBrandPublication: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     societyBrandRevision: {
       findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: revisionId, version: 1, config, digest: societyBrandDigest(config), publishedAt: null }),
@@ -37,6 +38,16 @@ const sql = (v: unknown) =>
   Array.isArray(v) ? v.join(' ') : ((v as { sql?: string }).sql ?? '');
 
 describe('V5.3.2 society brand revision workflow', () => {
+  it('pins the current published revision beyond 100 newer drafts',async()=>{
+    const {service,tx}=setup();
+    const published={id:revisionId,version:1,schemaVersion:1,config,digest:societyBrandDigest(config),publishedAt:new Date(),createdAt:new Date()};
+    tx.societyBrandRevision.findMany.mockResolvedValue(Array.from({length:100},(_,i)=>({...published,id:'draft-'+i,version:101-i,publishedAt:null})) as never);
+    tx.societyBrandRevision.findFirst.mockResolvedValue(published);
+    const history=await service.history(societyId,userId);
+    expect(history).toHaveLength(100);expect(history[0].version).toBe(101);
+    expect(history.find(row=>row.id===revisionId)?.version).toBe(1);
+  });
+
   it('creates the first immutable draft after locked version check', async () => {
     const { service, tx, prisma } = setup();
     await expect(service.createDraft(societyId, userId, { expectedVersion: 0, config }))
@@ -152,4 +163,11 @@ describe('V5.3.2 society brand revision workflow', () => {
     });
     expect(prisma.withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
   });
+});
+
+it('records the actual publisher and reason transactionally with publication',async()=>{
+ const {service,tx}=setup();
+ tx.societyBrandRevision.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({id:revisionId,version:1,config,digest:societyBrandDigest(config)} as never);
+ await service.publish(societyId,userId,revisionId,0,'Owner approved new appearance');
+ expect(tx.societyBrandPublication.create).toHaveBeenCalledWith({data:{societyId,revisionId,publisherId:userId,reason:'Owner approved new appearance',previousRevisionId:null,restoredFromRevisionId:null}});
 });

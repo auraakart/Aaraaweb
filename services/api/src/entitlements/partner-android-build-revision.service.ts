@@ -1,3 +1,4 @@
+import { validAndroidIdentity } from '@aaraagate/config/android-identity';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
@@ -7,9 +8,6 @@ import { LicenseContextInput, PartnerLicenseLifecycleService, canonicalLicenseJs
 type Context = LicenseContextInput & { allocationId: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hex = /^[0-9a-f]{64}$/;
-const pkg = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}$/;
-const reserved = /^(com\.example|com\.aaraagate|in\.aaraagate|com\.aaraaweb|com\.aaraaplatforms)(\.|$)/;
-const javaWords = new Set('abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while true false null _'.split(' '));
 const keys = ['schemaVersion','distributionId','approvalId','partnerId','societyId','brandRevision','sourceSha','lockDigest','applicationId','namespace','appRole','label','buildMode','apiOrigin','configDigest','assetDigests','firebaseClientRef','appLinkHosts','signingProfile','signerFingerprint'];
 const hash = (value:unknown) => createHash('sha256').update(canonicalLicenseJson(value)).digest('hex');
 
@@ -25,8 +23,7 @@ export class PartnerAndroidBuildRevisionService {
    m.schemaVersion!==1||m.buildMode!=='TEST'||!['RESIDENT','GUARD'].includes(String(m.appRole))||
    !Number.isSafeInteger(m.brandRevision)||(m.brandRevision as number)<1||(m.brandRevision as number)>2147483647||
    !['distributionId','approvalId','partnerId','societyId'].every(k=>typeof m[k]==='string'&&uuid.test(m[k] as string))||
-   typeof m.applicationId!=='string'||m.applicationId.length>150||!pkg.test(m.applicationId)||reserved.test(m.applicationId)||
-   m.namespace!==m.applicationId||m.applicationId.split('.').some(p=>javaWords.has(p))||
+   !validAndroidIdentity(m.applicationId)||m.namespace!==m.applicationId||
    typeof m.label!=='string'||m.label.trim()!==m.label||m.label.length<1||m.label.length>60||
    /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069<>]/.test(m.label)||
    typeof m.sourceSha!=='string'||!/^[0-9a-f]{40}$/.test(m.sourceSha)||

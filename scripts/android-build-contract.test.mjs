@@ -589,3 +589,14 @@ import './android-test-install-isolation.test.mjs';
 
 // V5.5.25: pinned APK aapt2/apksigner fail-closed inspection contract.
 import './android-test-apk-inspection.test.mjs';
+
+// Reviewed updates bind every changed field to the latest independent approval.
+test('latest reviewed revision permits source/config updates while preserving native identity',()=>{
+ const {m,c}=fixture();m.sourceSha='f'.repeat(40);m.configDigest='e'.repeat(64);m.label='Updated Partner';
+ c.sourceSha=m.sourceSha;c.brand.digest=m.configDigest;
+ assert.throws(()=>planTestAndroidBuild(m,c));
+ c.reviewedRevision={distributionId:m.distributionId,approved:true,latest:true,manifest:clone(m),digest:androidBuildManifestDigest(m)};
+ assert.equal(planTestAndroidBuild(m,c).dispatchAllowed,false);
+ c.reviewedRevision.latest=false;assert.throws(()=>planTestAndroidBuild(m,c));
+ c.reviewedRevision.latest=true;m.sourceSha='0'.repeat(40);assert.throws(()=>planTestAndroidBuild(m,c));
+});

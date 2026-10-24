@@ -1,3 +1,4 @@
+import 'package:aaraagate_branding_runtime/branding_runtime.dart';
 import 'package:flutter/material.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/premium_ui.dart';
@@ -59,7 +60,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                       const SizedBox(height: AaraagateTokens.space5),
                       Text(
-                        'Welcome to Aaraagate',
+                        'Welcome to ${PackagedBrand.displayName}',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
                       ),
@@ -134,7 +135,7 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         Text('Sign in', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: AaraagateTokens.space2),
-        Text('Use your Aaraagate mobile number.', style: Theme.of(context).textTheme.bodyMedium),
+        Text('Use your ${PackagedBrand.displayName} mobile number.', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: AaraagateTokens.space4),
         TextField(
           controller: _phone,

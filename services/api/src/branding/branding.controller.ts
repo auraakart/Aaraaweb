@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Header, Param, ParseUUIDPipe, PipeTransform, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { IsInt, IsObject, Min } from 'class-validator';
+import { IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { BrandingService } from './branding.service';
 import { AppPermission } from '../auth/permission.types';
@@ -46,6 +46,8 @@ class SocietyBrandDraftDto {
 }
 
 class SocietyBrandPublishDto {
+  @IsOptional() @IsString() @Length(3,500) reason?: string;
+  @IsOptional() @IsUUID() restoredFromRevisionId?: string;
   @IsInt() @Min(0) expectedPublishedVersion!: number;
 }
 
@@ -61,6 +63,10 @@ export class BrandingManageController {
     return this.branding.history(request.auth!.societyId!, request.auth!.userId);
   }
 
+  @Get('publications')
+  @Header('Cache-Control', 'no-store')
+  publications(@Req() request: AuthenticatedRequest) { return this.branding.publications(request.auth!.societyId!, request.auth!.userId); }
+
   @Post('drafts')
   @Header('Cache-Control', 'no-store')
   create(@Req() request: AuthenticatedRequest, @Body() input: SocietyBrandDraftDto) {
@@ -70,6 +76,6 @@ export class BrandingManageController {
   @Post('drafts/:revisionId/publish')
   @Header('Cache-Control', 'no-store')
   publish(@Req() request: AuthenticatedRequest, @Param('revisionId', ParseUUIDPipe) revisionId: string, @Body() input: SocietyBrandPublishDto) {
-    return this.branding.publish(request.auth!.societyId!, request.auth!.userId, revisionId, input.expectedPublishedVersion);
+    return this.branding.publish(request.auth!.societyId!, request.auth!.userId, revisionId, input.expectedPublishedVersion, input.reason, input.restoredFromRevisionId);
   }
 }

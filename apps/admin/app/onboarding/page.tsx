@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react'
 import {api,type Session} from '../../lib/admin-client'
 import {currentAdminSession,sameAdminContext} from '../../lib/admin-session-context'
+import {OnboardingNextAction} from '../../components/onboarding-next-action'
 import {readOnboardingPlan,type OnboardingPlan} from '../../lib/adoption-response'
 
 type StepState='READY'|'IN_PROGRESS'|'REVIEW'
@@ -89,6 +90,8 @@ export default function SocietyOnboardingPage(){
       </div>
       {plan&&<small style={{display:'block',marginTop:10}}>Evaluated {new Date(plan.evaluatedAt).toLocaleString('en-IN')}</small>}
     </section>}
+
+    {plan&&<OnboardingNextAction plan={plan}/>}
 
     <section style={{display:'grid',gap:12,marginTop:20}}>
       {steps.map(step=><article key={step.id} style={card}>

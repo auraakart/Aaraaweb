@@ -145,3 +145,18 @@ describe('V5.3.12 private society logo security boundary', () => {
     expect(tx.societyBrandLogoAsset.updateMany).not.toHaveBeenCalled();
   });
 });
+
+it('supports cancellation recovery but never cancels verified logo evidence',async()=>{
+ const f=setup();
+ await expect(f.service.cancelUpload(society,actor,id)).resolves.toMatchObject({status:'REJECTED'});
+ expect(f.tx.societyBrandLogoAsset.updateMany).toHaveBeenCalledWith({where:{id,societyId:society,status:'PENDING'},data:{status:'REJECTED'}});
+ f.tx.societyBrandLogoAsset.findFirst.mockResolvedValue({...f.asset,status:'VERIFIED'} as never);
+ await expect(f.service.cancelUpload(society,actor,id)).rejects.toThrow(/verified/);
+});
+it('releases abandoned upload quota only after the full confirmation grace',async()=>{
+ const f=setup();
+ await f.service.createUpload(society,actor,{contentType:'image/png',contentLengthBytes:200});
+ const cleanup=f.tx.societyBrandLogoAsset.updateMany.mock.calls[0][0];
+ expect(cleanup.where.status).toBe('PENDING');
+ expect(cleanup.where.uploadExpiresAt.lt.getTime()).toBeLessThanOrEqual(Date.now()-86400000);
+});

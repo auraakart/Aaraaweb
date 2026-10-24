@@ -1,3 +1,4 @@
+import { validAndroidIdentity } from './android-identity.cjs';
 import { createHash } from 'node:crypto';
 import { normalizePartnerDomainHostname } from './partner-domain-contract.mjs';
 
@@ -17,8 +18,6 @@ function frozen(value){
  if(value&&typeof value==='object'){for(const v of Object.values(value))frozen(v);Object.freeze(value);}
  return value;
 }
-const identity=/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}$/;
-const javaKeywords=new Set('abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while true false null _'.split(' '));
 
 /** Pure TEST build planning, not a DB authority or a dispatch API. Caller must
  * provide independently reauthorized snapshots. Never consume arbitrary partner
@@ -30,7 +29,7 @@ export function planTestAndroidBuild(manifest,context){
  for(const k of ['distributionId','approvalId','partnerId','societyId'])if(typeof m[k]!=='string'||!uuid.test(m[k]))fail('Invalid build identity');
  if(!Number.isSafeInteger(m.brandRevision)||m.brandRevision<1||m.brandRevision>2147483647)fail('Invalid brand revision');
  if(typeof m.sourceSha!=='string'||!/^[0-9a-f]{40}$/.test(m.sourceSha)||!hex64.test(m.lockDigest)||!hex64.test(m.configDigest)||!hex64.test(m.signerFingerprint))fail('Invalid build digest or source revision');
- if(typeof m.applicationId!=='string'||m.applicationId.length>150||!identity.test(m.applicationId)||m.namespace!==m.applicationId||m.applicationId.split('.').some(p=>javaKeywords.has(p))||/^(com\.example|com\.aaraagate|in\.aaraagate|com\.aaraaweb|com\.aaraaplatforms)(\.|$)/.test(m.applicationId))fail('Invalid or reserved Android identity');
+ if(!validAndroidIdentity(m.applicationId)||m.namespace!==m.applicationId)fail('Invalid or reserved Android identity');
  if(typeof m.label!=='string'||m.label.trim()!==m.label||m.label.length<1||m.label.length>60||/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069<>]/.test(m.label))fail('Unsafe Android label');
  if(typeof m.signingProfile!=='string'||!/^TEST_[A-Z0-9_]{3,60}$/.test(m.signingProfile))fail('Invalid test signing profile');
  if(!m.assetDigests||typeof m.assetDigests!=='object'||Array.isArray(m.assetDigests)||Object.keys(m.assetDigests).length!==2||!Object.keys(m.assetDigests).every(k=>['icon','splash'].includes(k))||!hex64.test(m.assetDigests.icon)||!hex64.test(m.assetDigests.splash))fail('Invalid native asset digests');
@@ -45,7 +44,13 @@ export function planTestAndroidBuild(manifest,context){
  const d=matches[0],now=instant(context.now);
  if(d.status!=='APPROVED_TEST_INPUT'||d.revoked!==false||d.activeAllocation!==true||d.approvalId!==m.approvalId||d.partnerId!==m.partnerId||d.societyId!==m.societyId||d.partnerStatus!=='ACTIVE'||now<instant(d.startsAt)||now>=instant(d.endsAt)||instant(d.startsAt)>=instant(d.endsAt))fail('Distribution approval is stale or foreign');
  // Existing V5.4.20 approval fixes these initial identity/source/config fields.
- for(const k of ['applicationId','namespace','appRole','label','sourceSha','configDigest','apiOrigin','signingProfile'])if(d.approvedInputs?.[k]!==m[k])fail('Build differs from approved initial inputs');
+ for(const k of ['applicationId','namespace','appRole','signingProfile'])if(d.approvedInputs?.[k]!==m[k])fail('Build differs from approved initial identity');
+ const reviewed=context.reviewedRevision;
+ if(reviewed!==undefined){
+  if(!reviewed||reviewed.distributionId!==m.distributionId||reviewed.approved!==true||reviewed.latest!==true||reviewed.digest!==androidBuildManifestDigest(m)||!equal(reviewed.manifest,m))fail('Missing exact latest independently reviewed revision');
+ }else{
+  for(const k of ['label','sourceSha','configDigest','apiOrigin'])if(d.approvedInputs?.[k]!==m[k])fail('Build differs from approved initial inputs');
+ }
  if(d.approvedInputs?.schemaVersion!==1||d.approvedInputs?.environment!=='TEST'||d.approvedDigest!==androidBuildManifestDigest(d.approvedInputs))fail('Invalid approved input digest');
  if(context.distributions.some(other=>other?.id!==d.id&&other?.approvedInputs?.applicationId===m.applicationId))fail('Android identity belongs to another distribution');
  if(context.sourceSha!==m.sourceSha||context.lockDigest!==m.lockDigest)fail('Checkout or lock digest mismatch');

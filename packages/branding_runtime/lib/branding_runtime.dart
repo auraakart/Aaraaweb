@@ -24,7 +24,7 @@ class SocietyBrandTokens {
   int get onPrimaryDeepArgb => _onColor(primaryDeepArgb);
 
   static final RegExp _color = RegExp(r'^#[0-9A-Fa-f]{6}$');
-  static final RegExp _version = RegExp(r'^v[1-9][0-9]*$');
+  static final RegExp _version = RegExp(r'^(?:v[1-9][0-9]*|v(?:0|[1-9][0-9]*)-p[1-9][0-9]*)$');
   static final RegExp _supportPhone = RegExp(r'^\+[1-9][0-9]{7,14}$');
   static final RegExp _supportEmail = RegExp(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
 
@@ -98,4 +98,13 @@ class SocietyBrandTokens {
     return (luminance + 0.05) / 0.05 >= 4.5 ? 0xFF000000 : 0xFFFFFFFF;
   }
 
+}
+
+/// Approved package presentation only; never an authentication authority.
+class PackagedBrand {
+  static const _name = String.fromEnvironment('AARAGATE_APP_DISPLAY_NAME', defaultValue: 'Aaraagate');
+  static String get displayName {
+    final name = _name.trim();
+    return name.isNotEmpty && name.length <= 80 && !RegExp(r'[<>\x00-\x1f\x7f]').hasMatch(name) ? name : 'Aaraagate';
+  }
 }

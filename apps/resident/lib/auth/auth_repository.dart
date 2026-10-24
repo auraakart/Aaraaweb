@@ -58,7 +58,8 @@ class OtpVerificationResult {
 }
 
 class AuthRepository {
-  AuthRepository({required this.baseUrl, this.requestTimeout = const Duration(seconds: 20)});
+  AuthRepository({required this.baseUrl, this.requestTimeout = const Duration(seconds: 20), this.applicationId = const String.fromEnvironment('AARAGATE_PARTNER_APPLICATION_ID')});
+  final String applicationId;
   final Duration requestTimeout;
   final String baseUrl;
 
@@ -230,6 +231,11 @@ class AuthRepository {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message = decoded is Map<String, dynamic> ? decoded['message']?.toString() : decoded?.toString();
       throw AuthApiException(response.statusCode, message ?? 'Authentication request failed');
+    }
+    if (applicationId.isNotEmpty && ['/api/v1/auth/otp/verify','/api/v1/auth/society/select','/api/v1/auth/society/switch'].contains(uri.path) && decoded is Map && decoded['session'] is Map) {
+      final source = decoded['session'] as Map;
+      final bound = await _authorized('POST', '/api/v1/auth/application-session', source['accessToken'].toString(), {'applicationId': applicationId});
+      return {...Map<String,dynamic>.from(decoded), 'session': bound};
     }
     return decoded;
   }

@@ -25,7 +25,7 @@ describe('Firebase 14 multicast transport contract', () => {
     const { service, findMany } = harness();
     sdk.send.mockResolvedValue({ responses: [{ success: true }, { success: true }] });
     await service.sendResidentEvent(event);
-    expect(findMany).toHaveBeenCalledWith({ where: { societyId: 'society-1', userId: 'user-1', active: true }, select: { id: true, token: true } });
+    expect(findMany).toHaveBeenCalledWith({ where: { societyId: 'society-1', userId: 'user-1', active: true }, select: { id: true, token: true, applicationId: true, firebaseProjectId: true } });
     expect(sdk.send).toHaveBeenCalledWith(expect.objectContaining({
       tokens: ['token-1', 'token-2'], notification: { title: event.title, body: event.body },
       data: expect.objectContaining({ societyId: 'society-1', parcelId: 'parcel-1', unitId: 'unit-1' }),
