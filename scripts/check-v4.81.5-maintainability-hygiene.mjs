@@ -96,7 +96,8 @@ const rootPackage = json('package.json');
 for (const [name, expected] of Object.entries({
   'proxy-addr': '2.0.8',
   'source-map-js': '1.2.2',
-  'multer': '2.4.0',
+  'multer': '2.5.0',
+  'body-parser': '2.4.0',
   'minimatch@10.2.6>brace-expansion': '5.0.12',
   'gaxios@6.7.1>uuid': '11.1.1',
   'google-gax@4.6.1>uuid': '11.1.1',
@@ -105,7 +106,7 @@ for (const [name, expected] of Object.entries({
   assert.equal(rootPackage.pnpm?.overrides?.[name], expected, 'Dependency security override mismatch: ' + name);
 }
 const lock = read('pnpm-lock.yaml');
-for (const token of ['proxy-addr@2.0.8:', 'source-map-js@1.2.2:', 'brace-expansion@5.0.12:', 'multer@2.4.0:']) {
+for (const token of ['proxy-addr@2.0.8:', 'source-map-js@1.2.2:', 'brace-expansion@5.0.12:', 'multer@2.5.0:', 'body-parser@2.4.0:']) {
   assert.ok(lock.includes(token), 'Patched dependency lock evidence missing: ' + token);
 }
 // Firebase 14 retires the legacy chain that needed uuid 11.1.1. Removing an
