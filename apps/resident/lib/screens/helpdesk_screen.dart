@@ -1,8 +1,9 @@
+import '../widgets/helpdesk_status_labels.dart';
+import '../widgets/helpdesk_ticket_number_reference.dart';
 import '../widgets/history_search_dialog.dart';
 import '../data/resident_history.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../data/resident_data_controller.dart';
 import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
@@ -483,7 +484,7 @@ class _TicketCard extends StatelessWidget {
 
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: 'Open complaint $ticketNumber, ${ticket['title'] ?? 'Complaint'}, ${_displayLabel(status)}',
+      semanticLabel: 'Open complaint $ticketNumber, ${ticket['title'] ?? 'Complaint'}, ${helpdeskDisplayLabel(status)}',
       color: scheme.surfaceContainerLow,
       padding: EdgeInsets.all(compact ? AaraagateTokens.space3 : AaraagateTokens.space4),
       child: Row(
@@ -493,14 +494,14 @@ class _TicketCard extends StatelessWidget {
             width: compact ? 40 : AaraagateTokens.iconContainer,
             height: compact ? 40 : AaraagateTokens.iconContainer,
             decoration: BoxDecoration(
-              color: _priorityTone(priority) == AaraagateStatusTone.danger
+              color: helpdeskPriorityTone(priority) == AaraagateStatusTone.danger
                   ? scheme.errorContainer
                   : scheme.primaryContainer,
               borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
             ),
             child: Icon(
               Icons.support_agent_rounded,
-              color: _priorityTone(priority) == AaraagateStatusTone.danger
+              color: helpdeskPriorityTone(priority) == AaraagateStatusTone.danger
                   ? scheme.onErrorContainer
                   : scheme.onPrimaryContainer,
             ),
@@ -520,9 +521,9 @@ class _TicketCard extends StatelessWidget {
                   spacing: AaraagateTokens.space2,
                   runSpacing: AaraagateTokens.space2,
                   children: [
-                    AaraagateStatusPill(label: _displayLabel(status), tone: _statusTone(status)),
+                    AaraagateStatusPill(label: helpdeskDisplayLabel(status), tone: _statusTone(status)),
                     if (priority != 'NORMAL')
-                      AaraagateStatusPill(label: _displayLabel(priority), tone: _priorityTone(priority)),
+                      AaraagateStatusPill(label: helpdeskDisplayLabel(priority), tone: helpdeskPriorityTone(priority)),
                     if (category.isNotEmpty)
                       AaraagateStatusPill(label: category, tone: AaraagateStatusTone.neutral),
                   ],
@@ -535,7 +536,7 @@ class _TicketCard extends StatelessWidget {
                   ),
                 ],
                 SizedBox(height: compact ? AaraagateTokens.space1 : AaraagateTokens.space2),
-                AaraagateStatusPill(label: 'SLA ${_displayLabel(sla)}', tone: _slaTone(sla)),
+                AaraagateStatusPill(label: 'SLA ${helpdeskDisplayLabel(sla)}', tone: _slaTone(sla)),
               ],
             ),
           ),
@@ -703,14 +704,14 @@ class _TicketDetailState extends State<_TicketDetail> {
               children: [
                 Text(widget.ticket['title']?.toString() ?? 'Complaint', style: theme.textTheme.headlineSmall),
                 if ((widget.ticket['ticketNumber']?.toString().trim() ?? '').isNotEmpty)
-                  _TicketNumberReference(number: widget.ticket['ticketNumber'].toString()),
+                  HelpdeskTicketNumberReference(number: widget.ticket['ticketNumber'].toString()),
                 const SizedBox(height: AaraagateTokens.space2),
                 Wrap(
                   spacing: AaraagateTokens.space2,
                   runSpacing: AaraagateTokens.space2,
                   children: [
-                    AaraagateStatusPill(label: _displayLabel(status), tone: _statusTone(status)),
-                    AaraagateStatusPill(label: _displayLabel(priority), tone: _priorityTone(priority)),
+                    AaraagateStatusPill(label: helpdeskDisplayLabel(status), tone: _statusTone(status)),
+                    AaraagateStatusPill(label: helpdeskDisplayLabel(priority), tone: helpdeskPriorityTone(priority)),
                   ],
                 ),
                 if (building != null || unit != null) ...[
@@ -721,7 +722,7 @@ class _TicketDetailState extends State<_TicketDetail> {
                   ),
                 ],
                 const SizedBox(height: AaraagateTokens.space3),
-                AaraagateStatusPill(label: 'SLA ${_displayLabel(sla)}', tone: _slaTone(sla)),
+                AaraagateStatusPill(label: 'SLA ${helpdeskDisplayLabel(sla)}', tone: _slaTone(sla)),
                 if ((widget.ticket['description']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: AaraagateTokens.space4),
                   Text(
@@ -754,10 +755,10 @@ class _TicketDetailState extends State<_TicketDetail> {
                   const SizedBox(height: AaraagateTokens.space4),
                   Text('Resolution evidence', style: theme.textTheme.titleSmall),
                   const SizedBox(height: AaraagateTokens.space2),
-                  if (resolutionCode != null) _RecoveryRow(label: AaraagateStrings.device().text('helpdeskResolutionCode'), value: _displayLabel(resolutionCode)),
+                  if (resolutionCode != null) _RecoveryRow(label: AaraagateStrings.device().text('helpdeskResolutionCode'), value: helpdeskDisplayLabel(resolutionCode)),
                   if (closureCode != null) ...[
                     if (resolutionCode != null) const SizedBox(height: AaraagateTokens.space2),
-                    _RecoveryRow(label: AaraagateStrings.device().text('helpdeskClosureCode'), value: _displayLabel(closureCode)),
+                    _RecoveryRow(label: AaraagateStrings.device().text('helpdeskClosureCode'), value: helpdeskDisplayLabel(closureCode)),
                   ],
                 ],
               ],
@@ -889,7 +890,7 @@ class _ActivityRow extends StatelessWidget {
     final fallback = item['type']?.toString().replaceAll('_', ' ') ?? 'Update';
     final metadata = [item['actorName'], item['toStatus']]
         .where((value) => value != null && value.toString().trim().isNotEmpty)
-        .map((value) => _displayLabel(value.toString()))
+        .map((value) => helpdeskDisplayLabel(value.toString()))
         .join(' · ');
 
     return PremiumSurface(
@@ -911,7 +912,7 @@ class _ActivityRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(message?.isNotEmpty == true ? message! : _displayLabel(fallback), style: theme.textTheme.bodyMedium),
+                Text(message?.isNotEmpty == true ? message! : helpdeskDisplayLabel(fallback), style: theme.textTheme.bodyMedium),
                 if (metadata.isNotEmpty) ...[
                   const SizedBox(height: AaraagateTokens.space1),
                   Text(metadata, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
@@ -976,72 +977,4 @@ AaraagateStatusTone _statusTone(String status) {
     default:
       return AaraagateStatusTone.warning;
   }
-}
-
-AaraagateStatusTone _priorityTone(String priority) {
-  switch (priority.toUpperCase()) {
-    case 'URGENT':
-      return AaraagateStatusTone.danger;
-    case 'HIGH':
-      return AaraagateStatusTone.warning;
-    case 'LOW':
-      return AaraagateStatusTone.neutral;
-    default:
-      return AaraagateStatusTone.info;
-  }
-}
-
-String _displayLabel(String raw) {
-  final normalized=raw.trim().toUpperCase();
-  if(['ON_TRACK','RESPONSE_BREACHED','RESOLUTION_BREACHED','UNTRACKED','MET'].contains(normalized)) {
-    return AaraagateStrings.device().text('status$normalized');
-  }
-  final key = {'OPEN':'helpdeskOpen','IN_PROGRESS':'helpdeskInProgress','RESOLVED':'helpdeskResolved','CLOSED':'helpdeskClosed'}[raw.trim().toUpperCase()];
-  if (key != null) return AaraagateStrings.device().text(key);
-  return raw
-    .trim()
-    .toLowerCase()
-    .split('_')
-    .where((part) => part.isNotEmpty)
-    .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-    .join(' ');
-}
-
-
-class _TicketNumberReference extends StatelessWidget {
-  const _TicketNumberReference({required this.number});
-  final String number;
-
-  Future<void> _copy(BuildContext context) async {
-    final strings = AaraagateStrings.device();
-    try {
-      await Clipboard.setData(ClipboardData(text: number));
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.text('helpdeskTicketNumberCopied'))),
-      );
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.text('helpdeskTicketNumberCopyFailed'))),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: AaraagateTokens.space2),
-    child: Wrap(
-      spacing: AaraagateTokens.space2,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SelectableText(number, semanticsLabel: '${AaraagateStrings.device().text('helpdeskTicketNumber')} $number'),
-        IconButton(
-          tooltip: AaraagateStrings.device().text('helpdeskCopyTicketNumber'),
-          onPressed: () => _copy(context),
-          icon: const Icon(Icons.copy_rounded),
-        ),
-      ],
-    ),
-  );
 }

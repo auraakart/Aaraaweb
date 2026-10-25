@@ -301,7 +301,7 @@ jobs:
           node scripts/check-services-3.1-closure.mjs --self-test
           node scripts/check-services-3.1-closure.mjs
       - name: Test release delay prevention controls
-        run: node --test scripts/release-delay-controls.test.mjs scripts/coverage-thresholds.test.mjs scripts/partner-domain-contract.test.mjs scripts/partner-host-boundary.test.mjs scripts/partner-license-allocation-simulation.test.mjs scripts/android-build-contract.test.mjs
+        run: node --test scripts/tenant-isolation-policy.test.mjs scripts/release-version.test.mjs scripts/release-delay-controls.test.mjs scripts/coverage-thresholds.test.mjs scripts/partner-domain-contract.test.mjs scripts/partner-host-boundary.test.mjs scripts/partner-license-allocation-simulation.test.mjs scripts/android-build-contract.test.mjs
       - name: Check V4.80.12 main review routing
         run: node scripts/check-v4.80.12-main-review-routing.mjs
       - name: Validate release migration control syntax
@@ -491,6 +491,7 @@ jobs:
       - name: Verify V5 tenant-access inventory
         run: |
           node services/api/scripts/tenant-access-inventory.mjs --write
+          node scripts/sync-tenant-access-summary.mjs
           if ! git diff --quiet -- docs/architecture/v5-tenant-access-inventory.json; then
             echo "::error::V5 tenant-access inventory is stale; regenerate and commit the reviewed diff."
             git diff --no-ext-diff --unified=0 -- docs/architecture/v5-tenant-access-inventory.json
@@ -523,16 +524,15 @@ jobs:
         run: pnpm --filter @aaraagate/api build
       - name: V5 default-brand HTTP compatibility smoke
         run: node services/api/scripts/branding-http-smoke.mjs
-      - name: Install exact API coverage provider
-        run: pnpm --dir services/api add --save-dev --lockfile=false @vitest/coverage-v8@5.0.5
-      - name: Regenerate Prisma client after transient coverage install
-        run: pnpm --filter @aaraagate/api prisma:generate
+      - name: Verify locked API coverage provider
+        run: pnpm --filter @aaraagate/api exec node -e "if(require('@vitest/coverage-v8/package.json').version!=='5.0.5')process.exit(1)"
       - name: Risk-weighted API coverage gate
         working-directory: services/api
         run: pnpm exec vitest run --config vitest.risk-coverage.config.ts
-      - name: Restore API manifest after transient coverage tooling
+      - name: Verify API manifest and lockfile remained unchanged
         if: always()
-        run: git checkout -- services/api/package.json
+        # Coverage now uses the frozen installation; refuse manifest/lock drift.
+        run: git diff --exit-code -- services/api/package.json pnpm-lock.yaml
       - name: Upload API risk coverage evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -665,7 +665,7 @@ jobs:
       - name: Test direct-host partner SSR and cookie isolation
         run: pnpm --filter @aaraagate/admin test:host-ssr
       - name: Lint shared Admin components and browser contracts
-        run: pnpm --filter @aaraagate/admin lint:ui
+        run: pnpm --filter @aaraagate/admin lint
       - name: Install Admin browser test runtime
         run: bash scripts/install-admin-browser-runtime.sh
       - name: Changed Admin browser tests before broad regression
@@ -727,7 +727,7 @@ jobs:
       - name: Resident dependencies
         if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
       - name: Analyze resident app
         if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
@@ -764,7 +764,7 @@ jobs:
       - name: Guard dependencies
         if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
       - name: Analyze guard app
         if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard

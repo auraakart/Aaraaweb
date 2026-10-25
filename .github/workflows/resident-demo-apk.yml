@@ -40,14 +40,14 @@ jobs:
 
       - name: Generate Android platform wrapper
         working-directory: apps/resident
-        run: flutter create --platforms=android --project-name aaraagate_resident --org com.aaraaplatforms .
+        run: flutter create --platforms=android --project-name aaraagate_resident --org com.aaraaplatforms . --no-pub
 
       - name: Configure and verify Resident speech recognition permissions
         run: node scripts/configure-resident-android-speech.mjs
 
       - name: Restore validated Resident source and prepare packaging compatibility
         run: |
-          git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
+          git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test apps/resident/pubspec.lock
           rm -f apps/resident/analysis_options.yaml apps/resident/test/widget_test.dart
           # V4.55 keeps CI, demo packaging and release packaging on Flutter 3.47.
           grep -Fq 'cardTheme: CardThemeData(' apps/resident/lib/theme/aaraagate_theme.dart
@@ -81,7 +81,7 @@ jobs:
 
       - name: Get dependencies
         working-directory: apps/resident
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Analyze Resident app for packaging SDK
         working-directory: apps/resident

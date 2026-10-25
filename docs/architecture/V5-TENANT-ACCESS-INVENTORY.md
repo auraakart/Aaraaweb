@@ -4,23 +4,25 @@ Version: 1.7, 2026-10-11. Current review baseline: develop `12d861fe02d6b056ceab
 
 ## Coverage and reproduction
 
+The summary table below reflects the current generated JSON; later historical slice notes retain their original counts and baselines. Regenerate both with the inventory writer followed by `node scripts/sync-tenant-access-summary.mjs --write`.
+
 Run `node services/api/scripts/tenant-access-inventory.mjs --write` after API source/schema/migration changes, review the register diff, then run with `--check`. Canonical API CI fails on stale output. Use the repository's Node 22/pnpm 10.15 toolchain; no new service or dependency is required.
 
 The companion `v5-tenant-access-inventory.json` contains every discovered table, ordered migration origins, schema/DDL fields, candidate authority boundary, access modules, review owner and disposition. Each access entry includes its file/line, enclosing function, database receiver, ORM/raw operation, referenced tables, query/enclosing scope signals and nested relation signals. Each controller route records decorators and scope evidence. The deterministic digest binds this register to the exact scanned source content.
 
 | Coverage | Count |
 | --- | ---: |
-| Tables, including SQL-only tables | 249 |
-| API runtime/script source files | 397 |
-| Migration SQL files | 190 |
-| Database access sites | 2,122 |
-| Raw SQL / ORM sites | 1,607 / 515 |
-| Controller route handlers | 872 |
+| Tables, including SQL-only tables | 287 |
+| API runtime/script source files | 455 |
+| Migration SQL files | 218 |
+| Database access sites | 2464 |
+| Raw SQL / ORM sites | 1717 / 747 |
+| Controller route handlers | 967 |
 | Unsafe runtime SQL calls discovered | 0 |
 | Unsafe disposable performance-seed calls | 11 |
-| Recognized SQL utility sites | 59 |
-| Indirect SQL expression requiring manual resolution | 1 |
-| Runtime calls to `withTenantContext` | 78 |
+| Recognized SQL utility sites | 66 |
+| Indirect SQL expressions requiring manual resolution | 7 |
+| Runtime calls to `withTenantContext` | 145 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.

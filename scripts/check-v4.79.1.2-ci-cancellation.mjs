@@ -30,7 +30,7 @@ for(const token of forbidden){
 }
 
 for(const cleanup of [
-  'Restore API manifest after transient coverage tooling',
+  'Verify API manifest and lockfile remained unchanged',
   'Stop production-mode API',
   'Upload API risk coverage evidence',
 ]){

@@ -9,8 +9,10 @@ export class AuthStateStore implements OnModuleDestroy {
   private readonly memory = new Map<string, MemoryValue>();
   private client?: RedisClient;
   private connecting?: Promise<RedisClient>;
+  private stopped = false;
 
   private async redis(): Promise<RedisClient | undefined> {
+    if (this.stopped) throw new Error('Authentication state store is shutting down');
     const url = process.env.REDIS_URL?.trim();
     if (!url) {
       if (process.env.NODE_ENV === 'production') {
@@ -18,15 +20,34 @@ export class AuthStateStore implements OnModuleDestroy {
       }
       return undefined;
     }
-    if (this.client?.isOpen) return this.client;
+    if (this.client?.isReady) return this.client;
     if (!this.connecting) {
-      const client: RedisClient = createClient({ url });
-      client.on('error', () => undefined);
-      this.connecting = client.connect().then(() => {
-        this.client = client;
-        this.connecting = undefined;
-        return client;
+      this.dispose(this.client);
+      const client: RedisClient = createClient({
+        url,
+        // Authentication must fail promptly instead of queuing or retrying an
+        // uncertain mutation. A later request may establish a fresh connection.
+        socket: { connectTimeout: 3_000, socketTimeout: 5_000, reconnectStrategy: false },
+        commandOptions: { timeout: 3_000 },
+        disableOfflineQueue: true,
+        commandsQueueMaxLength: 1_000,
       });
+      this.client = client;
+      client.on('error', () => undefined);
+      const connection = client.connect()
+        .then(() => {
+          if (this.stopped) throw new Error('Authentication state store is shutting down');
+          return client;
+        })
+        .catch((error: unknown) => {
+          if (this.client === client) this.client = undefined;
+          this.dispose(client);
+          throw error;
+        })
+        .finally(() => {
+          if (this.connecting === connection) this.connecting = undefined;
+        });
+      this.connecting = connection;
     }
     return this.connecting;
   }
@@ -112,7 +133,14 @@ export class AuthStateStore implements OnModuleDestroy {
     return value;
   }
 
-  async onModuleDestroy() {
-    if (this.client?.isOpen) await this.client.quit();
+  private dispose(client?: RedisClient) {
+    // destroy closes immediately and rejects pending work, including connect.
+    if (client?.isOpen) client.destroy();
+  }
+
+  onModuleDestroy() {
+    this.stopped = true;
+    this.dispose(this.client);
+    this.client = undefined;
   }
 }

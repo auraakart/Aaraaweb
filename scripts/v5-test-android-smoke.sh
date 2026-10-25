@@ -8,7 +8,7 @@ APP="apps/$ROLE"
 APK="$APP/build/app/outputs/flutter-apk/app-debug.apk"
 PACKAGE="com.aaraaplatforms.aaraagate_$ROLE"
 if [[ "$ACTION" == "prepare" ]]; then
-  git restore -- "$APP/pubspec.yaml" "$APP/lib" "$APP/test"
+  git restore -- "$APP/pubspec.yaml" "$APP/lib" "$APP/test" "$APP/pubspec.lock"
   rm -f "$APP/analysis_options.yaml" "$APP/test/widget_test.dart"
   python3 - "$APP" <<'PY'
 from pathlib import Path

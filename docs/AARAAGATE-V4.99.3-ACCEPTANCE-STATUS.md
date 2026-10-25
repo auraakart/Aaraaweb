@@ -1,5 +1,7 @@
 # Aaraagate V4.99.3 — acceptance status and remaining work
 
+Current engineering evidence update (25 October 2026): V4.99.3 with V5.8/V5.9 was promoted to main `29f95ecaef53c5a03af8858ea89ca58cf2fe0811` on 24 October. [Full pre-main CI 40047889745](https://github.com/auraakart/Aaraaweb/actions/runs/40047889745) passed: API 2,525/15 skipped, Resident 606, Guard 254, Admin browser 214. [Main demo packaging 40050159100](https://github.com/auraakart/Aaraaweb/actions/runs/40050159100) passed. Statements below about pending protected validation, candidate preparation or no published build describe their earlier session. Physical-device/language/accessibility and independent partner acceptance remain open; promotion does not close those items. Current follow-up is [V5.10](V5.10-HEALTH-HARDENING.md).
+
 This is a development and acceptance record. V4.99.3 / mobile build 49903 is prepared as a release candidate; it does not establish a published release, physical-device certification, native-language approval or a measured 9/10 product score. See the [health closure and candidate record](AARAAGATE-V4.99.3-HEALTH-CLOSURE.md).
 
 ## Workstream status

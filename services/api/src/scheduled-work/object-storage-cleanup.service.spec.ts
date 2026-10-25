@@ -13,8 +13,47 @@ describe('ObjectStorageCleanupService', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     if (originalDriver === undefined) delete process.env.OBJECT_STORAGE_DRIVER;
     else process.env.OBJECT_STORAGE_DRIVER = originalDriver;
+  });
+
+  it('starts one periodic sweep and stops it on shutdown', async () => {
+    vi.useFakeTimers();
+    const service = new ObjectStorageCleanupService({} as never, {} as never);
+    const sweep = vi.spyOn(service, 'runOnce').mockResolvedValue({ skipped: true, reason: 'storage-disabled' });
+    service.onModuleInit();
+    expect(sweep).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(sweep).toHaveBeenCalledTimes(2);
+    service.onModuleDestroy();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(sweep).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not schedule cleanup when storage is disabled', () => {
+    vi.useFakeTimers();
+    delete process.env.OBJECT_STORAGE_DRIVER;
+    const service = new ObjectStorageCleanupService({} as never, {} as never);
+    const sweep = vi.spyOn(service, 'runOnce');
+    service.onModuleInit();
+    expect(sweep).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    service.onModuleDestroy();
+  });
+
+  it('rejects overlapping local sweeps and recovers after transaction failure', async () => {
+    let reject!: (error: Error) => void;
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ locked: false }]) };
+    const prisma = { $transaction: vi.fn()
+      .mockImplementationOnce(() => new Promise((_resolve, rejectRun) => { reject = rejectRun; }))
+      .mockImplementationOnce((run: (client: typeof tx) => unknown) => run(tx)) };
+    const service = new ObjectStorageCleanupService(prisma as never, {} as never);
+    const first = service.runOnce();
+    await expect(service.runOnce()).resolves.toMatchObject({ skipped: true, reason: 'local-run-active' });
+    reject(new Error('database unavailable'));
+    await expect(first).resolves.toMatchObject({ skipped: true, reason: 'error' });
+    await expect(service.runOnce()).resolves.toMatchObject({ skipped: true, reason: 'cluster-lock-held' });
   });
 
   it('stays dormant when provider-media object storage is disabled', async () => {

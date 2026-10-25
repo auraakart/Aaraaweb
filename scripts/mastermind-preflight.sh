@@ -126,7 +126,7 @@ fi
 if [ "$RUN_RESIDENT" = "true" ]; then
   (
     cd apps/resident
-    flutter pub get
+    flutter pub get --enforce-lockfile
     flutter analyze
     bash ../../scripts/run-changed-flutter-tests.sh resident "$BASE_SHA" "$HEAD_SHA"
     flutter test       test/multi_property_isolation_test.dart       test/gate_screen_test.dart       test/billing_screen_test.dart       test/privacy_data_screen_test.dart       test/home_action_inbox_dedup_test.dart       test/community_poll_participation_test.dart       test/amenities_screen_test.dart       test/family_member_recovery_test.dart       test/emergency_contact_recovery_test.dart       test/workforce_modal_lifecycle_test.dart       test/notices_acknowledgement_test.dart       test/ai_assistant_screen_test.dart       test/resident_speech_test.dart       test/v48_accessibility_smoke_test.dart
@@ -136,7 +136,7 @@ fi
 if [ "$RUN_GUARD" = "true" ]; then
   (
     cd apps/guard
-    flutter pub get
+    flutter pub get --enforce-lockfile
     flutter analyze
     bash ../../scripts/run-changed-flutter-tests.sh guard "$BASE_SHA" "$HEAD_SHA"
     flutter test       test/offline_recovery_test.dart       test/guard_realtime_lifecycle_test.dart       test/guard_workforce_assignment_test.dart

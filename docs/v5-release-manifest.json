@@ -2585,6 +2585,21 @@
         "resolvedFinanceRecoveryIssue": 1387,
         "financeRecoveryEngineeringClosed": true
       }
+    },
+    {
+      "id": "V5.10",
+      "name": "Reliability and reproducible release hardening",
+      "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+      "currentSlice": "V5.10.7",
+      "evidence": [
+        "docs/V5.10-HEALTH-HARDENING.md",
+        "docs/architecture/V5.10-TENANT-ISOLATION-ROLLOUT.md"
+      ],
+      "limitations": [
+        "Database RLS activation and hosted non-owner isolation remain open under #212.",
+        "Independent partner worker/artifact/device acceptance remains open under #1380.",
+        "Staging/main and production activation are not included."
+      ]
     }
   ],
   "roadmap": "docs/AARAAGATE-V5-MULTIBRAND-ROADMAP.md",
