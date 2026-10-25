@@ -2612,7 +2612,7 @@
     {
       "id": "V5.10",
       "name": "Reliability and reproducible release hardening",
-      "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+      "status": "MERGED_PROTECTED_CI_PASSED",
       "currentSlice": "V5.10.7",
       "evidence": [
         "docs/V5.10-HEALTH-HARDENING.md",
@@ -2622,7 +2622,18 @@
         "Database RLS activation and hosted non-owner isolation remain open under #212.",
         "Independent partner worker/artifact/device acceptance remains open under #1380.",
         "Staging/main and production activation are not included."
-      ]
+      ],
+      "pullRequest": 1525,
+      "ciRun": 40156751980,
+      "validatedRuntimeSha": "c23bf89b8cbfbd94449f002ac5e976d9ee1b33ca",
+      "mergeSha": "85bf41d135c65c6842985086a6562d2dc06b1ffb",
+      "scopedAcceptance": {
+        "status": "COMPLETED_NONPRODUCTION_CODE",
+        "limitations": [
+          "H03 RLS policy activation and hosted non-owner negative tests remain open under #212.",
+          "Independent partner worker/artifact/device and physical language/accessibility acceptance remain open."
+        ]
+      }
     }
   ]
 }

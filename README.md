@@ -57,7 +57,7 @@ Society Branding and Partner White Label development uses this shared repository
 
 ## Current development cycle
 
-[V5.10 health hardening](docs/V5.10-HEALTH-HARDENING.md) consolidates the 25 October review into recovery, reproducibility, full lint, risk coverage, complexity and truthful status controls. Package identity is 5.10.0 / mobile build 51000. Database RLS/hosted and independent partner/device acceptance remain open.
+[V5.10 health hardening](docs/V5.10-HEALTH-HARDENING.md) consolidates the 25 October review into recovery, reproducibility, full lint, risk coverage, complexity and truthful status controls. Package identity is 5.10.0 / mobile build 51000. [PR #1525](https://github.com/auraakart/Aaraaweb/pull/1525) passed full protected application/native CI and merged into develop. Database RLS/hosted and independent partner/device acceptance remain open.
 
 V4.99.3 was promoted to main at `29f95ecaef53c5a03af8858ea89ca58cf2fe0811` on 24 October, with V5.8/V5.9 source included. Full pre-main CI 40047889745 passed; post-main CI reuses the same validated source tree. Earlier candidate-preparation notes below are historical, not current publication status.
 
