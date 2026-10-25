@@ -1,6 +1,6 @@
 {
   "name": "@aaraagate/api",
-  "version": "4.99.3",
+  "version": "5.10.0",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -16,6 +16,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma"
   },
   "dependencies": {
+    "@aaraagate/config": "workspace:*",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
@@ -25,17 +26,17 @@
     "firebase-admin": "14.5.0",
     "redis": "^5.8.2",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "@aaraagate/config": "workspace:*"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "5.0.5",
     "eslint": "^10.13.0",
     "prisma": "^6.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.71.0",
-    "vitest": "^5.0.3",
-    "vite": "7.3.7"
+    "vite": "7.3.7",
+    "vitest": "^5.0.3"
   }
 }

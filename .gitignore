@@ -3,6 +3,7 @@ node_modules/
 .next/
 dist/
 coverage/
+coverage-risk/
 test-results/
 playwright-report/
 *.tsbuildinfo

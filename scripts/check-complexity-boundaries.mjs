@@ -2,6 +2,11 @@ import fs from 'node:fs';
 
 const budgets = new Map([
   ['services/api/src/amenities/amenities.service.ts', 1050],
+  ['services/api/src/services-marketplace/provider-marketplace-completion.service.ts', 1000],
+  ['services/api/src/services-marketplace/provider-quality-summary.query.ts', 85],
+  ['apps/resident/lib/screens/helpdesk_screen.dart', 1000],
+  ['apps/resident/lib/widgets/helpdesk_ticket_number_reference.dart', 65],
+  ['apps/resident/lib/widgets/helpdesk_status_labels.dart', 60],
   ['services/api/src/ai-operations/ai-assistant.service.ts', 580],
   ['services/api/src/billing/billing.service.ts', 425],
   ['apps/resident/lib/data/resident_data_controller.dart', 850],

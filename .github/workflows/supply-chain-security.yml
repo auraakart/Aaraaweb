@@ -63,11 +63,14 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Resolve mobile dependencies
         run: |
-          (cd apps/resident && flutter pub get)
-          (cd apps/guard && flutter pub get)
+          (cd apps/resident && flutter pub get --enforce-lockfile)
+          (cd apps/guard && flutter pub get --enforce-lockfile)
       - name: Capture resolved dependency inventories
         run: |
           mkdir -p supply-chain-evidence
+          cp apps/resident/pubspec.lock supply-chain-evidence/resident-pubspec.lock
+          cp apps/guard/pubspec.lock supply-chain-evidence/guard-pubspec.lock
+          sha256sum apps/resident/pubspec.lock apps/guard/pubspec.lock > supply-chain-evidence/mobile-lockfiles.sha256
           pnpm list --json -r --depth Infinity > supply-chain-evidence/pnpm-deps.json
           (cd apps/resident && flutter pub deps --json) > supply-chain-evidence/resident-pub-deps.json
           (cd apps/guard && flutter pub deps --json) > supply-chain-evidence/guard-pub-deps.json

@@ -46,7 +46,7 @@ must('API risk coverage', coverageConfig, [
 
 const ci = read('.github/workflows/ci.yml');
 must('CI coverage enforcement', ci, [
-  'Install exact API coverage provider',
+  'Verify locked API coverage provider',
   'Risk-weighted API coverage gate',
   'Risk-weighted Resident coverage gate',
   'Risk-weighted Guard coverage gate',
@@ -96,3 +96,5 @@ must('V4.55.1 document', read('docs/AARAAGATE-V4.55.1-ENGINEERING-EVIDENCE-CLOSU
 ]);
 
 console.log('V4.55.1 engineering evidence closure controls are intact.');
+
+if (JSON.parse(read('services/api/package.json')).devDependencies['@vitest/coverage-v8'] !== '5.0.5') throw new Error('API coverage provider must remain exactly pinned in the frozen install.');

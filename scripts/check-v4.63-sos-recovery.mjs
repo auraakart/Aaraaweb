@@ -1,3 +1,4 @@
+import { releaseAtLeast } from './lib/release-version.mjs';
 import fs from 'node:fs';
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
@@ -5,8 +6,7 @@ const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includ
 const root=JSON.parse(read('package.json'));
 const api=JSON.parse(read('services/api/package.json'));
 const admin=JSON.parse(read('apps/admin/package.json'));
-const [major,minor]=root.version.split('.').map(Number);
-if(major!==4||minor<63||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned at V4.63.0 or later.');process.exit(1)}
+if(!releaseAtLeast(root.version,4,63,0)||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned at V4.63.0 or later.');process.exit(1)}
 for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']) must(file,read(file),[`version: ${root.version}+`]);
 
 must('V4.63 SOS server recovery',read('services/api/src/sos/sos.service.ts'),['pg_advisory_xact_lock','const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;',"\"status\" IN ('ACTIVE', 'ACKNOWLEDGED')",'if (existing[0]) return existing[0];']);

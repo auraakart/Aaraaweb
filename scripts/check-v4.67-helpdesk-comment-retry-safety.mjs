@@ -1,3 +1,4 @@
+import { releaseAtLeast } from './lib/release-version.mjs';
 import fs from 'node:fs';
 
 const read=p=>fs.readFileSync(p,'utf8');
@@ -48,9 +49,8 @@ must('V4.67 Resident retry regression',read('apps/resident/test/helpdesk_service
 const root=JSON.parse(read('package.json'));
 const api=JSON.parse(read('services/api/package.json'));
 const admin=JSON.parse(read('apps/admin/package.json'));
-const [major,minor]=root.version.split('.').map(Number);
-if(major!==4||minor<67||api.version!==root.version||admin.version!==root.version){
-  console.error('Root/API/Admin release identity must remain aligned at V4.67.0 or later on the V4 release line.');
+if(!releaseAtLeast(root.version,4,67,0)||api.version!==root.version||admin.version!==root.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.67.0 or later.');
   process.exit(1);
 }
 for(const pubspec of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']){

@@ -1,6 +1,6 @@
 {
   "name": "@aaraagate/admin",
-  "version": "4.99.3",
+  "version": "5.10.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",

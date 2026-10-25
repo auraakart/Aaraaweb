@@ -44,12 +44,12 @@ jobs:
           cache: true
       - name: Generate disposable default Android wrapper
         working-directory: apps/${{ matrix.app }}
-        run: flutter create --platforms=android --project-name aaraagate_${{ matrix.app }} --org com.aaraaplatforms .
+        run: flutter create --platforms=android --project-name aaraagate_${{ matrix.app }} --org com.aaraaplatforms . --no-pub
       - name: Restore reviewed source and pin TEST native SDK levels
         run: bash scripts/v5-test-android-smoke.sh prepare "${{ matrix.app }}"
       - name: Resolve app dependencies
         working-directory: apps/${{ matrix.app }}
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
       - name: Build real debug APK without production signing
         working-directory: apps/${{ matrix.app }}
         run: flutter build apk --debug --no-pub
