@@ -12,9 +12,11 @@ function setup(responses: unknown[]) {
   const tx = { $queryRaw: vi.fn(), $executeRaw: vi.fn().mockResolvedValue(1) };
   for (const response of responses) tx.$queryRaw.mockResolvedValueOnce(response);
   const prisma = {
-    $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
+    withTenantContext: vi.fn((_scope: string, run: (client: typeof tx) => unknown) => run(tx)),
     $executeRaw: vi.fn().mockResolvedValue(1),
   };
+  prisma.withTenantContext.mockImplementationOnce((_scope, run) => run(tx));
+  prisma.withTenantContext.mockImplementation((_scope, run) => run({ $queryRaw: vi.fn(), $executeRaw: prisma.$executeRaw }));
   return { tx, prisma, processor: new PaymentWebhookProcessor(prisma as never) };
 }
 
@@ -62,7 +64,8 @@ describe('PaymentWebhookProcessor transition and recovery boundaries', () => {
 
   it('preserves the original processing error when recording failure also fails', async () => {
     const { processor, prisma } = setup([]);
-    prisma.$transaction.mockRejectedValueOnce(new Error('original processing failure'));
+    prisma.withTenantContext.mockReset().mockRejectedValueOnce(new Error('original processing failure'))
+      .mockImplementation((_scope, run) => run({ $queryRaw: vi.fn(), $executeRaw: prisma.$executeRaw }));
     prisma.$executeRaw.mockRejectedValueOnce(new Error('failure recording unavailable'));
     await expect(processor.process(society, receipt, event)).rejects.toThrow('original processing failure');
   });

@@ -5,6 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service';
 import { PaymentOrderService } from './payment-order.service';
 import { ResidentStatementService } from './resident-statement.service';
+import { BillingService, type PaymentWebhookEvent } from './billing.service';
+import { PushDeliveryOutboxService } from '../notifications/push-delivery-outbox.service';
 
 // Creates a restricted role and isolated copies of migrated tables. Never run
 // this DDL against an operator's database or enable RLS on shared public tables.
@@ -34,12 +36,14 @@ database('Billing transactions under a non-owner RLS role', () => {
   const fixture = new PrismaService({ datasources: { db: { url: fixtureUrl.toString() } } });
   const runtime = new PrismaService({ datasources: { db: { url: runtimeUrl.toString() } } });
   const orders = new PaymentOrderService(runtime);
+  const billing = new BillingService(runtime);
   const owner = randomUUID(), tenant = randomUUID();
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
   const tables = ['User', 'Society', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
-    'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking'];
+    'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
+    'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt'];
   let schemaCreated = false, roleCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -55,7 +59,9 @@ database('Billing transactions under a non-owner RLS role', () => {
     schemaCreated = true;
     executeDdl(`CREATE ROLE "${role}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS PASSWORD '${password}'`);
     roleCreated = true;
-    const definitions: string[] = [];
+    // A domain preserves the migrated public enum while resolving the existing
+    // webhook SQL cast inside this isolated schema. No enum values are copied.
+    const definitions: string[] = ['CREATE DOMAIN "PaymentStatus" AS public."PaymentStatus"'];
     for (const table of tables) {
       definitions.push(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`);
       if (table === 'User') continue; // Global identity is not a society record.
@@ -105,6 +111,95 @@ database('Billing transactions under a non-owner RLS role', () => {
         '2026-10',1000,DATE '2026-10-31',CURRENT_TIMESTAMP) RETURNING "id"`);
     return row;
   }
+
+  async function paymentReceipt(status: 'CREATED' | 'REFUNDED' = 'CREATED') {
+    const bill = await invoice();
+    const created = await orders.createPayment(societyA, owner, bill.id, randomUUID()) as { id: string };
+    const [order] = await fixture.$queryRaw<Array<{ id: string; providerOrderId: string }>>(Prisma.sql`
+      SELECT "id","providerOrderId" FROM "Payment" WHERE "id"=${created.id}::uuid`);
+    if (status === 'REFUNDED') await fixture.$executeRaw(Prisma.sql`
+      UPDATE "Payment" SET "status"='REFUNDED' WHERE "id"=${order.id}::uuid`);
+    const event: PaymentWebhookEvent = { eventId: randomUUID(), providerOrderId: order.providerOrderId,
+      providerPaymentId: randomUUID(), status: 'CAPTURED' };
+    const [receipt] = await fixture.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      INSERT INTO "PaymentWebhookReceipt"
+        ("societyId","paymentId","providerEventId","providerOrderId","providerPaymentId","eventStatus","payload","payloadDigest")
+      VALUES (${societyA}::uuid,${order.id}::uuid,${event.eventId},${event.providerOrderId},${event.providerPaymentId},
+        'CAPTURED',CAST(${JSON.stringify(event)} AS jsonb),${'a'.repeat(64)}) RETURNING "id"`);
+    return { bill, order, receipt, event };
+  }
+
+  it('keeps resident/admin invoice and payment reads inside their selected society', async () => {
+    const local = await invoice(), foreign = await invoice(societyB, unitB);
+    const mine = await billing.listMine(societyA, owner) as Array<{ id: string }>;
+    expect(mine.some(row => row.id === local.id)).toBe(true);
+    expect(mine.some(row => row.id === foreign.id)).toBe(false);
+    expect(await billing.listMine(societyA, tenant)).toEqual([]);
+    const payable = await billing.listPayable(societyA, tenant) as Array<{ id: string }>;
+    expect(payable.some(row => row.id === local.id)).toBe(true);
+    expect(await billing.listPayable(societyA, tenant, unitB)).toEqual([]);
+    const remote = await billing.listForSociety(societyB) as Array<{ id: string }>;
+    expect(remote.some(row => row.id === foreign.id)).toBe(true);
+    expect(remote.some(row => row.id === local.id)).toBe(false);
+    expect(await billing.listBillableUnits(societyA)).toEqual([{ id: unitA, unitNumber: '1', buildingName: 'Fixture' }]);
+    const otherOrder = await orders.createPayment(societyB, owner, foreign.id, randomUUID()) as { id: string };
+    const localOrder = await orders.createPayment(societyA, owner, local.id, randomUUID()) as { id: string };
+    const audit = await billing.listPaymentAudit(societyA) as Array<{ id: string }>;
+    expect(audit.some(row => row.id === localOrder.id)).toBe(true);
+    expect(audit.some(row => row.id === otherOrder.id)).toBe(false);
+  });
+
+  it('keeps AutoPay preferences payer-private and rejects foreign property substitution', async () => {
+    await billing.setAutopayPreference(societyA, owner, { unitId: unitA, enabled: true, debitDaysBefore: 2 });
+    expect(await billing.getAutopayPreference(societyA, owner, unitA)).toMatchObject({ enabled: true, automaticDebitAvailable: false });
+    expect(await billing.getAutopayPreference(societyA, tenant, unitA)).toMatchObject({ enabled: false, automaticDebitAvailable: false });
+    await expect(billing.setAutopayPreference(societyA, owner, { unitId: unitB, enabled: true, debitDaysBefore: 1 }))
+      .rejects.toThrow('Current owner or tenant relationship is required');
+  });
+
+  it('commits owner/tenant dues delivery intent with issuance and rolls back failed delivery persistence', async () => {
+    const published: unknown[] = [];
+    const service = new BillingService(runtime, { publishResident: (event: unknown) => published.push(event) } as never,
+      new PushDeliveryOutboxService(runtime));
+    const issued = await service.issue(societyA, owner, { unitId: unitA, billingPeriod: '2026-11', amountPaise: 1000, dueDate: '2026-11-30' });
+    const delivery = await fixture.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+      SELECT "userId" FROM "PushDeliveryOutbox" WHERE "societyId"=${societyA}::uuid AND "payload"->>'invoiceId'=${issued.id}`);
+    expect(delivery.map(row => row.userId).sort()).toEqual([owner, tenant].sort());
+    expect(published).toHaveLength(2);
+    const failing = new BillingService(runtime, { publishResident: () => { throw new Error('uncommitted publication'); } } as never,
+      { enqueue: async () => { throw new Error('outbox unavailable'); } } as never);
+    await expect(failing.issue(societyA, owner, { unitId: unitA, billingPeriod: '2026-12', amountPaise: 1000, dueDate: '2026-12-31' }))
+      .rejects.toThrow('outbox unavailable');
+    const rolledBack = await fixture.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "MaintenanceInvoice" WHERE "societyId"=${societyA}::uuid AND "billingPeriod"='2026-12'`);
+    expect(rolledBack).toEqual([]);
+  });
+
+  it('scopes webhook visibility/replay and applies a captured event exactly once', async () => {
+    const { bill, order, receipt, event } = await paymentReceipt();
+    const local = await billing.listWebhookReceipts(societyA) as Array<{ id: string }>;
+    const foreign = await billing.listWebhookReceipts(societyB) as Array<{ id: string }>;
+    expect(local.some(row => row.id === receipt.id)).toBe(true);
+    expect(foreign.some(row => row.id === receipt.id)).toBe(false);
+    await expect(billing.replayWebhookReceipt(societyB, owner, receipt.id)).rejects.toThrow('receipt not found');
+    await expect(billing.replayWebhookReceipt(societyA, owner, receipt.id)).resolves.toMatchObject({ ok: true, paymentId: order.id });
+    await expect(billing.replayWebhookReceipt(societyA, owner, receipt.id)).resolves.toMatchObject({ duplicate: true });
+    const [saved] = await fixture.$queryRaw<Array<{ status: string }>>(Prisma.sql`SELECT "status" FROM "MaintenanceInvoice" WHERE "id"=${bill.id}::uuid`);
+    expect(saved.status).toBe('PAID');
+    const events = await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "PaymentEvent" WHERE "providerEventId"=${event.eventId}`);
+    expect(events).toHaveLength(1);
+  });
+
+  it('persists scoped failure evidence after rolling back a rejected payment transition', async () => {
+    const { order, receipt, event } = await paymentReceipt('REFUNDED');
+    await expect(billing.replayWebhookReceipt(societyA, owner, receipt.id)).rejects.toThrow('Invalid payment state transition');
+    const [saved] = await fixture.$queryRaw<Array<{ processingStatus: string; replayCount: number; lastError: string }>>(Prisma.sql`
+      SELECT "processingStatus","replayCount","lastError" FROM "PaymentWebhookReceipt" WHERE "id"=${receipt.id}::uuid`);
+    expect(saved).toMatchObject({ processingStatus: 'FAILED', replayCount: 1, lastError: 'Invalid payment state transition' });
+    const [unchanged] = await fixture.$queryRaw<Array<{ status: string }>>(Prisma.sql`SELECT "status" FROM "Payment" WHERE "id"=${order.id}::uuid`);
+    expect(unchanged.status).toBe('REFUNDED');
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "PaymentEvent" WHERE "providerEventId"=${event.eventId}`)).toEqual([]);
+  });
 
   it('uses a real non-owner role without superuser or RLS bypass privileges', async () => {
     const [identity] = await runtime.$queryRaw<Array<{ superuser: boolean; bypass: boolean; owns: boolean }>>(Prisma.sql`
@@ -194,6 +289,11 @@ database('Billing transactions under a non-owner RLS role', () => {
     expect(statement).toMatchObject({ unitId: unitA, scope: 'MAINTENANCE_ACTIVITY' });
     expect(statement.payments.some(row => row.id === payments[1].id)).toBe(true);
     expect(statement.payments.some(row => row.id === payments[0].id)).toBe(false);
+    const history = await billing.listPaymentsMine(societyA, tenant) as Array<{ id: string }>;
+    expect(history.some(row => row.id === payments[1].id)).toBe(true);
+    expect(history.some(row => row.id === payments[0].id)).toBe(false);
+    expect(await billing.getReceipt(societyA, owner, payments[1].id)).toMatchObject({ paymentId: payments[1].id });
+    await expect(billing.getReceipt(societyA, tenant, payments[0].id)).rejects.toThrow('Receipt not found');
     await expect(new ResidentStatementService(runtime).statement(societyA, tenant, unitB, day, day)).rejects.toThrow('Property not found');
     const [context] = await runtime.$queryRaw<Array<{ societyId: string | null }>>(Prisma.sql`
       SELECT current_setting(${TENANT_CONTEXT_SETTING}, true) AS "societyId"`);

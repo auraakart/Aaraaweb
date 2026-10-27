@@ -16,7 +16,7 @@ export class PaymentWebhookProcessor {
 
   async process(societyId: string, receiptId: string, event: PaymentWebhookEvent) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const receipts = await tx.$queryRaw<PaymentWebhookReceiptRow[]>(Prisma.sql`
           SELECT "id","societyId","paymentId","payloadDigest","processingStatus"
           FROM "PaymentWebhookReceipt"
@@ -50,7 +50,7 @@ export class PaymentWebhookProcessor {
             UPDATE "PaymentWebhookReceipt"
             SET "processingStatus"='PROCESSED',"processedAt"=COALESCE("processedAt",CURRENT_TIMESTAMP),
                 "lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP
-            WHERE "id"=${receiptId}::uuid
+            WHERE "id"=${receiptId}::uuid AND "societyId"=${societyId}::uuid
           `);
           return { duplicate: true, receiptId };
         }
@@ -61,7 +61,7 @@ export class PaymentWebhookProcessor {
               "providerPaymentId"=${event.providerPaymentId},
               "completedAt"=CASE WHEN ${event.status}='CAPTURED' THEN CURRENT_TIMESTAMP ELSE "completedAt" END,
               "updatedAt"=CURRENT_TIMESTAMP
-          WHERE "id"=${order.id}::uuid
+          WHERE "id"=${order.id}::uuid AND "societyId"=${societyId}::uuid
             AND ((${event.status} IN ('CAPTURED','FAILED') AND "status" IN ('CREATED','AUTHORIZED'))
               OR (${event.status}='REFUNDED' AND "status"='CAPTURED'))
           RETURNING "id","invoiceId","amenityBookingId","societyId","purposeType"
@@ -113,17 +113,17 @@ export class PaymentWebhookProcessor {
           UPDATE "PaymentWebhookReceipt"
           SET "processingStatus"='PROCESSED',"processedAt"=CURRENT_TIMESTAMP,
               "lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP
-          WHERE "id"=${receiptId}::uuid
+          WHERE "id"=${receiptId}::uuid AND "societyId"=${societyId}::uuid
         `);
         return { ok: true, paymentId: payment.id, status: event.status, receiptId };
       });
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown payment webhook processing error';
-      await this.prisma.$executeRaw(Prisma.sql`
+      await this.prisma.withTenantContext(societyId, tx => tx.$executeRaw(Prisma.sql`
         UPDATE "PaymentWebhookReceipt"
         SET "processingStatus"='FAILED',"lastError"=${message},"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${receiptId}::uuid AND "societyId"=${societyId}::uuid AND "processingStatus"<>'PROCESSED'
-      `).catch(() => undefined);
+      `)).catch(() => undefined);
       throw error;
     }
   }
