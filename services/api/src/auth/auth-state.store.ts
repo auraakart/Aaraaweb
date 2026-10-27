@@ -4,6 +4,33 @@ import { createClient } from 'redis';
 type MemoryValue = { value: string; expiresAt: number };
 type RedisClient = ReturnType<typeof createClient>;
 
+// One Redis operation checks, charges and consumes the challenge. Failed
+// attempts retain the original expiry instead of opening a new OTP window.
+const VERIFY_OTP = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return false end
+local challenge = cjson.decode(raw)
+local attempts = challenge.attempts
+local limit = tonumber(ARGV[2])
+if type(attempts) ~= 'number' or attempts < 0 or attempts % 1 ~= 0
+    or type(challenge.phone) ~= 'string' or type(challenge.code) ~= 'string'
+    or attempts >= limit then
+  redis.call('DEL', KEYS[1])
+  return false
+end
+if challenge.code ~= ARGV[1] then
+  challenge.attempts = attempts + 1
+  if challenge.attempts >= limit then
+    redis.call('DEL', KEYS[1])
+  else
+    redis.call('SET', KEYS[1], cjson.encode(challenge), 'KEEPTTL')
+  end
+  return false
+end
+redis.call('DEL', KEYS[1])
+return challenge.phone
+`;
+
 @Injectable()
 export class AuthStateStore implements OnModuleDestroy {
   private readonly memory = new Map<string, MemoryValue>();
@@ -89,13 +116,8 @@ export class AuthStateStore implements OnModuleDestroy {
       const value = await redis.get(key);
       return value ? (JSON.parse(value) as T) : null;
     }
-    const item = this.memory.get(key);
-    if (!item) return null;
-    if (item.expiresAt <= Date.now()) {
-      this.memory.delete(key);
-      return null;
-    }
-    return JSON.parse(item.value) as T;
+    const item = this.memoryValue(key);
+    return item ? JSON.parse(item.value) as T : null;
   }
 
   async delete(key: string) {
@@ -116,9 +138,9 @@ export class AuthStateStore implements OnModuleDestroy {
       const result = await multi.exec();
       return Number(result[0]);
     }
-    const current = await this.getJson<number>(key);
-    const next = (current ?? 0) + 1;
-    await this.setJson(key, next, ttlSeconds);
+    const current = this.memoryValue(key);
+    const next = (current ? JSON.parse(current.value) as number : 0) + 1;
+    this.memory.set(key, { value: JSON.stringify(next), expiresAt: current?.expiresAt ?? Date.now() + ttlSeconds * 1000 });
     return next;
   }
 
@@ -128,9 +150,43 @@ export class AuthStateStore implements OnModuleDestroy {
       const value = await redis.getDel(key);
       return value ? (JSON.parse(value) as T) : null;
     }
-    const value = await this.getJson<T>(key);
-    if (value !== null) this.memory.delete(key);
-    return value;
+    const item = this.memoryValue(key);
+    this.memory.delete(key);
+    return item ? JSON.parse(item.value) as T : null;
+  }
+
+  async verifyOtpChallenge(key: string, code: string, maxAttempts: number): Promise<string | null> {
+    const redis = await this.redis();
+    if (redis) {
+      const phone = await redis.eval(VERIFY_OTP, { keys: [key], arguments: [code, String(maxAttempts)] });
+      return typeof phone === 'string' ? phone : null;
+    }
+    // No await between reading and mutating memory: concurrent callers must
+    // observe the same single-use and attempt-limit rules as Redis.
+    const item = this.memoryValue(key);
+    if (!item) return null;
+    const challenge = JSON.parse(item.value) as { attempts: number; code: string; phone: string };
+    if (!Number.isSafeInteger(challenge.attempts) || challenge.attempts < 0
+        || typeof challenge.phone !== 'string' || typeof challenge.code !== 'string'
+        || challenge.attempts >= maxAttempts) {
+      this.memory.delete(key);
+      return null;
+    }
+    if (challenge.code !== code) {
+      challenge.attempts += 1;
+      if (challenge.attempts >= maxAttempts) this.memory.delete(key);
+      else this.memory.set(key, { ...item, value: JSON.stringify(challenge) });
+      return null;
+    }
+    this.memory.delete(key);
+    return challenge.phone;
+  }
+
+  private memoryValue(key: string): MemoryValue | undefined {
+    const item = this.memory.get(key);
+    if (item && item.expiresAt > Date.now()) return item;
+    this.memory.delete(key);
+    return undefined;
   }
 
   private dispose(client?: RedisClient) {

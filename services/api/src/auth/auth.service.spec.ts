@@ -20,6 +20,7 @@ describe('AuthService security state', () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     await state.onModuleDestroy();
   });
@@ -55,6 +56,34 @@ describe('AuthService security state', () => {
     expect(await state.getJson(`auth:otp:${challenge.challengeId}`)).toBeNull();
   });
 
+  it('accepts a successful challenge only once under concurrent verification', async () => {
+    const challenge = await service.requestOtp('+919876543213');
+    const stored = await state.getJson<StoredOtp>(`auth:otp:${challenge.challengeId}`);
+    const results = await Promise.allSettled(Array.from({ length: 12 }, () => service.verifyOtp(challenge.challengeId, stored!.code)));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(await state.getJson(`auth:otp:${challenge.challengeId}`)).toBeNull();
+  });
+
+  it('counts simultaneous wrong codes and cannot restore a consumed challenge', async () => {
+    const challenge = await service.requestOtp('+919876543214');
+    const key = `auth:otp:${challenge.challengeId}`;
+    const stored = await state.getJson<StoredOtp>(key);
+    const results = await Promise.allSettled(Array.from({ length: 12 }, () => service.verifyOtp(challenge.challengeId, '000000')));
+    expect(results.every(result => result.status === 'rejected')).toBe(true);
+    expect(await state.getJson(key)).toBeNull();
+    await expect(service.verifyOtp(challenge.challengeId, stored!.code)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('never extends the original OTP validity after an incorrect attempt', async () => {
+    vi.useFakeTimers();
+    const challenge = await service.requestOtp('+919876543215');
+    const stored = await state.getJson<StoredOtp>(`auth:otp:${challenge.challengeId}`);
+    await vi.advanceTimersByTimeAsync(299_000);
+    await expect(service.verifyOtp(challenge.challengeId, '000000')).rejects.toBeInstanceOf(UnauthorizedException);
+    await vi.advanceTimersByTimeAsync(1_001);
+    await expect(service.verifyOtp(challenge.challengeId, stored!.code)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it('rate limits OTP issuance per normalized phone number', async () => {
     for (let request = 0; request < 5; request += 1) {
       await expect(service.requestOtp('+919876543212')).resolves.toBeDefined();
@@ -67,6 +96,16 @@ describe('AuthService security state', () => {
       expect(error).toBeInstanceOf(HttpException);
       expect((error as HttpException).getStatus()).toBe(429);
     }
+  });
+
+  it('rejects state-key suffixes without touching the phone issuance counter', async () => {
+    const phone = '+919876543216';
+    await service.requestOtp(phone);
+    const key = `auth:otp:rate:${phone}`;
+    const verify = vi.spyOn(state, 'getJson');
+    await expect(service.verifyOtp(`rate:${phone}`, '000000')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(verify).not.toHaveBeenCalled();
+    expect(await state.getJson(key)).toBe(1);
   });
 
   it('rejects society selection grant use by a different user without consuming the valid grant', async () => {

@@ -1,7 +1,19 @@
 # Aaraagate Architecture Baseline
 
-Updated: 2026-09-12  
-Architecture generation: V2
+Reviewed: 2026-10-27
+
+Architecture foundation: V2 modular monolith, extended by the V5 shared-brand and partner layers.
+
+## Current-state navigation
+
+The boundaries below remain the architecture foundation, not a claim that development stopped at V2. For current implementation and acceptance, use:
+
+- [V5.10 engineering validation and remaining acceptance](../V5.10-HEALTH-HARDENING.md).
+- [Tenant isolation rollout](V5.10-TENANT-ISOLATION-ROLLOUT.md): transaction-local context exists; database policy enforcement and hosted negative tests remain open.
+- [Partner ownership and compatibility](V5-PARTNER-OWNERSHIP-COMPATIBILITY.md) and [runtime society branding](V5.3-RUNTIME-SOCIETY-BRANDING.md).
+- [Current capability index](../CURRENT-CAPABILITY-INDEX.md) and [V5 acceptance register](../v5-release-manifest.json).
+
+Partner commercial ownership and branding do not grant operational society access. Preserve the core V5 acceptance register separately from maintenance engineering validation.
 
 ## Product model
 Aaraagate is a multi-tenant residential-community operating system for Indian gated communities, designed as a long-lived SaaS platform with society-level operational isolation, configurable product entitlements and policy-driven behavior where state law, association structure or bye-laws differ.
@@ -10,7 +22,7 @@ V2 retains the validated V1 gate/resident/services architecture and adds account
 
 ## Applications
 - `apps/admin`: Next.js Admin/Operations application for society management, accounting, governance, facilities, procurement, privacy operations and platform administration.
-- `apps/resident`: Flutter consumer application. Keep the primary experience centered on Home, Gate, Payments, Services, Community/Helpdesk and Amenities.
+- `apps/resident`: Flutter consumer application. Primary tabs are Home, Gate, Services, Community and Profile. Billing, Staff, Amenities and Helpdesk use their existing contextual/quick-action entry points; the AI assistant remains on Home.
 - `apps/guard`: Flutter security/gate application optimized for constrained gate workflows and intermittent connectivity.
 
 Complex ERP-style functions must not be pushed into the Resident app merely because the backend supports them.

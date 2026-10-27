@@ -39,12 +39,19 @@ function pathOf(request: RateLimitRequest) {
 
 export function resolveRateLimitPolicy(method: string, path: string): RateLimitPolicy | null {
   const normalizedMethod = method.toUpperCase();
+  // Express defaults to case-insensitive, non-strict routing. Policy selection
+  // must cover those same route aliases without changing the request URL.
+  path = path.split('?')[0].toLowerCase().replace(/\/+$/, '') || '/';
   if (normalizedMethod === 'OPTIONS') return null;
   if (path === '/api/v1/health' || path.startsWith('/api/v1/health/')) return null;
   if (normalizedMethod === 'POST' && path === '/api/v1/auth/otp/request') {
     return { name: 'otp-request', limit: 5, windowSeconds: 300 };
   }
-  if (normalizedMethod === 'POST' && path === '/api/v1/auth/otp/verify') {
+  if (normalizedMethod === 'POST' && [
+    '/api/v1/auth/otp/verify',
+    '/api/v1/auth/partner/otp/verify',
+    '/api/v1/auth/partner/host/otp/verify',
+  ].includes(path)) {
     return { name: 'otp-verify', limit: 10, windowSeconds: 300 };
   }
   if (normalizedMethod === 'POST' && path === '/api/v1/auth/refresh') {
