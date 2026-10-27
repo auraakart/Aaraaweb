@@ -11,34 +11,8 @@ export class PaymentOrderService {
   async createPayment(societyId: string, userId: string, invoiceId: string, idempotencyKey: string) {
     // Re-check the domain boundary even when a controller DTO was validated.
     if (!idempotencyKey.trim()) throw new BadRequestException('Idempotency key is required');
-    const authorized = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT i."id" FROM "MaintenanceInvoice" i
-      WHERE i."id"=${invoiceId}::uuid AND i."societyId"=${societyId}::uuid
-        AND (EXISTS (
-          SELECT 1 FROM "UnitOwnership" uo
-          WHERE uo."unitId" = i."unitId"
-            AND uo."societyId" = ${societyId}::uuid
-            AND uo."userId" = ${userId}::uuid
-            AND uo."verified" = true
-            AND uo."active" = true
-            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
-            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
-        ) OR EXISTS (
-          SELECT 1 FROM "UnitOccupancy" ur
-          WHERE ur."unitId" = i."unitId"
-            AND ur."societyId" = ${societyId}::uuid
-            AND ur."userId" = ${userId}::uuid
-            AND ur."relation" = 'TENANT'
-            AND ur."active" = true
-            AND ur."effectiveFrom" <= CURRENT_TIMESTAMP
-            AND (ur."effectiveTo" IS NULL OR ur."effectiveTo" > CURRENT_TIMESTAMP)
-        ))
-      LIMIT 1
-    `);
-    if (!authorized[0]) throw new NotFoundException('Invoice not found');
-
     const normalizedKey = idempotencyKey.trim();
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const invoices = await tx.$queryRaw<InvoiceRow[]>(Prisma.sql`
         SELECT i.* FROM "MaintenanceInvoice" i
         WHERE i."id"=${invoiceId}::uuid AND i."societyId"=${societyId}::uuid
@@ -113,7 +87,7 @@ export class PaymentOrderService {
   async createAmenityDepositPayment(societyId:string,userId:string,bookingId:string,idempotencyKey:string) {
     const normalizedKey=idempotencyKey.trim();
     if (!normalizedKey) throw new BadRequestException('Idempotency key is required');
-    return this.prisma.$transaction(async(tx)=>{
+    return this.prisma.withTenantContext(societyId, async(tx)=>{
       const bookings=await tx.$queryRaw<Array<{
         id:string;userId:string;status:string;depositPaise:number;depositStatus:string;depositDueAt:Date|null;paymentOpen:boolean;
       }>>(Prisma.sql`

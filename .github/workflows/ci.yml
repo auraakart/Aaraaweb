@@ -514,6 +514,10 @@ jobs:
         run: pnpm --filter @aaraagate/api exec vitest run src/auth/auth.service.spec.ts src/auth/auth-state.redis.spec.ts src/reliability/rate-limit.http.spec.ts src/reliability/rate-limit.middleware.spec.ts
       - name: Test PostgreSQL workflows before broad regression
         run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts src/helpdesk/helpdesk-ticket-number.postgres.spec.ts
+      - name: Billing tenant context under isolated non-owner RLS policies
+        env:
+          AARAAGATE_BILLING_RLS_CI: '1'
+        run: pnpm --filter @aaraagate/api exec vitest run src/billing/billing-tenant-context.postgres.spec.ts
       - name: Finance concurrency and reconciliation acceptance (disposable PostgreSQL)
         env:
           AARAAGATE_FINANCE_CONCURRENCY_CI: '1'

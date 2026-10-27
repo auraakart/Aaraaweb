@@ -22,7 +22,7 @@ export class ResidentStatementService {
   constructor(private readonly prisma: PrismaService) {}
   statement(societyId: string, userId: string, unitId: string, from: string, to: string) {
     const window = statementWindow(from, to);
-    return this.prisma.$transaction(async tx => {
+    return this.prisma.withTenantContext(societyId, async tx => {
       const [property] = await tx.$queryRaw<Array<{ unitNumber: string; buildingName: string; societyName: string }>>(Prisma.sql`
         SELECT u."number" AS "unitNumber", b."name" AS "buildingName", s."name" AS "societyName"
         FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
