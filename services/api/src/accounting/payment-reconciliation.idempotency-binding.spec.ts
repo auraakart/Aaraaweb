@@ -18,7 +18,7 @@ describe('PaymentReconciliationService gateway operation idempotency',()=>{
         requestedByUserId:userId,
       }]),
     };
-    const prisma={$transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const service=new PaymentReconciliationService(prisma as never);
 
     await expect(service.createOperation(
@@ -44,7 +44,7 @@ describe('PaymentReconciliationService gateway operation idempotency',()=>{
       $executeRaw:vi.fn().mockResolvedValue(0),
       $queryRaw:vi.fn().mockResolvedValueOnce([existing]).mockResolvedValueOnce([operation]),
     };
-    const prisma={$transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const service=new PaymentReconciliationService(prisma as never);
 
     await expect(service.createOperation(
@@ -64,7 +64,7 @@ describe('PaymentReconciliationService gateway operation result invariants',()=>
       $executeRaw:vi.fn(),
       $queryRaw:vi.fn().mockResolvedValueOnce([{status:'SETTLED',providerOperationId:'provider-op-1'}]),
     };
-    const prisma={$transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const service=new PaymentReconciliationService(prisma as never);
 
     await expect(service.recordOperationResult(
@@ -80,7 +80,7 @@ describe('PaymentReconciliationService gateway operation result invariants',()=>
       $executeRaw:vi.fn(),
       $queryRaw:vi.fn().mockResolvedValueOnce([{status:'ACCEPTED',providerOperationId:'provider-op-1'}]),
     };
-    const prisma={$transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const service=new PaymentReconciliationService(prisma as never);
 
     await expect(service.recordOperationResult(
@@ -100,7 +100,7 @@ describe('PaymentReconciliationService gateway operation result invariants',()=>
         .mockResolvedValueOnce([{status:'SETTLED',providerOperationId:'provider-op-1'}])
         .mockResolvedValueOnce([operation]),
     };
-    const prisma={$transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const service=new PaymentReconciliationService(prisma as never);
 
     await expect(service.recordOperationResult(
@@ -136,7 +136,7 @@ describe('PaymentReconciliationService case refresh invariants',()=>{
         .mockResolvedValueOnce([existingCase])
         .mockResolvedValueOnce([refreshed]),
     };
-    const prisma={$transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const service=new PaymentReconciliationService(prisma as never);
 
     await expect(service.openOrRefreshCase(societyId,paymentId,'configured-http')).resolves.toEqual(refreshed);
@@ -155,7 +155,7 @@ describe('PaymentReconciliationService case refresh invariants',()=>{
         .mockResolvedValueOnce([{total:0n}])
         .mockResolvedValueOnce([{id:'55555555-5555-4555-8555-555555555555',provider:'configured-http'}]),
     };
-    const prisma={$transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx))};
     const service=new PaymentReconciliationService(prisma as never);
 
     await expect(service.openOrRefreshCase(societyId,paymentId,'RAZORPAY'))

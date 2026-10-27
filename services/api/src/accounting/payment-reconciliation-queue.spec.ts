@@ -5,7 +5,7 @@ describe('V4.25 reconciliation exception queue',()=>{
   it('derives a tenant-scoped accountant queue without mutating payment state',async()=>{
     const queryRaw=vi.fn().mockResolvedValue([{id:'case-1',status:'ACTION_REQUIRED',priority:'HIGH',nextAction:'Review provider failure evidence'}]);
     const executeRaw=vi.fn();
-    const service=new PaymentReconciliationService({$queryRaw:queryRaw,$executeRaw:executeRaw} as never);
+    const service=new PaymentReconciliationService({withTenantContext:vi.fn((_scope:string,run:(tx:unknown)=>unknown)=>run({$queryRaw:queryRaw,$executeRaw:executeRaw}))} as never);
     const result=await service.listCases('society-a');
     expect(result).toEqual([expect.objectContaining({priority:'HIGH'})]);
     expect(executeRaw).not.toHaveBeenCalled();

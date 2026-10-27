@@ -198,3 +198,8 @@ See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026
 ## H27-03 follow-through — billing reads and webhook recovery
 
 [Billing reads, issuance and webhook context](architecture/BILLING-READ-WEBHOOK-CONTEXT-2026-10-27.md) records scoped reads, preferences, invoice/outbox transactions, receipt persistence/replay and post-rollback processing failure evidence. It retains the explicit global resolver/reconciliation/job/hosted activation backlog; H27-03 is not fully closed.
+
+
+## H27-03 follow-through — reconciliation scope
+
+[Reconciliation tenant context](architecture/RECONCILIATION-TENANT-CONTEXT-2026-10-27.md) records scoped case/operation lifecycle and metrics, atomic resolution response, expanded risk coverage and isolated-policy acceptance. Global runner claims, callback order resolution and hosted activation remain open; H27-03/H27-08 remain partial.

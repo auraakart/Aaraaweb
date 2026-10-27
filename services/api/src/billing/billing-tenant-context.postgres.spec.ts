@@ -7,6 +7,8 @@ import { PaymentOrderService } from './payment-order.service';
 import { ResidentStatementService } from './resident-statement.service';
 import { BillingService, type PaymentWebhookEvent } from './billing.service';
 import { PushDeliveryOutboxService } from '../notifications/push-delivery-outbox.service';
+import { PaymentReconciliationService } from '../accounting/payment-reconciliation.service';
+import { PaymentReconciliationObservabilityService } from '../accounting/payment-reconciliation-observability.service';
 
 // Creates a restricted role and isolated copies of migrated tables. Never run
 // this DDL against an operator's database or enable RLS on shared public tables.
@@ -37,13 +39,15 @@ database('Billing transactions under a non-owner RLS role', () => {
   const runtime = new PrismaService({ datasources: { db: { url: runtimeUrl.toString() } } });
   const orders = new PaymentOrderService(runtime);
   const billing = new BillingService(runtime);
+  const reconciliation = new PaymentReconciliationService(runtime);
   const owner = randomUUID(), tenant = randomUUID();
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
   const tables = ['User', 'Society', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
-    'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt'];
+    'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
+    'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation'];
   let schemaCreated = false, roleCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -61,7 +65,8 @@ database('Billing transactions under a non-owner RLS role', () => {
     roleCreated = true;
     // A domain preserves the migrated public enum while resolving the existing
     // webhook SQL cast inside this isolated schema. No enum values are copied.
-    const definitions: string[] = ['CREATE DOMAIN "PaymentStatus" AS public."PaymentStatus"'];
+    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus']
+      .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
     for (const table of tables) {
       definitions.push(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`);
       if (table === 'User') continue; // Global identity is not a society record.
@@ -128,6 +133,83 @@ database('Billing transactions under a non-owner RLS role', () => {
         'CAPTURED',CAST(${JSON.stringify(event)} AS jsonb),${'a'.repeat(64)}) RETURNING "id"`);
     return { bill, order, receipt, event };
   }
+
+  async function reconciliationPayment(societyId = societyA, unitId = unitA) {
+    const bill = await invoice(societyId, unitId);
+    const order = await orders.createPayment(societyId, owner, bill.id, randomUUID()) as { id: string };
+    await fixture.$executeRaw(Prisma.sql`UPDATE "Payment" SET "status"='CAPTURED' WHERE "id"=${order.id}::uuid`);
+    return order.id;
+  }
+
+  it('isolates reconciliation queue/detail/observation/resolution for two societies', async () => {
+    const paymentA = await reconciliationPayment(), paymentB = await reconciliationPayment(societyB, unitB);
+    const a = await reconciliation.openOrRefreshCase(societyA, paymentA, 'RLS_FIXTURE') as { id: string };
+    const b = await reconciliation.openOrRefreshCase(societyB, paymentB, 'RLS_FIXTURE') as { id: string };
+    expect(await reconciliation.listCases(societyA)).toEqual([expect.objectContaining({ id: a.id, priority: 'MEDIUM' })]);
+    expect(await reconciliation.listCases(societyB)).toEqual([expect.objectContaining({ id: b.id })]);
+    await expect(reconciliation.getCase(societyB, a.id)).rejects.toThrow('Reconciliation case not found');
+    await expect(reconciliation.openOrRefreshCase(societyB, paymentA, 'RLS_FIXTURE')).rejects.toThrow('Payment not found');
+    await expect(reconciliation.recordObservation(societyB, a.id, { observedProviderStatus: 'CAPTURED', observedAmountPaise: 1000 }))
+      .rejects.toThrow('Reconciliation case not found');
+    await expect(reconciliation.resolveCase(societyB, owner, a.id, 'Foreign attempt')).rejects.toThrow('missing or already resolved');
+    await expect(reconciliation.recordObservation(societyA, a.id, { observedProviderStatus: 'CAPTURED', observedAmountPaise: 1000 }))
+      .resolves.toMatchObject({ status: 'MATCHED', observedAmountPaise: '1000' });
+    await expect(reconciliation.resolveCase(societyA, owner, a.id, 'Evidence verified'))
+      .resolves.toMatchObject({ id: a.id, status: 'RESOLVED', resolvedByUserId: owner, reason: 'Evidence verified' });
+    await expect(reconciliation.resolveCase(societyA, owner, a.id, 'Duplicate')).rejects.toThrow('already resolved');
+    expect(await reconciliation.getCase(societyB, b.id)).toMatchObject({ status: 'PENDING' });
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "PaymentReconciliationCase"`)).toEqual([]);
+  });
+
+  it('isolates operation retries/results and retains settled evidence under RLS', async () => {
+    const paymentA = await reconciliationPayment(), paymentB = await reconciliationPayment(societyB, unitB), key = randomUUID();
+    const input = { operationType: 'STATUS_QUERY' as const, provider: 'RLS_FIXTURE', idempotencyKey: key };
+    const a = await reconciliation.createOperation(societyA, owner, paymentA, input) as { id: string };
+    const b = await reconciliation.createOperation(societyB, owner, paymentB, input) as { id: string };
+    expect(a.id).not.toBe(b.id);
+    expect(await reconciliation.createOperation(societyA, owner, paymentA, input)).toMatchObject({ id: a.id });
+    await expect(reconciliation.createOperation(societyA, tenant, paymentA, input)).rejects.toThrow('different gateway operation request');
+    expect(await reconciliation.listOperations(societyB, paymentA)).toEqual([]);
+    await expect(reconciliation.recordOperationResult(societyB, a.id, { status: 'SETTLED' })).rejects.toThrow('Gateway operation not found');
+    const settled = await reconciliation.recordOperationResult(societyA, a.id, { status: 'SETTLED', providerOperationId: 'rls-provider-op' });
+    expect(await reconciliation.recordOperationResult(societyA, a.id, { status: 'SETTLED', providerOperationId: 'rls-provider-op' }))
+      .toMatchObject({ settledAt: settled.settledAt });
+    await expect(reconciliation.recordOperationResult(societyA, a.id, { status: 'FAILED' })).rejects.toThrow('cannot regress');
+    await expect(reconciliation.recordOperationResult(societyA, a.id, { status: 'SETTLED', providerOperationId: 'changed' }))
+      .rejects.toThrow('cannot change');
+    expect(await reconciliation.listOperations(societyB, paymentB)).toEqual([expect.objectContaining({ id: b.id, status: 'REQUESTED' })]);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "PaymentGatewayOperation"`)).toEqual([]);
+  });
+
+  it('returns only selected-society reconciliation metrics', async () => {
+    const metrics = new PaymentReconciliationObservabilityService(runtime);
+    const beforeA = await metrics.metrics(societyA), beforeB = await metrics.metrics(societyB);
+    const payment = await reconciliationPayment();
+    await reconciliation.openOrRefreshCase(societyA, payment, 'RLS_FIXTURE');
+    await reconciliation.createOperation(societyA, owner, payment, {
+      operationType: 'REFUND', amountPaise: 500, provider: 'RLS_FIXTURE', idempotencyKey: randomUUID(),
+    });
+    const afterA = await metrics.metrics(societyA);
+    expect(BigInt(afterA.cases.pending)).toBe(BigInt(beforeA.cases.pending) + 1n);
+    expect(BigInt(afterA.operations.requested)).toBe(BigInt(beforeA.operations.requested) + 1n);
+    expect(await metrics.metrics(societyB)).toEqual(beforeB);
+  });
+
+  it('rolls back case resolution when its response cannot be read in the same context', async () => {
+    const payment = await reconciliationPayment();
+    const c = await reconciliation.openOrRefreshCase(societyA, payment, 'RLS_FIXTURE') as { id: string };
+    const failing = new PaymentReconciliationService({
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+        runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+          get(target, key) { return key === '$queryRaw' ? async () => { throw new Error('response unavailable'); } : Reflect.get(target, key); },
+        }))),
+    } as never);
+    await expect(failing.resolveCase(societyA, owner, c.id, 'Evidence verified')).rejects.toThrow('response unavailable');
+    expect(await reconciliation.getCase(societyA, c.id)).toMatchObject({ status: 'PENDING', resolvedAt: null });
+    const [context] = await runtime.$queryRaw<Array<{ societyId: string | null }>>(Prisma.sql`
+      SELECT current_setting(${TENANT_CONTEXT_SETTING}, true) AS "societyId"`);
+    expect([societyA, societyB]).not.toContain(context.societyId);
+  });
 
   it('keeps resident/admin invoice and payment reads inside their selected society', async () => {
     const local = await invoice(), foreign = await invoice(societyB, unitB);
