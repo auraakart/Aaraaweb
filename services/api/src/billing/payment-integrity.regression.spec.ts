@@ -19,9 +19,9 @@ function fixture(status: string, existing: unknown[] = [], inserted: unknown[] =
   };
   const prisma = {
     $queryRaw: vi.fn().mockResolvedValue([{ id: invoiceId }]),
-    $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
+    withTenantContext: vi.fn((_society: string, run: (client: typeof tx) => unknown) => run(tx)),
   };
-  return { tx, service: new PaymentOrderService(prisma as never) };
+  return { tx, prisma, service: new PaymentOrderService(prisma as never) };
 }
 
 describe('Payment integrity regressions', () => {
@@ -55,9 +55,11 @@ describe('Payment integrity regressions', () => {
 
   it('creates the normal order and its audit event', async () => {
     const order = { id: 'payment-1', invoiceId, status: 'CREATED' };
-    const { tx, service } = fixture('ISSUED', [], [order]);
+    const { tx, prisma, service } = fixture('ISSUED', [], [order]);
     await expect(service.createPayment(societyId, userId, invoiceId, 'new-key')).resolves.toEqual(order);
     expect(tx.$executeRaw).toHaveBeenCalledOnce();
+    expect(prisma.withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it.each(['é'.repeat(64), 'g'.repeat(64), 'a'.repeat(63), 'a'.repeat(65)])(

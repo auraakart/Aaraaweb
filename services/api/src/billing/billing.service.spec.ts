@@ -62,11 +62,17 @@ describe('BillingService', () => {
   });
 
   it('does not expose a cross-tenant invoice for payment', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]), $transaction: vi.fn() };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const prisma = {
+      $queryRaw: vi.fn(),
+      $transaction: vi.fn(),
+      withTenantContext: vi.fn((_society: string, run: (client: typeof tx) => unknown) => run(tx)),
+    };
     const service = new BillingService(prisma as unknown as PrismaService);
     await expect(service.createPayment('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','payment-key-123')).rejects.toThrow('Invoice not found');
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-    const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    const sql = (tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sql).toContain('"UnitOwnership"');
     expect(sql).toContain('uo."verified" = true');
     expect(sql).toContain('"UnitOccupancy"');
@@ -123,6 +129,7 @@ describe('BillingService', () => {
     const prisma = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: '33333333-3333-3333-3333-333333333333' }]),
       $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
+      withTenantContext: vi.fn((_society: string, run: (client: typeof tx) => unknown) => run(tx)),
     };
     const service = new BillingService(prisma as unknown as PrismaService);
     await expect(service.createPayment(
@@ -148,6 +155,7 @@ describe('BillingService', () => {
     const prisma={
       $queryRaw:vi.fn().mockResolvedValue([{id:active.invoiceId}]),
       $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
+      withTenantContext:vi.fn((_society:string,run:(client:typeof tx)=>unknown)=>run(tx)),
     };
     const service=new BillingService(prisma as unknown as PrismaService);
     await expect(service.createPayment(
@@ -169,6 +177,7 @@ describe('BillingService', () => {
     const prisma={
       $queryRaw:vi.fn().mockResolvedValue([{id:invoiceId}]),
       $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
+      withTenantContext:vi.fn((_society:string,run:(client:typeof tx)=>unknown)=>run(tx)),
     };
     const service=new BillingService(prisma as unknown as PrismaService);
     await expect(service.createPayment(

@@ -188,3 +188,8 @@ These remain judgment scores with the same evidence limits as the initial assess
 | Overall health | 7.5 | 7.6 |
 
 Definition of done: **NOT MET for the complete optimization program**. This is a completed local security/documentation batch and a prioritized, evidence-limited health assessment. Open High assurance gaps, skipped database acceptance, protected CI and independent operational acceptance prevent a completion or production-readiness claim.
+
+
+## Next implementation batch — H27-03 checkout and statement scope
+
+See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026-10-27.md) for transaction changes, the duplicate-query deletion ledger, dedicated non-owner RLS fixture, validation and remaining callback/read/job scope. H27-03 remains partial until the complete staged rollout and hosted acceptance pass. Earlier checkpoint tables retain their historical assessment context; PR #1527 closed H27-01/H27-02 with protected CI.

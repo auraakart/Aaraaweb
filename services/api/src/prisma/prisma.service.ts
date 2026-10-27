@@ -24,6 +24,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async withTenantContext<T>(
     societyId: string,
     operation: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number; isolationLevel?: Prisma.TransactionIsolationLevel },
   ): Promise<T> {
     if (!UUID_PATTERN.test(societyId)) {
       throw new Error('A valid society UUID is required for tenant database context');
@@ -34,6 +35,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         Prisma.sql`SELECT set_config(${TENANT_CONTEXT_SETTING}, ${societyId}, true)`,
       );
       return operation(tx);
-    });
+    }, options);
   }
 }

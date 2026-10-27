@@ -274,7 +274,7 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     // key. This makes the cross-invoice race deterministic without replacing SQL.
     const synchronized = new PaymentOrderService({
       $queryRaw: prisma.$queryRaw.bind(prisma),
-      $transaction: (run: (tx: Prisma.TransactionClient) => Promise<unknown>) => prisma.$transaction(async tx => {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => prisma.withTenantContext(scope, async tx => {
         const observed = new Proxy(tx, {
           get(target, property) {
             if (property !== '$queryRaw') return Reflect.get(target, property);

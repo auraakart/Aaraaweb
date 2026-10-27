@@ -12,7 +12,7 @@ describe('V4.79.2 amenity refundable-deposit checkout',()=>{
         .mockResolvedValueOnce([{id:'payment-1',purposeType:'AMENITY_DEPOSIT',amenityBookingId:'booking-1',amountPaise:25000}]),
       $executeRaw:vi.fn().mockResolvedValue(1),
     };
-    const prisma={$transaction:vi.fn((cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={withTenantContext:vi.fn((_society:string,cb:(client:typeof tx)=>unknown)=>cb(tx))};
     const service=new BillingService(prisma as never);
     await expect(service.createAmenityDepositPayment('society-1','user-1','booking-1','deposit-key-1'))
       .resolves.toMatchObject({id:'payment-1',purposeType:'AMENITY_DEPOSIT',amountPaise:25000});
@@ -30,7 +30,7 @@ describe('V4.79.2 amenity refundable-deposit checkout',()=>{
         .mockResolvedValueOnce([]),
       $executeRaw:vi.fn(),
     };
-    const prisma={$transaction:vi.fn((cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={withTenantContext:vi.fn((_society:string,cb:(client:typeof tx)=>unknown)=>cb(tx))};
     const service=new BillingService(prisma as never);
     await expect(service.createAmenityDepositPayment('society-1','user-1','booking-1','deposit-key-2'))
       .rejects.toThrow('deadline has elapsed');
