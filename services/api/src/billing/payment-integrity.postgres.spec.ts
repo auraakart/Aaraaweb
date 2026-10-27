@@ -384,10 +384,12 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     ] });
     const allInvoices = await billing.listPayable(societyId, ownerId) as Array<{ status: string }>;
     const allPayments = await billing.listPaymentsMine(societyId, ownerId) as unknown[];
-    const query = vi.spyOn(prisma, '$queryRaw');
+    // Measure the bounded domain results, not transaction context setup SQL.
+    const payableQuery = vi.spyOn(billing, 'listPayable');
+    const paymentQuery = vi.spyOn(billing, 'listPaymentsMine');
     const owner = await billing.residentSummary(societyId, ownerId, target);
-    const invoiceRows = await query.mock.results[0].value as unknown[];
-    const paymentRows = await query.mock.results[1].value as unknown[];
+    const invoiceRows = await payableQuery.mock.results[0].value as unknown[];
+    const paymentRows = await paymentQuery.mock.results[0].value as unknown[];
     expect(invoiceRows).toHaveLength(1);
     expect(paymentRows).toHaveLength(2);
     expect(allInvoices.length).toBeGreaterThanOrEqual(32);

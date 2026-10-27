@@ -41,7 +41,7 @@ export class BillingService {
   }
 
   listMine(societyId: string, userId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT i.*, u."number" AS "unitNumber", b."name" AS "buildingName"
       FROM "MaintenanceInvoice" i
       JOIN "Unit" u ON u."id" = i."unitId"
@@ -58,11 +58,11 @@ export class BillingService {
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         )
       ORDER BY i."dueDate" DESC
-    `);
+    `));
   }
 
   listPayable(societyId: string, userId: string, unitId?: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT i.*, u."number" AS "unitNumber", b."name" AS "buildingName"
       FROM "MaintenanceInvoice" i
       JOIN "Unit" u ON u."id" = i."unitId" AND u."societyId" = i."societyId"
@@ -85,7 +85,7 @@ export class BillingService {
         )
       )
       ORDER BY i."dueDate" DESC
-    `);
+    `));
   }
 
   async residentSummary(societyId:string,userId:string,unitId?:string) {
@@ -124,41 +124,44 @@ export class BillingService {
     };
   }
 
-
   async getAutopayPreference(societyId:string,userId:string,unitId:string) {
-    await this.assertCurrentPayer(societyId,userId,unitId);
-    const rows=await this.prisma.$queryRaw<Array<{enabled:boolean;maxAmountPaise:number|null;debitDaysBefore:number;provider:string|null;providerMandateId:string|null;providerMandateStatus:string|null;updatedAt:Date}>>(Prisma.sql`
-      SELECT "enabled","maxAmountPaise","debitDaysBefore","provider","providerMandateId","providerMandateStatus","updatedAt"
-      FROM "PaymentAutopayPreference"
-      WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "payerUserId"=${userId}::uuid LIMIT 1
-    `);
-    const row=rows[0];
-    const mandateRecorded=!!row?.provider && !!row?.providerMandateId && row?.providerMandateStatus==='ACTIVE';
-    return {unitId,enabled:row?.enabled??false,maxAmountPaise:row?.maxAmountPaise??null,debitDaysBefore:row?.debitDaysBefore??1,
-      executionState:mandateRecorded?'MANDATE_RECORDED_NO_EXECUTOR':'PROVIDER_UNBOUND',automaticDebitAvailable:false,
-      providerMandateStatus:row?.providerMandateStatus??null,updatedAt:row?.updatedAt??null,
-      boundary:'This records the resident AutoPay preference only. No automatic debit is attempted or treated as successful until a payment-mandate provider and debit executor are explicitly integrated and confirmed.'};
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.assertCurrentPayer(tx,societyId,userId,unitId);
+      const rows=await tx.$queryRaw<Array<{enabled:boolean;maxAmountPaise:number|null;debitDaysBefore:number;provider:string|null;providerMandateId:string|null;providerMandateStatus:string|null;updatedAt:Date}>>(Prisma.sql`
+        SELECT "enabled","maxAmountPaise","debitDaysBefore","provider","providerMandateId","providerMandateStatus","updatedAt"
+        FROM "PaymentAutopayPreference"
+        WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "payerUserId"=${userId}::uuid LIMIT 1
+      `);
+      const row=rows[0];
+      const mandateRecorded=!!row?.provider && !!row?.providerMandateId && row?.providerMandateStatus==='ACTIVE';
+      return {unitId,enabled:row?.enabled??false,maxAmountPaise:row?.maxAmountPaise??null,debitDaysBefore:row?.debitDaysBefore??1,
+        executionState:mandateRecorded?'MANDATE_RECORDED_NO_EXECUTOR':'PROVIDER_UNBOUND',automaticDebitAvailable:false,
+        providerMandateStatus:row?.providerMandateStatus??null,updatedAt:row?.updatedAt??null,
+        boundary:'This records the resident AutoPay preference only. No automatic debit is attempted or treated as successful until a payment-mandate provider and debit executor are explicitly integrated and confirmed.'};
+    });
   }
 
   async setAutopayPreference(societyId:string,userId:string,input:{unitId:string;enabled:boolean;maxAmountPaise?:number;debitDaysBefore:number}) {
-    await this.assertCurrentPayer(societyId,userId,input.unitId);
-    const rows=await this.prisma.$queryRaw<Array<{enabled:boolean;maxAmountPaise:number|null;debitDaysBefore:number;provider:string|null;providerMandateId:string|null;providerMandateStatus:string|null;updatedAt:Date}>>(Prisma.sql`
-      INSERT INTO "PaymentAutopayPreference" ("societyId","unitId","payerUserId","enabled","maxAmountPaise","debitDaysBefore")
-      VALUES (${societyId}::uuid,${input.unitId}::uuid,${userId}::uuid,${input.enabled},${input.maxAmountPaise??null},${input.debitDaysBefore})
-      ON CONFLICT ("societyId","unitId","payerUserId") DO UPDATE SET
-        "enabled"=EXCLUDED."enabled","maxAmountPaise"=EXCLUDED."maxAmountPaise","debitDaysBefore"=EXCLUDED."debitDaysBefore","updatedAt"=CURRENT_TIMESTAMP
-      RETURNING "enabled","maxAmountPaise","debitDaysBefore","provider","providerMandateId","providerMandateStatus","updatedAt"
-    `);
-    const row=rows[0];
-    const mandateRecorded=!!row?.provider && !!row?.providerMandateId && row?.providerMandateStatus==='ACTIVE';
-    return {unitId:input.unitId,enabled:row?.enabled??input.enabled,maxAmountPaise:row?.maxAmountPaise??input.maxAmountPaise??null,
-      debitDaysBefore:row?.debitDaysBefore??input.debitDaysBefore,executionState:mandateRecorded?'MANDATE_RECORDED_NO_EXECUTOR':'PROVIDER_UNBOUND',
-      automaticDebitAvailable:false,providerMandateStatus:row?.providerMandateStatus??null,updatedAt:row?.updatedAt??null,
-      boundary:'Preference saved. Automatic debit remains unavailable until a payment-mandate provider and debit executor are explicitly integrated and confirmed.'};
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.assertCurrentPayer(tx,societyId,userId,input.unitId);
+      const rows=await tx.$queryRaw<Array<{enabled:boolean;maxAmountPaise:number|null;debitDaysBefore:number;provider:string|null;providerMandateId:string|null;providerMandateStatus:string|null;updatedAt:Date}>>(Prisma.sql`
+        INSERT INTO "PaymentAutopayPreference" ("societyId","unitId","payerUserId","enabled","maxAmountPaise","debitDaysBefore")
+        VALUES (${societyId}::uuid,${input.unitId}::uuid,${userId}::uuid,${input.enabled},${input.maxAmountPaise??null},${input.debitDaysBefore})
+        ON CONFLICT ("societyId","unitId","payerUserId") DO UPDATE SET
+          "enabled"=EXCLUDED."enabled","maxAmountPaise"=EXCLUDED."maxAmountPaise","debitDaysBefore"=EXCLUDED."debitDaysBefore","updatedAt"=CURRENT_TIMESTAMP
+        RETURNING "enabled","maxAmountPaise","debitDaysBefore","provider","providerMandateId","providerMandateStatus","updatedAt"
+      `);
+      const row=rows[0];
+      const mandateRecorded=!!row?.provider && !!row?.providerMandateId && row?.providerMandateStatus==='ACTIVE';
+      return {unitId:input.unitId,enabled:row?.enabled??input.enabled,maxAmountPaise:row?.maxAmountPaise??input.maxAmountPaise??null,
+        debitDaysBefore:row?.debitDaysBefore??input.debitDaysBefore,executionState:mandateRecorded?'MANDATE_RECORDED_NO_EXECUTOR':'PROVIDER_UNBOUND',
+        automaticDebitAvailable:false,providerMandateStatus:row?.providerMandateStatus??null,updatedAt:row?.updatedAt??null,
+        boundary:'Preference saved. Automatic debit remains unavailable until a payment-mandate provider and debit executor are explicitly integrated and confirmed.'};
+    });
   }
 
-  private async assertCurrentPayer(societyId:string,userId:string,unitId:string) {
-    const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+  private async assertCurrentPayer(tx: Prisma.TransactionClient,societyId:string,userId:string,unitId:string) {
+    const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT u."id" FROM "Unit" u
       WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid
         AND ${currentPayerPropertySql(societyId,userId,unitId)}
@@ -168,17 +171,17 @@ export class BillingService {
   }
 
   listForSociety(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT i.*, u."number" AS "unitNumber", b."name" AS "buildingName"
       FROM "MaintenanceInvoice" i JOIN "Unit" u ON u."id" = i."unitId" JOIN "Building" b ON b."id" = u."buildingId"
       WHERE i."societyId" = ${societyId}::uuid AND u."societyId" = ${societyId}::uuid
       ORDER BY i."dueDate" DESC
-    `);
+    `));
   }
 
   listPaymentsMine(societyId: string, userId: string, unitId?: string, history?: ResidentHistoryQuery) {
     if (history) validateHistory(history);
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT p."id", p."invoiceId", p."amountPaise", p."status",
         to_char(p."createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "historyTimestamp",
         p."createdAt", p."completedAt", i."invoiceNumber", i."billingPeriod",
@@ -200,7 +203,7 @@ export class BillingService {
         ${history?.beforeDate ? Prisma.sql`AND (p."createdAt",p."id")<(${history.beforeDate}::timestamptz,${history.beforeId}::uuid)` : Prisma.empty}
       ORDER BY p."createdAt" DESC, p."id" DESC
       ${history ? Prisma.sql`LIMIT 51` : Prisma.empty}
-    `);
+    `));
   }
 
   statement(societyId: string, userId: string, unitId: string, from: string, to: string) {
@@ -208,7 +211,7 @@ export class BillingService {
   }
 
   getReceipt(societyId: string, userId: string, paymentId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT p."id" AS "paymentId", ${receiptReferenceSql} AS "receiptNumber", ${legacyReceiptReferenceSql} AS "legacyReceiptNumber",
         p."amountPaise", p."status", p."completedAt",
         i."invoiceNumber", i."billingPeriod", i."paidAt",
@@ -229,7 +232,7 @@ export class BillingService {
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         ))
       LIMIT 1
-    `).then((rows) => {
+    `)).then((rows) => {
       const receipt = (rows as unknown[])[0];
       if (!receipt) throw new NotFoundException('Receipt not found');
       return receipt;
@@ -237,7 +240,7 @@ export class BillingService {
   }
 
   listPaymentAudit(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT p."id",p."purposeType",p."providerOrderId",p."providerPaymentId",p."amountPaise",p."status",
         p."createdAt",p."completedAt",
         COALESCE(i."invoiceNumber",CONCAT('Amenity deposit · ',a."name")) AS "invoiceNumber",
@@ -254,24 +257,24 @@ export class BillingService {
       WHERE p."societyId"=${societyId}::uuid
       GROUP BY p."id",i."invoiceNumber",a."name",u."number",b."name"
       ORDER BY p."createdAt" DESC
-    `);
+    `));
   }
 
   listBillableUnits(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT u."id", u."number" AS "unitNumber", b."name" AS "buildingName"
       FROM "Unit" u
       JOIN "Building" b ON b."id" = u."buildingId"
       WHERE u."societyId" = ${societyId}::uuid
         AND b."societyId" = ${societyId}::uuid
       ORDER BY b."name", u."number"
-    `);
+    `));
   }
 
   async issue(societyId: string, actorUserId: string, input: { unitId: string; billingPeriod: string; amountPaise: number; dueDate: string; description?: string }) {
     if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise < 100) throw new BadRequestException('Invoice amount must be at least one rupee');
     const invoiceNumber = `${input.billingPeriod.replace('-', '')}-${input.unitId.slice(0, 8).toUpperCase()}`;
-    const { invoice, events } = await this.prisma.$transaction(async (tx) => {
+    const { invoice, events } = await this.prisma.withTenantContext(societyId, async (tx) => {
       const units = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT "id" FROM "Unit"
         WHERE "id"=${input.unitId}::uuid AND "societyId"=${societyId}::uuid
@@ -331,7 +334,7 @@ export class BillingService {
   }
 
   listWebhookReceipts(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT r."id",r."paymentId",r."providerEventId",r."providerOrderId",r."providerPaymentId",
              r."eventStatus",r."processingStatus",r."receiveCount",r."lastReceivedAt",r."processedAt",
              r."lastError",r."replayCount",r."lastReplayedAt",r."lastReplayedByUserId",r."createdAt",
@@ -345,11 +348,11 @@ export class BillingService {
       WHERE r."societyId"=${societyId}::uuid
       ORDER BY r."createdAt" DESC
       LIMIT 200
-    `);
+    `));
   }
 
   async replayWebhookReceipt(societyId: string, actorUserId: string, receiptId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ payload: PaymentWebhookEvent }>>(Prisma.sql`
+    const rows = await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<Array<{ payload: PaymentWebhookEvent }>>(Prisma.sql`
       UPDATE "PaymentWebhookReceipt"
       SET "replayCount"="replayCount"+1,
           "lastReplayedAt"=CURRENT_TIMESTAMP,
@@ -357,13 +360,15 @@ export class BillingService {
           "updatedAt"=CURRENT_TIMESTAMP
       WHERE "id"=${receiptId}::uuid AND "societyId"=${societyId}::uuid
       RETURNING "payload"
-    `);
+    `));
     if (!rows[0]) throw new NotFoundException('Payment webhook receipt not found');
     return this.processWebhookReceipt(societyId, receiptId, rows[0].payload);
   }
 
   async reconcile(signature: string | undefined, event: PaymentWebhookEvent) {
     const digest = this.verifyWebhookSignature(signature, event);
+    // Verified callbacks resolve their society from a server-owned order.
+    // Policy activation still requires a narrowly authorized global resolver.
     const orders = await this.prisma.$queryRaw<PaymentWebhookRow[]>(Prisma.sql`
       SELECT "id","invoiceId","amenityBookingId","societyId","purposeType","status"
       FROM "Payment"
@@ -373,7 +378,7 @@ export class BillingService {
     const order = orders[0];
     if (!order) throw new NotFoundException('Payment order not found');
 
-    const receipts = await this.prisma.$queryRaw<PaymentWebhookReceiptRow[]>(Prisma.sql`
+    const receipts = await this.prisma.withTenantContext(order.societyId, tx => tx.$queryRaw<PaymentWebhookReceiptRow[]>(Prisma.sql`
       INSERT INTO "PaymentWebhookReceipt" (
         "societyId","paymentId","providerEventId","providerOrderId","providerPaymentId",
         "eventStatus","payload","payloadDigest"
@@ -386,7 +391,7 @@ export class BillingService {
           "lastReceivedAt"=CURRENT_TIMESTAMP,
           "updatedAt"=CURRENT_TIMESTAMP
       RETURNING "id","societyId","paymentId","payloadDigest","processingStatus"
-    `);
+    `));
     const receipt = receipts[0];
     if (!receipt) throw new BadRequestException('Payment webhook receipt could not be persisted');
     if (receipt.payloadDigest !== digest || receipt.paymentId !== order.id || receipt.societyId !== order.societyId) {
@@ -415,6 +420,5 @@ export class BillingService {
   private processWebhookReceipt(societyId: string, receiptId: string, event: PaymentWebhookEvent) {
     return this.webhookProcessor.process(societyId, receiptId, event);
   }
-
 
 }

@@ -1,7 +1,16 @@
 import { createHash, createHmac } from 'node:crypto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingService } from './billing.service';
+
+// Query fixtures expose the same SQL spies through a scoped transaction.
+// Dedicated context regressions below separately reject any root-client I/O.
+function scoped(prisma: Record<string, unknown>) {
+  const transaction = prisma.$transaction as Mock<(run: (client: unknown) => unknown) => unknown> | undefined;
+  return Object.assign(prisma, { withTenantContext: prisma.withTenantContext ?? vi.fn(
+    (_scope: string, run: (client: unknown) => unknown) => transaction?.getMockImplementation() ? transaction(run) : run(prisma),
+  ) }) as unknown as PrismaService;
+}
 
 describe('BillingService', () => {
   const previousSecret = process.env.PAYMENT_WEBHOOK_SECRET;
@@ -11,7 +20,7 @@ describe('BillingService', () => {
   });
   it('authorizes resident finance through current ownership, never legacy residency', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await service.listMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
     const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
     const sql = query.strings.join(' ');
@@ -22,7 +31,7 @@ describe('BillingService', () => {
 
   it('lists payable invoices for verified owners or current tenants only', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await service.listPayable('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
     const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sql).toContain('"UnitOwnership"');
@@ -43,7 +52,7 @@ describe('BillingService', () => {
           {invoiceId:'invoice-2',amountPaise:45000,status:'CAPTURED',createdAt:'2026-09-10T00:00:00.000Z',completedAt:'2026-09-10T00:05:00.000Z'},
         ]),
     };
-    const service=new BillingService(prisma as unknown as PrismaService);
+    const service=new BillingService(scoped(prisma));
     const result=await service.residentSummary('society-1','user-1','unit-1');
     expect(result).toEqual(expect.objectContaining({
       unitId:'unit-1',outstandingPaise:120000,openInvoiceCount:1,paymentRecoveryCount:1,
@@ -54,7 +63,7 @@ describe('BillingService', () => {
 
   it('rejects invalid invoice amounts before persistence', async () => {
     const prisma = { $transaction: vi.fn() };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await expect(service.issue('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222',{
       unitId:'33333333-3333-3333-3333-333333333333', billingPeriod:'2026-09', amountPaise:99, dueDate:'2026-09-30',
     })).rejects.toThrow('Invoice amount must be at least one rupee');
@@ -68,7 +77,7 @@ describe('BillingService', () => {
       $transaction: vi.fn(),
       withTenantContext: vi.fn((_society: string, run: (client: typeof tx) => unknown) => run(tx)),
     };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await expect(service.createPayment('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','payment-key-123')).rejects.toThrow('Invoice not found');
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(tx.$queryRaw).toHaveBeenCalledOnce();
@@ -88,7 +97,7 @@ describe('BillingService', () => {
     };
     const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
     const realtime = { publishResident: vi.fn() };
-    const service = new BillingService(prisma as unknown as PrismaService, realtime as never);
+    const service = new BillingService(scoped(prisma), realtime as never);
     await service.issue('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
       unitId: '33333333-3333-3333-3333-333333333333', billingPeriod: '2026-09', amountPaise: 125000, dueDate: '2026-09-30',
     });
@@ -108,7 +117,7 @@ describe('BillingService', () => {
     };
     const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
     const realtime = { publishResident: vi.fn() };
-    const service = new BillingService(prisma as unknown as PrismaService, realtime as never);
+    const service = new BillingService(scoped(prisma), realtime as never);
 
     await expect(service.issue('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
       unitId: '33333333-3333-3333-3333-333333333333', billingPeriod: '2026-09', amountPaise: 125000, dueDate: '2026-09-30',
@@ -131,7 +140,7 @@ describe('BillingService', () => {
       $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
       withTenantContext: vi.fn((_society: string, run: (client: typeof tx) => unknown) => run(tx)),
     };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await expect(service.createPayment(
       '11111111-1111-1111-1111-111111111111',
       '22222222-2222-2222-2222-222222222222',
@@ -157,7 +166,7 @@ describe('BillingService', () => {
       $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
       withTenantContext:vi.fn((_society:string,run:(client:typeof tx)=>unknown)=>run(tx)),
     };
-    const service=new BillingService(prisma as unknown as PrismaService);
+    const service=new BillingService(scoped(prisma));
     await expect(service.createPayment(
       '11111111-1111-1111-1111-111111111111',active.payerUserId,active.invoiceId,'new-retry-key',
     )).resolves.toEqual(active);
@@ -179,7 +188,7 @@ describe('BillingService', () => {
       $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
       withTenantContext:vi.fn((_society:string,run:(client:typeof tx)=>unknown)=>run(tx)),
     };
-    const service=new BillingService(prisma as unknown as PrismaService);
+    const service=new BillingService(scoped(prisma));
     await expect(service.createPayment(
       '11111111-1111-1111-1111-111111111111','tenant-user',invoiceId,'tenant-attempt-key',
     )).rejects.toThrow('Payment is already in progress for this invoice');
@@ -191,7 +200,7 @@ describe('BillingService', () => {
   it('rejects unsigned gateway callbacks before database access', async () => {
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-secret';
     const prisma = { $transaction: vi.fn() };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await expect(service.reconcile(undefined, {
       eventId: 'evt-1', providerOrderId: 'order-1', providerPaymentId: 'payment-1', status: 'CAPTURED',
     })).rejects.toThrow('Invalid payment signature');
@@ -200,7 +209,7 @@ describe('BillingService', () => {
 
   it('keeps tenant payment history payer-own while verified owners retain property visibility', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await service.listPaymentsMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
     await expect(service.getReceipt('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333')).rejects.toThrow('Receipt not found');
     for (const [query] of prisma.$queryRaw.mock.calls) {
@@ -225,7 +234,7 @@ describe('BillingService', () => {
         .mockResolvedValueOnce([{ id: '55555555-5555-4555-8555-555555555555', societyId: '11111111-1111-1111-1111-111111111111', paymentId: '33333333-3333-3333-3333-333333333333', payloadDigest: actualDigest, processingStatus: 'PROCESSED' }]),
       $transaction: vi.fn(),
     };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(scoped(prisma));
     await expect(service.reconcile(signature, event)).resolves.toEqual({ duplicate: true, receiptId: '55555555-5555-4555-8555-555555555555' });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });

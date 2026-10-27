@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { BillingService, type PaymentWebhookEvent, type PaymentWebhookRow } from './billing.service';
 
 const societyId = '11111111-1111-4111-8111-111111111111';
@@ -34,6 +34,15 @@ const event: PaymentWebhookEvent = {
   status: 'CAPTURED',
 };
 
+// Separate receipt I/O, processing and post-rollback failure recovery phases.
+function scoped(prisma: Record<string, unknown>) {
+  const transaction = prisma.$transaction as Mock<(run: (client: unknown) => unknown) => unknown> | undefined;
+  const context = vi.fn((_scope: string, run: (client: unknown) => unknown) => run(prisma));
+  context.mockImplementationOnce((_scope, run) => run(prisma));
+  context.mockImplementationOnce((_scope, run) => transaction?.getMockImplementation() ? transaction(run) : run(prisma));
+  return Object.assign(prisma, { withTenantContext: context });
+}
+
 describe('BillingService webhook replay reliability', () => {
   it('persists a verified callback before applying the normal payment transition', async () => {
     const previous = process.env.PAYMENT_WEBHOOK_SECRET;
@@ -58,7 +67,7 @@ describe('BillingService webhook replay reliability', () => {
         $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
         $executeRaw: vi.fn(),
       };
-      const service = new BillingService(prisma as never);
+      const service = new BillingService(scoped(prisma) as never);
       await expect(service.reconcile(signature, event)).resolves.toEqual({ ok: true, paymentId, status: 'CAPTURED', receiptId });
       const receiptSql = (prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
       expect(receiptSql).toContain('INSERT INTO "PaymentWebhookReceipt"');
@@ -82,7 +91,7 @@ describe('BillingService webhook replay reliability', () => {
           .mockResolvedValueOnce([{ id: receiptId, societyId, paymentId, payloadDigest: 'b'.repeat(64), processingStatus: 'FAILED' }]),
         $transaction: vi.fn(),
       };
-      const service = new BillingService(prisma as never);
+      const service = new BillingService(scoped(prisma) as never);
       await expect(service.reconcile(signature, event)).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     } finally {
@@ -92,7 +101,7 @@ describe('BillingService webhook replay reliability', () => {
   });
   it('keeps receipt visibility tenant-scoped', async () => {
     const queryRaw = vi.fn().mockResolvedValue([]);
-    const service = new BillingService({ $queryRaw: queryRaw } as never);
+    const service = new BillingService(scoped({ $queryRaw: queryRaw }) as never);
     await service.listWebhookReceipts(societyId);
     const sql = (queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sql).toContain('r."societyId"=');
@@ -100,7 +109,7 @@ describe('BillingService webhook replay reliability', () => {
 
   it('does not replay a receipt outside the current society', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]), $transaction: vi.fn() };
-    const service = new BillingService(prisma as never);
+    const service = new BillingService(scoped(prisma) as never);
     await expect(service.replayWebhookReceipt(societyId, actorId, receiptId)).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
     const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
@@ -121,7 +130,7 @@ describe('BillingService webhook replay reliability', () => {
       $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
       $executeRaw: vi.fn(),
     };
-    const service = new BillingService(prisma as never);
+    const service = new BillingService(scoped(prisma) as never);
 
     await expect(service.replayWebhookReceipt(societyId, actorId, receiptId)).resolves.toEqual({
       ok: true,
@@ -152,7 +161,7 @@ describe('BillingService webhook replay reliability', () => {
       $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
       $executeRaw: vi.fn(),
     };
-    const service = new BillingService(prisma as never);
+    const service = new BillingService(scoped(prisma) as never);
 
     await expect(service.replayWebhookReceipt(societyId, actorId, receiptId)).resolves.toEqual({
       ok: true,
@@ -181,7 +190,7 @@ describe('BillingService webhook replay reliability', () => {
       $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const service = new BillingService(prisma as never);
+    const service = new BillingService(scoped(prisma) as never);
 
     await expect(service.replayWebhookReceipt(societyId, actorId, receiptId)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$executeRaw).toHaveBeenCalledOnce();

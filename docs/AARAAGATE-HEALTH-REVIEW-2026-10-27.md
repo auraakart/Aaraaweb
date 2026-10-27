@@ -193,3 +193,8 @@ Definition of done: **NOT MET for the complete optimization program**. This is a
 ## Next implementation batch — H27-03 checkout and statement scope
 
 See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026-10-27.md) for transaction changes, the duplicate-query deletion ledger, dedicated non-owner RLS fixture, validation and remaining callback/read/job scope. H27-03 remains partial until the complete staged rollout and hosted acceptance pass. Earlier checkpoint tables retain their historical assessment context; PR #1527 closed H27-01/H27-02 with protected CI.
+
+
+## H27-03 follow-through — billing reads and webhook recovery
+
+[Billing reads, issuance and webhook context](architecture/BILLING-READ-WEBHOOK-CONTEXT-2026-10-27.md) records scoped reads, preferences, invoice/outbox transactions, receipt persistence/replay and post-rollback processing failure evidence. It retains the explicit global resolver/reconciliation/job/hosted activation backlog; H27-03 is not fully closed.

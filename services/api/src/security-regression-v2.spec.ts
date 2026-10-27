@@ -115,7 +115,7 @@ describe('commercial V1 relationship-expiry security regression', () => {
 
   it('keeps maintenance payability limited to verified current owners or current tenants', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new BillingService(prisma as unknown as PrismaService);
+    const service = new BillingService(Object.assign(prisma, { withTenantContext: vi.fn((_scope: string, run: (client: typeof prisma) => unknown) => run(prisma)) }) as unknown as PrismaService);
 
     await service.listPayable('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
     const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');

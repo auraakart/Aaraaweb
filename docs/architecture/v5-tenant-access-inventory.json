@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "46077bdee48d20989c5399f0c31bb2b600d8387f14cdcda8f53a38c0761317e5",
+  "sourceDigest": "7541644d50d219eb9b57e2cfc790608fcd2ad9ef4a54a43cdd92586a73e7bc7f",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 7,
     "utilitySqlSites": 66,
-    "runtimeTenantContextCalls": 148,
+    "runtimeTenantContextCalls": 163,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -37,12 +37,72 @@
       "line": 11
     },
     {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 44
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 65
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 128
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 145
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 174
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 184
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 214
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 243
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 264
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 277
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 337
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 355
+    },
+    {
+      "file": "services/api/src/billing/billing.service.ts",
+      "line": 381
+    },
+    {
       "file": "services/api/src/billing/payment-order.service.ts",
       "line": 15
     },
     {
       "file": "services/api/src/billing/payment-order.service.ts",
       "line": 90
+    },
+    {
+      "file": "services/api/src/billing/payment-webhook.processor.ts",
+      "line": 19
+    },
+    {
+      "file": "services/api/src/billing/payment-webhook.processor.ts",
+      "line": 122
     },
     {
       "file": "services/api/src/billing/resident-statement.service.ts",
@@ -1402,23 +1462,23 @@
     {"receiver":"this.prisma.session","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/auth/session.service.ts","line":170,"method":"refresh","operation":"updateMany","kind":"ORM","tables":["Session"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma.session","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/auth/session.service.ts","line":183,"method":"revoke","operation":"updateMany","kind":"ORM","tables":["Session"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma.session","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/auth/session.service.ts","line":191,"method":"revokeCompromised","operation":"updateMany","kind":"ORM","tables":["Session"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":44,"method":"listMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Unit","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":65,"method":"listPayable","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Unit","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":130,"method":"getAutopayPreference","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentAutopayPreference"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":145,"method":"setAutopayPreference","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentAutopayPreference"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":161,"method":"assertCurrentPayer","operation":"$queryRaw","kind":"RAW_SQL","tables":["Unit"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":171,"method":"listForSociety","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":181,"method":"listPaymentsMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Payment","Unit","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":211,"method":"getReceipt","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Payment","Society","Unit","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":240,"method":"listPaymentAudit","operation":"$queryRaw","kind":"RAW_SQL","tables":["Amenity","AmenityBooking","Building","MaintenanceInvoice","Payment","PaymentEvent","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":261,"method":"listBillableUnits","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":275,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":282,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":289,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":334,"method":"listWebhookReceipts","operation":"$queryRaw","kind":"RAW_SQL","tables":["Amenity","AmenityBooking","MaintenanceInvoice","Payment","PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":352,"method":"replayWebhookReceipt","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":367,"method":"reconcile","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":376,"method":"reconcile","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":44,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Unit","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":65,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Unit","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":130,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentAutopayPreference"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":147,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentAutopayPreference"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":164,"method":"assertCurrentPayer","operation":"$queryRaw","kind":"RAW_SQL","tables":["Unit"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":174,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":184,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Payment","Unit","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":214,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","MaintenanceInvoice","Payment","Society","Unit","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":243,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Amenity","AmenityBooking","Building","MaintenanceInvoice","Payment","PaymentEvent","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":264,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":278,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":285,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":292,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":337,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Amenity","AmenityBooking","MaintenanceInvoice","Payment","PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":355,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":372,"method":"reconcile","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","withTenantContext"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":381,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-order.service.ts","line":16,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-order.service.ts","line":43,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-order.service.ts","line":56,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -1432,14 +1492,14 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":20,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":30,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":40,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":49,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":49,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":58,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":74,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":81,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":91,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AmenityBooking"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":103,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AmenityBooking"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":112,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":122,"method":"process","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":112,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":122,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/resident-statement.service.ts","line":26,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Society","Unit"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/resident-statement.service.ts","line":33,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/resident-statement.service.ts","line":39,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice","Payment","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},

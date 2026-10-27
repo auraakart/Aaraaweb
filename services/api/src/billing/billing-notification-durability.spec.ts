@@ -24,7 +24,7 @@ function fixture(failQueue = false) {
   };
   const prisma = {
     $queryRaw: vi.fn(),
-    $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => {
+    withTenantContext: vi.fn(async (_scope: string, run: (client: typeof tx) => unknown) => {
       const result = await run(tx);
       committed = true;
       return result;
@@ -57,7 +57,7 @@ describe('Billing notification durability', () => {
   it('rejects issuance if durable push persistence fails without publishing uncommitted dues', async () => {
     const { prisma, realtime, service } = fixture(true);
     await expect(service.issue(societyId, 'actor-1', input)).rejects.toThrow('outbox unavailable');
-    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(prisma.withTenantContext).toHaveBeenCalledOnce();
     expect(realtime.publishResident).not.toHaveBeenCalled();
   });
 });
