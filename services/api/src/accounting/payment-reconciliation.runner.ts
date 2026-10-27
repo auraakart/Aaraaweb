@@ -33,6 +33,7 @@ export class PaymentReconciliationRunner implements OnModuleInit,OnModuleDestroy
           await this.reconciliation.recordObservation(op.societyId,String((c as {id:string}).id),{providerPaymentId:observation.providerPaymentId,observedProviderStatus:observation.providerStatus,observedAmountPaise:observation.amountPaise});
           await this.reconciliation.recordOperationResult(op.societyId,op.id,{status:'SETTLED',providerOperationId:op.providerOperationId??undefined});
         }else{
+          if(op.amountPaise===null||op.amountPaise<=0n||op.amountPaise>BigInt(Number.MAX_SAFE_INTEGER))throw new Error('Refund amount must be a positive safe whole number of paise');
           const result=await this.adapter.refund({paymentId:op.paymentId,providerOperationId:op.providerOperationId??undefined,amountPaise:op.amountPaise===null?undefined:Number(op.amountPaise),idempotencyKey:op.idempotencyKey});
           await this.reconciliation.recordOperationResult(op.societyId,op.id,result);
         }

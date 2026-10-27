@@ -5,6 +5,50 @@ const originalEnv={...process.env};
 afterEach(()=>{process.env={...originalEnv};vi.restoreAllMocks();});
 
 describe('ConfiguredHttpPaymentGatewayAdapter',()=>{
+  it.each([undefined, null, 0, -1, 0.5, 100.01, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER+1, '500'])(
+    'rejects invalid refund paise %s before any external request',async(amount)=>{
+      process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
+      const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('{"status":"ACCEPTED"}'));
+      await expect(new ConfiguredHttpPaymentGatewayAdapter().refund({paymentId:'pay-1',amountPaise:amount as number,
+        idempotencyKey:'idem-1'})).rejects.toThrow('positive safe whole number of paise');
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['', '   ', undefined, null])('rejects missing refund idempotency key %s before fetch',async(key)=>{
+    process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('{"status":"ACCEPTED"}'));
+    await expect(new ConfiguredHttpPaymentGatewayAdapter().refund({paymentId:'pay-1',amountPaise:500,
+      idempotencyKey:key as string})).rejects.toThrow('idempotency key is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([Number.MAX_SAFE_INTEGER+1, 0.5, -1, '500', null])('rejects invalid provider observation paise %s',async(amount)=>{
+    process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
+    vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({providerStatus:'CAPTURED',amountPaise:amount})));
+    await expect(new ConfiguredHttpPaymentGatewayAdapter().queryPayment('pay-1')).rejects.toThrow('invalid payment observation');
+  });
+
+  it.each([0, Number.MAX_SAFE_INTEGER])('preserves exact observation paise at boundary %s',async(amount)=>{
+    process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
+    vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({providerStatus:'CAPTURED',amountPaise:amount})));
+    await expect(new ConfiguredHttpPaymentGatewayAdapter().queryPayment('pay-1')).resolves.toMatchObject({amountPaise:amount});
+  });
+
+  it.each([1, Number.MAX_SAFE_INTEGER])('preserves exact refund paise and retry identity at boundary %s',async(amount)=>{
+    process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>new Response('{"status":"ACCEPTED"}'));
+    const adapter=new ConfiguredHttpPaymentGatewayAdapter();
+    const input={paymentId:'pay-1',amountPaise:amount,idempotencyKey:'same-key',providerOperationId:'provider-op'};
+    await adapter.refund(input);
+    await adapter.refund(input);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for(const call of fetchMock.mock.calls){
+      expect(call[1]?.headers).toEqual(expect.objectContaining({'Idempotency-Key':'same-key'}));
+      expect(JSON.parse(call[1]?.body as string)).toEqual({amountPaise:amount,providerOperationId:'provider-op'});
+    }
+  });
+
   it.each(['query', 'refund'] as const)('aborts a stalled %s request and propagates uncertainty for runner recovery',async(operation)=>{
     process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
     const controller=new AbortController();
