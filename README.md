@@ -48,6 +48,7 @@ See `docs/architecture/README.md` for the architecture baseline.
 
 ## Current implementation references
 
+- [27 October repository health assessment and security follow-up](docs/AARAAGATE-HEALTH-REVIEW-2026-10-27.md)
 - [Current capability index](docs/CURRENT-CAPABILITY-INDEX.md)
 - [API contract policy](docs/api-contract-policy.json)
 

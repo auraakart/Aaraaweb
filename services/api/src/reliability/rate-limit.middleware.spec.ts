@@ -23,9 +23,42 @@ describe('rate limit policy', () => {
     expect(resolveRateLimitClient(request, false)).toBe('10.0.0.8');
     expect(resolveRateLimitClient(request, true)).toBe('203.0.113.10');
   });
+
+  it.each([
+    ['/api/v1/auth/otp/request', 'otp-request'],
+    ['/api/v1/auth/otp/verify', 'otp-verify'],
+    ['/api/v1/auth/partner/otp/verify', 'otp-verify'],
+    ['/api/v1/auth/partner/host/otp/verify', 'otp-verify'],
+    ['/api/v1/auth/refresh', 'auth-refresh'],
+    ['/api/v1/billing/payment-webhooks/gateway-adapter', 'payment-webhook'],
+  ])('uses the same protection for Express aliases of %s', (path, name) => {
+    for (const alias of [path, `${path}/`, path.toUpperCase(), `${path.toUpperCase()}/?retry=1`]) {
+      expect(resolveRateLimitPolicy('POST', alias)?.name).toBe(name);
+    }
+  });
+
+  it('retains generic API limits and does not classify near-matches as auth routes', () => {
+    expect(resolveRateLimitPolicy('GET', '/API/V1/residents/me/')?.name).toBe('api');
+    expect(resolveRateLimitPolicy('POST', '/api/v1/auth/otp/verify-extra')?.name).toBe('api');
+    expect(resolveRateLimitPolicy('GET', '/API/V1/HEALTH/READY/')).toBeNull();
+    expect(resolveRateLimitPolicy('POST', '/other/auth/otp/verify')).toBeNull();
+  });
 });
 
 describe('RateLimitMiddleware', () => {
+  it('shares the verification bucket between platform and partner route aliases', async () => {
+    const store = { increment: vi.fn().mockResolvedValueOnce(10).mockResolvedValueOnce(11) };
+    const middleware = new RateLimitMiddleware(store as never);
+    const response = { statusCode: 200, setHeader: vi.fn(), end: vi.fn() };
+    const next = vi.fn();
+    for (const originalUrl of ['/api/v1/auth/otp/verify', '/API/V1/AUTH/PARTNER/HOST/OTP/VERIFY/']) {
+      await middleware.use({ method: 'POST', originalUrl, headers: {}, socket: { remoteAddress: '10.0.0.9' } }, response, next);
+    }
+    expect(store.increment.mock.calls[0]).toEqual(store.increment.mock.calls[1]);
+    expect(response.statusCode).toBe(429);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
   it('returns 429 without calling the downstream handler after the bucket limit', async () => {
     const store = { increment: vi.fn().mockResolvedValue(6) };
     const middleware = new RateLimitMiddleware(store as never);

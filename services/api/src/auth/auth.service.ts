@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
+import { isUUID } from 'class-validator';
 import { AuthStateStore } from './auth-state.store';
 import { OtpDeliveryService } from './otp-delivery.service';
 
@@ -52,25 +53,13 @@ export class AuthService {
   }
 
   async verifyOtp(challengeId: string, code: string) {
+    // Challenges are server-issued UUIDs. Reject state-key suffixes before
+    // touching Redis (for example the separate per-phone issuance counter).
+    if (!isUUID(challengeId)) throw new UnauthorizedException('Invalid or expired OTP');
     const key = `auth:otp:${challengeId}`;
-    const challenge = await this.state.getJson<StoredOtpChallenge>(key);
-    if (!challenge || challenge.attempts >= OTP_MAX_ATTEMPTS) {
-      throw new UnauthorizedException('Invalid or expired OTP');
-    }
-
-    if (challenge.code !== code) {
-      const nextAttempts = challenge.attempts + 1;
-      if (nextAttempts >= OTP_MAX_ATTEMPTS) {
-        await this.state.delete(key);
-      } else {
-        await this.state.setJson(key, { ...challenge, attempts: nextAttempts }, OTP_TTL_SECONDS);
-      }
-      throw new UnauthorizedException('Invalid or expired OTP');
-    }
-
-    const consumed = await this.state.consumeJson<StoredOtpChallenge>(key);
-    if (!consumed) throw new UnauthorizedException('Invalid or expired OTP');
-    return { verified: true, phone: consumed.phone };
+    const phone = await this.state.verifyOtpChallenge(key, code, OTP_MAX_ATTEMPTS);
+    if (!phone) throw new UnauthorizedException('Invalid or expired OTP');
+    return { verified: true, phone };
   }
 
   async createSocietySelectionGrant(userId: string) {

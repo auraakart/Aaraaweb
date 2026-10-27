@@ -16,6 +16,7 @@ function client() {
     get: vi.fn().mockResolvedValue(null),
     del: vi.fn().mockResolvedValue(1),
     getDel: vi.fn().mockResolvedValue(null),
+    eval: vi.fn().mockResolvedValue(null),
     multi: vi.fn(),
   };
   return fake;
@@ -130,6 +131,22 @@ describe('AuthStateStore connection lifecycle', () => {
     store.onModuleDestroy();
   });
 
+  it('uses one Redis operation for OTP verification and never replays uncertain results', async () => {
+    const fake = client();
+    fake.eval.mockResolvedValueOnce('+919876543210').mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('uncertain verification'));
+    vi.mocked(createClient).mockReturnValue(fake as never);
+    const store = new AuthStateStore();
+    await expect(store.verifyOtpChallenge('otp', '123456', 5)).resolves.toBe('+919876543210');
+    await expect(store.verifyOtpChallenge('otp', '123456', 5)).resolves.toBeNull();
+    await expect(store.verifyOtpChallenge('otp', '123456', 5)).rejects.toThrow('uncertain verification');
+    expect(fake.eval).toHaveBeenCalledTimes(3);
+    expect(fake.eval).toHaveBeenCalledWith(expect.any(String), { keys: ['otp'], arguments: ['123456', '5'] });
+    expect(fake.get).not.toHaveBeenCalled();
+    expect(fake.set).not.toHaveBeenCalled();
+    store.onModuleDestroy();
+  });
+
   it('retains atomic Redis NX, consume and fixed-window increment semantics', async () => {
     const fake = client();
     const transaction = { incr: vi.fn(), expire: vi.fn(), exec: vi.fn().mockResolvedValue([2, 1]) };
@@ -172,6 +189,40 @@ describe('AuthStateStore development memory state', () => {
     await expect(store.increment('rate-limit', 1)).resolves.toBe(2);
     await store.delete('rate-limit');
     await expect(store.getJson('rate-limit')).resolves.toBeNull();
+    store.onModuleDestroy();
+  });
+
+  it('does not lose concurrent increments or slide a fixed rate window', async () => {
+    vi.useFakeTimers();
+    const store = new AuthStateStore();
+    const counts = await Promise.all(Array.from({ length: 20 }, () => store.increment('limit', 10)));
+    expect(counts).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+    await vi.advanceTimersByTimeAsync(9_000);
+    await expect(store.increment('limit', 10)).resolves.toBe(21);
+    await vi.advanceTimersByTimeAsync(1_001);
+    await expect(store.increment('limit', 10)).resolves.toBe(1);
+    store.onModuleDestroy();
+  });
+
+  it('allows one concurrent grant consumer', async () => {
+    const store = new AuthStateStore();
+    await store.setJson('grant', { userId: 'one' }, 60);
+    const results = await Promise.all(Array.from({ length: 12 }, () => store.consumeJson('grant')));
+    expect(results.filter(Boolean)).toEqual([{ userId: 'one' }]);
+    store.onModuleDestroy();
+  });
+
+  it.each([
+    { attempts: 5, code: '123456', phone: '+919876543210' },
+    { attempts: -1, code: '123456', phone: '+919876543210' },
+    { attempts: 0.5, code: '123456', phone: '+919876543210' },
+    { attempts: 0, code: 123456, phone: '+919876543210' },
+    { attempts: 0, code: '123456', phone: 123 },
+  ])('rejects invalid or exhausted OTP state %j', async challenge => {
+    const store = new AuthStateStore();
+    await store.setJson('otp', challenge, 60);
+    await expect(store.verifyOtpChallenge('otp', '123456', 5)).resolves.toBeNull();
+    expect(await store.getJson('otp')).toBeNull();
     store.onModuleDestroy();
   });
 });

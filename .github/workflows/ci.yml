@@ -508,6 +508,10 @@ jobs:
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
+      - name: OTP concurrency and HTTP rate-limit security regressions
+        env:
+          AUTH_TEST_REDIS_URL: redis://localhost:6379
+        run: pnpm --filter @aaraagate/api exec vitest run src/auth/auth.service.spec.ts src/auth/auth-state.redis.spec.ts src/reliability/rate-limit.http.spec.ts src/reliability/rate-limit.middleware.spec.ts
       - name: Test PostgreSQL workflows before broad regression
         run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts src/helpdesk/helpdesk-ticket-number.postgres.spec.ts
       - name: Finance concurrency and reconciliation acceptance (disposable PostgreSQL)
@@ -528,6 +532,8 @@ jobs:
         run: pnpm --filter @aaraagate/api exec node -e "if(require('@vitest/coverage-v8/package.json').version!=='5.0.5')process.exit(1)"
       - name: Risk-weighted API coverage gate
         working-directory: services/api
+        env:
+          AUTH_TEST_REDIS_URL: redis://localhost:6379
         run: pnpm exec vitest run --config vitest.risk-coverage.config.ts
       - name: Verify API manifest and lockfile remained unchanged
         if: always()
