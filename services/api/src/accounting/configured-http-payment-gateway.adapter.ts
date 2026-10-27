@@ -22,13 +22,14 @@ export class ConfiguredHttpPaymentGatewayAdapter implements PaymentGatewayAdapte
   async queryPayment(paymentId:string):Promise<GatewayPaymentObservation>{
     this.ensureConfigured();
     const body=await this.json<{providerPaymentId?:string;providerStatus:string;amountPaise:number}>(await fetch(`${this.baseUrl}/payments/${encodeURIComponent(paymentId)}`,{headers:this.headers(),signal:AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS)}));
-    if(!body?.providerStatus||!Number.isInteger(body.amountPaise)||body.amountPaise<0)throw new Error('Gateway bridge returned an invalid payment observation');
+    if(typeof body?.providerStatus!=='string'||!body.providerStatus.trim()||!Number.isSafeInteger(body.amountPaise)||body.amountPaise<0)throw new Error('Gateway bridge returned an invalid payment observation');
     return body;
   }
 
   async refund(input:GatewayOperationRequest):Promise<GatewayOperationResult>{
     this.ensureConfigured();
-    if(!input.amountPaise||input.amountPaise<=0)throw new Error('Refund amount must be positive');
+    if(input.amountPaise===undefined||!Number.isSafeInteger(input.amountPaise)||input.amountPaise<=0)throw new Error('Refund amount must be a positive safe whole number of paise');
+    if(typeof input.idempotencyKey!=='string'||!input.idempotencyKey.trim())throw new Error('Refund idempotency key is required');
     const body=await this.json<GatewayOperationResult>(await fetch(`${this.baseUrl}/payments/${encodeURIComponent(input.paymentId)}/refunds`,{method:'POST',headers:this.headers(input.idempotencyKey),signal:AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),body:JSON.stringify({amountPaise:input.amountPaise,providerOperationId:input.providerOperationId})}));
     if(!['ACCEPTED','SETTLED','FAILED','UNKNOWN'].includes(body?.status))throw new Error('Gateway bridge returned an invalid operation result');
     return body;

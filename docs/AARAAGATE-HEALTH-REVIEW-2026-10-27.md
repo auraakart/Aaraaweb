@@ -43,6 +43,7 @@ Risk is change/regression risk. Effort: S is a focused change; M crosses a bound
 | H27-10 | Default workspace Node 24/pnpm 11 differs from repository Node 22/pnpm 10; pnpm 11 ignores manifest overrides | P1 / Medium validation risk | RETAIN pinned Node 22.22.2/pnpm 10.15.0 for install and checks; frozen lockfile, no incidental upgrade | Low | S | Correct toolchain selected for this review |
 | H27-11 | Device, multilingual repeated speech, screen-reader and independent Partner A/B acceptance outstanding | P1 / Medium release assurance gap | RETAIN current acceptance register; execute exact-candidate device matrix and independently operated partner tests (#1380) | Medium | L | Open external evidence |
 | H27-12 | Live dependency audit and candidate CI need fresh evidence | P0 / High if vulnerability found | RETAIN zero High/Critical dependency tolerance; run audit and required candidate CI; no blind major upgrades | Medium | M | Pending; prior green evidence not current scan |
+| H27-14 | Gateway accepts invalid/unsafe refund numbers; runner converts stored BIGINT without range validation | P0 / High boundary risk | REFACTOR to validate before conversion/fetch; retain valid request identity and retry evidence | Medium | S | Implementation and local risk pass; protected CI pending |
 | H27-13 | Competitors already market broad ERP/AI capabilities | P5 / Medium | DEFER feature expansion; prove guard speed, trustworthy finance and useful authorized AI outcomes before adding breadth | Low | L | Comparative review below |
 
 Batch A: reproduce and fix authentication security defects; test TTL, concurrency, route equivalence, shared quotas and fail-closed behavior; review runtime diff. Batch B: current-state documentation navigation and evidence alignment, retaining history. Batch C: execute risk/full API and appropriate repository regression; audit dependencies; review migrations and candidate CI. Larger RLS/provider/device/field tasks remain explicitly gated by their actual prerequisites; no acceptance can be synthesized from a report.
@@ -203,3 +204,8 @@ See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026
 ## H27-03 follow-through — reconciliation scope
 
 [Reconciliation tenant context](architecture/RECONCILIATION-TENANT-CONTEXT-2026-10-27.md) records scoped case/operation lifecycle and metrics, atomic resolution response, expanded risk coverage and isolated-policy acceptance. Global runner claims, callback order resolution and hosted activation remain open; H27-03/H27-08 remain partial.
+
+
+## H27-14 — Gateway refund integrity
+
+[Gateway refund integrity](architecture/GATEWAY-REFUND-INTEGRITY-2026-10-27.md) records the worker/adapter precision defect, pre-provider validation, preserved retry identity, tests and deletion ledger. This financial-boundary correction precedes global discovery refactoring. H27-03/H27-04 remain partial; no production policy/provider acceptance is implied.
