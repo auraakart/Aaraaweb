@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "7541644d50d219eb9b57e2cfc790608fcd2ad9ef4a54a43cdd92586a73e7bc7f",
+  "sourceDigest": "a433014c301522d6b6dca0ef5cc5a71ed3678c326dbb05471f3a7d0578b59940",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -20,18 +20,54 @@
     "tables": 287,
     "sourceFilesScanned": 455,
     "migrationFilesScanned": 218,
-    "accessSites": 2463,
-    "rawSqlSites": 1716,
+    "accessSites": 2462,
+    "rawSqlSites": 1715,
     "ormSites": 747,
     "routeHandlers": 967,
     "unsafeSqlSites": 11,
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 7,
     "utilitySqlSites": 66,
-    "runtimeTenantContextCalls": 163,
+    "runtimeTenantContextCalls": 172,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
+    {
+      "file": "services/api/src/accounting/payment-reconciliation-observability.service.ts",
+      "line": 8
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 13
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 42
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 48
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 73
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 83
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 85
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 103
+    },
+    {
+      "file": "services/api/src/accounting/payment-reconciliation.service.ts",
+      "line": 125
+    },
     {
       "file": "services/api/src/auth/partner-application-binding.ts",
       "line": 11
@@ -868,7 +904,7 @@
     {"name":"PaymentAutopayPreference","model":"PaymentAutopayPreference","fields":["createdAt","debitDaysBefore","enabled","id","maxAmountPaise","payerUserId","provider","providerMandateId","providerMandateStatus","societyId","unitId","updatedAt"],"origins":["services/api/prisma/migrations/20260924033000_v452_autopay_preference/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["billing.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":2,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PaymentEvent","model":"PaymentEvent","fields":["actorUser","actorUserId","id","occurredAt","payloadDigest","payment","paymentId","providerEventId","society","societyId","type"],"origins":["services/api/prisma/migrations/20260902093000_maintenance_billing_payments/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["billing.service.ts","payment-order.service.ts","payment-webhook.processor.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":4,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PaymentGatewayOperation","model":null,"fields":["amountPaise","attemptCount","createdAt","failureCode","failureMessage","id","idempotencyKey","lastAttemptAt","nextAttemptAt","operationType","paymentId","provider","providerOperationId","requestedAt","requestedByUserId","settledAt","societyId","status","updatedAt"],"origins":["services/api/prisma/migrations/20260912235500_v2_payment_reconciliation_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["finance-operations.service.ts","payment-reconciliation-observability.service.ts","payment-reconciliation.runner.ts","payment-reconciliation.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":10,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
-    {"name":"PaymentReconciliationCase","model":null,"fields":["createdAt","expectedCapturedPaise","expectedRefundedPaise","id","lastCheckedAt","observedAmountPaise","observedProviderStatus","paymentId","provider","providerPaymentId","reason","resolvedAt","resolvedByUserId","societyId","status","updatedAt"],"origins":["services/api/prisma/migrations/20260912235500_v2_payment_reconciliation_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["finance-operations.service.ts","payment-reconciliation-observability.service.ts","payment-reconciliation.runner.ts","payment-reconciliation.service.ts","reports-analytics.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":13,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
+    {"name":"PaymentReconciliationCase","model":null,"fields":["createdAt","expectedCapturedPaise","expectedRefundedPaise","id","lastCheckedAt","observedAmountPaise","observedProviderStatus","paymentId","provider","providerPaymentId","reason","resolvedAt","resolvedByUserId","societyId","status","updatedAt"],"origins":["services/api/prisma/migrations/20260912235500_v2_payment_reconciliation_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["finance-operations.service.ts","payment-reconciliation-observability.service.ts","payment-reconciliation.runner.ts","payment-reconciliation.service.ts","reports-analytics.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":12,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PaymentRefund","model":null,"fields":["amountPaise","id","idempotencyKey","paymentId","providerReference","reason","refundedAt","refundedByUserId","societyId"],"origins":["services/api/prisma/migrations/20260912213000_v2_payment_exceptions_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["finance-operations.service.ts","payment-availability.service.ts","payment-exceptions.service.ts","payment-reconciliation.service.ts","settlement.service.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":12,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PaymentWebhookReceipt","model":null,"fields":["createdAt","eventStatus","id","lastError","lastReceivedAt","lastReplayedAt","lastReplayedByUserId","payload","payloadDigest","paymentId","processedAt","processingStatus","providerEventId","providerOrderId","providerPaymentId","receiveCount","replayCount","societyId","updatedAt"],"origins":["services/api/prisma/migrations/20260918103000_v4_payment_webhook_receipts/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["billing.service.ts","payment-webhook.processor.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":7,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PrivacyConsentEvent","model":null,"fields":["actorUserId","consentId","createdAt","eventType","id","metadataJson","societyId","summary"],"origins":["services/api/prisma/migrations/20260914021500_v2_privacy_consent_minor/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["privacy-consent.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":3,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
@@ -1241,13 +1277,12 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-exceptions.service.ts","line":78,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentRefund"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-exceptions.service.ts","line":85,"method":"getReversal","operation":"$queryRaw","kind":"RAW_SQL","tables":["ReceivableAllocationReversal"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-exceptions.service.ts","line":86,"method":"getRefund","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentRefund"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation-observability.service.ts","line":9,"method":"metrics","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation-observability.service.ts","line":18,"method":"metrics","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation-observability.service.ts","line":9,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation-observability.service.ts","line":18,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.runner.ts","line":52,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.runner.ts","line":58,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.runner.ts","line":62,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":13,"method":"listCases","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":42,"method":"getCase","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":13,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":49,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":50,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentRefund"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":52,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -1255,13 +1290,13 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":69,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":74,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":79,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":83,"method":"resolveCase","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":83,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"DATABASE_UTILITY","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":86,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SQL_UTILITY_SCOPE_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":87,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":100,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":104,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":112,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":125,"method":"listOperations","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":125,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":126,"method":"getCaseTx","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentReconciliationCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/payment-reconciliation.service.ts","line":127,"method":"getOperation","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentGatewayOperation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/receivables.service.ts","line":69,"method":"listChargeRules","operation":"$queryRaw","kind":"RAW_SQL","tables":["ChargeRule"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},

@@ -9,6 +9,7 @@ const paymentId = '33333333-3333-4333-8333-333333333333';
 describe('V4.90.10 provider reconciliation paise precision', () => {
   const prisma = {
     $transaction: vi.fn(),
+    withTenantContext: vi.fn(),
     $queryRaw: vi.fn(),
     $executeRaw: vi.fn(),
   };
@@ -21,6 +22,7 @@ describe('V4.90.10 provider reconciliation paise precision', () => {
         observedProviderStatus: 'CAPTURED', observedAmountPaise: amount,
       })).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.withTenantContext).not.toHaveBeenCalled();
       expect(prisma.$queryRaw).not.toHaveBeenCalled();
     },
   );
@@ -34,6 +36,7 @@ describe('V4.90.10 provider reconciliation paise precision', () => {
         amountPaise: amount, idempotencyKey: 'refund-operation',
       })).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.withTenantContext).not.toHaveBeenCalled();
     },
   );
 
@@ -45,5 +48,6 @@ describe('V4.90.10 provider reconciliation paise precision', () => {
       amountPaise: Number.POSITIVE_INFINITY, idempotencyKey: 'query-operation',
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();
   });
 });
