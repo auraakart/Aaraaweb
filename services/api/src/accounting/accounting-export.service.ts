@@ -54,7 +54,7 @@ export class AccountingExportService {
     if (from > to) throw new BadRequestException('Export start must be on or before end');
     if (to.getTime() - from.getTime() > 366 * 24 * 60 * 60 * 1000) throw new BadRequestException('Accounting export range cannot exceed 366 days');
     const requestHash = accountingExportRequestHash(input);
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${input.idempotencyKey}`}))`);
       const existing = await tx.$queryRaw<ExportJob[]>(Prisma.sql`SELECT * FROM "AccountingExportJob" WHERE "societyId"=${societyId}::uuid AND "idempotencyKey"=${input.idempotencyKey} LIMIT 1`);
       if (existing.length) {
@@ -72,18 +72,18 @@ export class AccountingExportService {
   }
 
   list(societyId: string) {
-    return this.prisma.$queryRaw<ExportJob[]>(Prisma.sql`SELECT * FROM "AccountingExportJob" WHERE "societyId"=${societyId}::uuid ORDER BY "createdAt" DESC LIMIT 100`);
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<ExportJob[]>(Prisma.sql`SELECT * FROM "AccountingExportJob" WHERE "societyId"=${societyId}::uuid ORDER BY "createdAt" DESC LIMIT 100`));
   }
 
   async get(societyId: string, id: string) {
-    const rows = await this.prisma.$queryRaw<ExportJob[]>(Prisma.sql`SELECT * FROM "AccountingExportJob" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1`);
+    const rows = await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<ExportJob[]>(Prisma.sql`SELECT * FROM "AccountingExportJob" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1`));
     if (!rows.length) throw new NotFoundException('Accounting export job not found');
     return rows[0];
   }
 
   async executeClaimed(job:ExportJob&{societyId:string}){
     try{
-      const rows=await this.prisma.$queryRaw<ExportRow[]>(Prisma.sql`
+      const rows=await this.prisma.withTenantContext(job.societyId, tx => tx.$queryRaw<ExportRow[]>(Prisma.sql`
         SELECT je."id"::text AS "entryId",je."entryNumber",je."entryDate",je."status"::text AS "journalStatus",je."description" AS "journalDescription",
                je."sourceType",je."sourceId",je."externalReference",jl."id"::text AS "lineId",la."code" AS "accountCode",la."name" AS "accountName",la."type"::text AS "accountType",
                af."code" AS "fundCode",jl."unitId"::text AS "unitId",jl."description" AS "lineDescription",jl."debitPaise"::text AS "debitPaise",jl."creditPaise"::text AS "creditPaise",je."currency"
@@ -95,10 +95,10 @@ export class AccountingExportService {
           AND je."entryDate">=${dateOnly(job.fromDate)}::date AND je."entryDate"<=${dateOnly(job.toDate)}::date
         ORDER BY je."entryDate",je."entryNumber",jl."id"
         LIMIT ${ACCOUNTING_EXPORT_MAX_ROWS+1}
-      `);
+      `));
       if(rows.length>ACCOUNTING_EXPORT_MAX_ROWS)throw new Error('EXPORT_ROW_LIMIT_EXCEEDED');
       const artifact=renderAccountingExport(job,rows);
-      await this.prisma.$transaction(async tx=>{
+      await this.prisma.withTenantContext(job.societyId, async tx=>{
         const inserted=await tx.$queryRaw<{id:string}[]>(Prisma.sql`
           INSERT INTO "AccountingExportArtifact" ("societyId","jobId","filename","contentType","sha256","byteLength","content")
           VALUES (${job.societyId}::uuid,${job.id}::uuid,${artifact.filename},${artifact.contentType},${artifact.sha256},${artifact.byteLength},${artifact.content})
@@ -110,16 +110,16 @@ export class AccountingExportService {
       });
     }catch(error){
       const code=this.errorCode(error);
-      await this.prisma.$executeRaw(Prisma.sql`UPDATE "AccountingExportJob" SET "status"='FAILED',"errorCode"=${code},"completedAt"=CURRENT_TIMESTAMP,"leaseUntil"=NULL WHERE "id"=${job.id}::uuid AND "societyId"=${job.societyId}::uuid AND "status"='PROCESSING'`);
+      await this.prisma.withTenantContext(job.societyId, tx => tx.$executeRaw(Prisma.sql`UPDATE "AccountingExportJob" SET "status"='FAILED',"errorCode"=${code},"completedAt"=CURRENT_TIMESTAMP,"leaseUntil"=NULL WHERE "id"=${job.id}::uuid AND "societyId"=${job.societyId}::uuid AND "status"='PROCESSING'`));
     }
   }
 
   async artifact(societyId:string,id:string){
-    const rows=await this.prisma.$queryRaw<ExportArtifact[]>(Prisma.sql`
+    const rows=await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<ExportArtifact[]>(Prisma.sql`
       SELECT a."filename",a."contentType",a."sha256",a."byteLength",a."content"
       FROM "AccountingExportArtifact" a JOIN "AccountingExportJob" j ON j."id"=a."jobId" AND j."societyId"=a."societyId"
       WHERE a."societyId"=${societyId}::uuid AND j."id"=${id}::uuid AND j."status"='COMPLETED' LIMIT 1
-    `);
+    `));
     if(!rows.length)throw new NotFoundException('Completed accounting export artifact not found');
     return rows[0];
   }

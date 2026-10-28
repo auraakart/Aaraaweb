@@ -13,7 +13,7 @@ describe('AccountingExportService',()=>{
     const query=vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([row]);
     const auditCreate=vi.fn().mockResolvedValue({});
     const tx={$executeRaw:vi.fn(),$queryRaw:query,auditEvent:{create:auditCreate}};
-    const prisma={$transaction:vi.fn((callback)=>(callback as (value:typeof tx)=>unknown)(tx))} as unknown as PrismaService;
+    const prisma={withTenantContext:vi.fn((_scope,callback)=>(callback as (value:typeof tx)=>unknown)(tx))} as unknown as PrismaService;
     const result=await new AccountingExportService(prisma).create('society-1','user-1',input);
     expect(result).toBe(row);
     expect(auditCreate).toHaveBeenCalledWith({data:{societyId:'society-1',actorUserId:'user-1',event:AuditEventType.ACCOUNTING_EXPORT_REQUESTED}});
@@ -22,7 +22,7 @@ describe('AccountingExportService',()=>{
   it('rejects reuse of an idempotency key for a different request',async()=>{
     const existing={id:'job-1',requestHash:'different'};
     const tx={$executeRaw:vi.fn(),$queryRaw:vi.fn().mockResolvedValue([existing]),auditEvent:{create:vi.fn()}};
-    const prisma={$transaction:vi.fn((callback)=>(callback as (value:typeof tx)=>unknown)(tx))} as unknown as PrismaService;
+    const prisma={withTenantContext:vi.fn((_scope,callback)=>(callback as (value:typeof tx)=>unknown)(tx))} as unknown as PrismaService;
     await expect(new AccountingExportService(prisma).create('society-1','user-1',input)).rejects.toBeInstanceOf(ConflictException);
     expect(tx.auditEvent.create).not.toHaveBeenCalled();
   });

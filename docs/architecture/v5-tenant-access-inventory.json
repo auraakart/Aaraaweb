@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "95cf1b49ff1481e76cadc1bee00c3bab8a541709c32e0f4787e0be7acb03c0ec",
+  "sourceDigest": "1d55d6b032ebbf160770bc0f745c555d8ac48586cd61f7b5eaf37c6e827d8b17",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 10,
     "utilitySqlSites": 66,
-    "runtimeTenantContextCalls": 175,
+    "runtimeTenantContextCalls": 189,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -43,6 +43,62 @@
     {
       "file": "services/api/src/accounting/accounting-connector-delivery.runner.ts",
       "line": 90
+    },
+    {
+      "file": "services/api/src/accounting/accounting-connector-delivery.service.ts",
+      "line": 36
+    },
+    {
+      "file": "services/api/src/accounting/accounting-connector-delivery.service.ts",
+      "line": 41
+    },
+    {
+      "file": "services/api/src/accounting/accounting-connector-delivery.service.ts",
+      "line": 53
+    },
+    {
+      "file": "services/api/src/accounting/accounting-connector-delivery.service.ts",
+      "line": 66
+    },
+    {
+      "file": "services/api/src/accounting/accounting-connector-delivery.service.ts",
+      "line": 84
+    },
+    {
+      "file": "services/api/src/accounting/accounting-connector-delivery.service.ts",
+      "line": 94
+    },
+    {
+      "file": "services/api/src/accounting/accounting-connector-delivery.service.ts",
+      "line": 108
+    },
+    {
+      "file": "services/api/src/accounting/accounting-export.service.ts",
+      "line": 57
+    },
+    {
+      "file": "services/api/src/accounting/accounting-export.service.ts",
+      "line": 75
+    },
+    {
+      "file": "services/api/src/accounting/accounting-export.service.ts",
+      "line": 79
+    },
+    {
+      "file": "services/api/src/accounting/accounting-export.service.ts",
+      "line": 86
+    },
+    {
+      "file": "services/api/src/accounting/accounting-export.service.ts",
+      "line": 101
+    },
+    {
+      "file": "services/api/src/accounting/accounting-export.service.ts",
+      "line": 113
+    },
+    {
+      "file": "services/api/src/accounting/accounting-export.service.ts",
+      "line": 118
     },
     {
       "file": "services/api/src/accounting/payment-reconciliation-observability.service.ts",
@@ -1122,12 +1178,12 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.runner.ts","line":64,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery","AccountingExportArtifact","AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.runner.ts","line":75,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.runner.ts","line":90,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":36,"method":"list","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":41,"method":"actions","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDeliveryAction"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":53,"method":"evidence","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery","AccountingExportArtifact","AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":66,"method":"evidence","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDeliveryAction"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":84,"method":"metrics","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":94,"method":"metrics","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":36,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":41,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDeliveryAction"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":53,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery","AccountingExportArtifact","AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":66,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDeliveryAction"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":84,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":94,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":109,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":116,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AccountingConnectorDeliveryAction"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.service.ts","line":117,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -1136,14 +1192,14 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":59,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":64,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":69,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":75,"method":"list","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":79,"method":"get","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":86,"method":"executeClaimed","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingFund","JournalEntry","JournalLine","LedgerAccount"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":75,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":79,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":86,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingFund","JournalEntry","JournalLine","LedgerAccount"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":102,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportArtifact"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":107,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportArtifact"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":109,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":113,"method":"executeClaimed","operation":"$executeRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":118,"method":"artifact","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportArtifact","AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":113,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-export.service.ts","line":118,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingExportArtifact","AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting.service.ts","line":17,"method":"listAccounts","operation":"$queryRaw","kind":"RAW_SQL","tables":["LedgerAccount"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting.service.ts","line":25,"method":"createAccount","operation":"$queryRaw","kind":"RAW_SQL","tables":["LedgerAccount"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting.service.ts","line":37,"method":"listPeriods","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingPeriod"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},

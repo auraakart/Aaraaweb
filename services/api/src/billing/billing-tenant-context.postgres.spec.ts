@@ -11,6 +11,8 @@ import { BillingService, type PaymentWebhookEvent } from './billing.service';
 import { PushDeliveryOutboxService } from '../notifications/push-delivery-outbox.service';
 import { PaymentReconciliationService } from '../accounting/payment-reconciliation.service';
 import { PaymentReconciliationObservabilityService } from '../accounting/payment-reconciliation-observability.service';
+import { AccountingExportService, ACCOUNTING_EXPORT_CONTRACT_V1 } from '../accounting/accounting-export.service';
+import { AccountingConnectorDeliveryService } from '../accounting/accounting-connector-delivery.service';
 import { AccountingConnectorDeliveryRunner } from '../accounting/accounting-connector-delivery.runner';
 
 // Creates a restricted role and isolated copies of migrated tables. Never run
@@ -53,7 +55,8 @@ database('Billing transactions under a non-owner RLS role', () => {
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
-    'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery'];
+    'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
+    'AccountingConnectorDeliveryAction', 'AuditEvent', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -71,7 +74,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     roleCreated = true;
     // A domain preserves the migrated public enum while resolving the existing
     // webhook SQL cast inside this isolated schema. No enum values are copied.
-    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus']
+    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType']
       .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
     for (const table of tables) {
       definitions.push(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`);
@@ -258,6 +261,62 @@ database('Billing transactions under a non-owner RLS role', () => {
     const [saved] = await fixture.$queryRaw<Array<{ status: string; failureCode: string }>>(Prisma.sql`
       SELECT "status","failureCode" FROM "AccountingConnectorDelivery" WHERE "id"=${job.id}::uuid`);
     expect(saved).toEqual({ status: 'UNKNOWN', failureCode: 'DELIVERY_RETRY' });
+  });
+
+  it('creates and replays export requests in each society with exactly one audit event', async () => {
+    const exports = new AccountingExportService(runtime);
+    for (const scope of [societyA, societyB]) {
+      const input = { idempotencyKey: randomUUID(), contractVersion: ACCOUNTING_EXPORT_CONTRACT_V1,
+        format: 'CSV' as const, fromDate: '2026-10-01', toDate: '2026-10-31' };
+      const created = await exports.create(scope, owner, input);
+      expect((await exports.create(scope, owner, input)).id).toBe(created.id);
+      await expect(exports.create(scope, owner, { ...input, format: 'JSONL' })).rejects.toThrow(/different export request/);
+      expect((await exports.get(scope, created.id)).id).toBe(created.id);
+      expect((await exports.list(scope)).some(row => row.id === created.id)).toBe(true);
+      await expect(exports.get(scope === societyA ? societyB : societyA, created.id)).rejects.toThrow(/not found/);
+      const audits = await fixture.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::integer AS count FROM "AuditEvent" WHERE "societyId"=${scope}::uuid AND "event"='ACCOUNTING_EXPORT_REQUESTED'`);
+      expect(audits[0].count).toBe(1);
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM "AuditEvent"`)).toEqual([]);
+  });
+
+  it('executes a scoped empty export and downloads only the owning society artifact', async () => {
+    const exports = new AccountingExportService(runtime);
+    const created = await exports.create(societyA, owner, { idempotencyKey: randomUUID(), contractVersion: ACCOUNTING_EXPORT_CONTRACT_V1,
+      format: 'JSONL', fromDate: '2026-10-01', toDate: '2026-10-31' });
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingExportJob" SET "status"='PROCESSING' WHERE "id"=${created.id}::uuid`);
+    await exports.executeClaimed({ ...created, societyId: societyA });
+    expect(await exports.get(societyA, created.id)).toMatchObject({ status: 'COMPLETED', recordCount: 0, errorCode: null });
+    expect(await exports.artifact(societyA, created.id)).toMatchObject({ content: '', byteLength: 0 });
+    await expect(exports.artifact(societyB, created.id)).rejects.toThrow(/not found/);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM "AccountingExportArtifact"`)).toEqual([]);
+  });
+
+  it('retains isolated connector retry audit, evidence and metrics without changing provider keys', async () => {
+    const service = new AccountingConnectorDeliveryService(runtime, {} as never);
+    for (const scope of [societyA, societyB]) {
+      const job = await connectorJob(scope);
+      await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingConnectorDelivery" SET "status"='FAILED',"attemptCount"=5,"failureCode"='DELIVERY_RETRY_EXHAUSTED',"completedAt"=CURRENT_TIMESTAMP,"leaseUntil"=NULL WHERE "id"=${job.id}::uuid`);
+      const foreign = scope === societyA ? societyB : societyA;
+      await expect(service.retry(foreign, owner, job.id)).rejects.toThrow(/not found/);
+      await expect(service.evidence(foreign, job.id)).rejects.toThrow(/not found/);
+      expect((await service.retry(scope, owner, job.id))).toMatchObject({ status: 'QUEUED', attemptCount: 0, completedAt: null });
+      await expect(service.retry(scope, owner, job.id)).rejects.toThrow(/Only failed or unknown/);
+      const evidence = await service.evidence(scope, job.id);
+      expect(evidence.delivery.idempotencyKey).toBe(job.idempotencyKey);
+      expect(evidence.actions).toEqual([expect.objectContaining({ actorUserId: owner, fromStatus: 'FAILED', previousAttemptCount: 5 })]);
+      expect(evidence.artifact).not.toHaveProperty('content');
+      expect((await service.actions(foreign)).some(row => row.deliveryId === job.id)).toBe(false);
+      expect((await service.list(foreign)).some(row => row.id === job.id)).toBe(false);
+      expect((await service.actions(scope)).some(row => row.deliveryId === job.id)).toBe(true);
+      const metrics = await service.metrics(scope);
+      const [expected] = await fixture.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::integer AS count FROM "AccountingConnectorDelivery" WHERE "societyId"=${scope}::uuid`);
+      expect(metrics.totals.totalCount).toBe(expected.count);
+      expect(metrics.providers.reduce((sum, row) => sum + row.totalCount, 0)).toBe(expected.count);
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM "AccountingConnectorDeliveryAction"`)).toEqual([]);
   });
 
   it('denies capability execution until explicitly granted and never grants owner membership', async () => {
