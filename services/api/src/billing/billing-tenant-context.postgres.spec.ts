@@ -11,6 +11,7 @@ import { BillingService, type PaymentWebhookEvent } from './billing.service';
 import { PushDeliveryOutboxService } from '../notifications/push-delivery-outbox.service';
 import { PaymentReconciliationService } from '../accounting/payment-reconciliation.service';
 import { PaymentReconciliationObservabilityService } from '../accounting/payment-reconciliation-observability.service';
+import { AccountingConnectorDeliveryRunner } from '../accounting/accounting-connector-delivery.runner';
 
 // Creates a restricted role and isolated copies of migrated tables. Never run
 // this DDL against an operator's database or enable RLS on shared public tables.
@@ -51,7 +52,8 @@ database('Billing transactions under a non-owner RLS role', () => {
   const tables = ['User', 'Society', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
-    'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation'];
+    'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
+    'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -184,6 +186,79 @@ database('Billing transactions under a non-owner RLS role', () => {
       SELECT "id","providerOrderId" FROM "Payment" WHERE "id"=${created.id}::uuid`);
     return order;
   }
+
+  async function connectorJob(scope = societyA) {
+    const id = randomUUID(), exportJobId = randomUUID(), artifactId = randomUUID(), key = randomUUID();
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingExportJob"
+      ("id","societyId","requestedByUserId","idempotencyKey","requestHash","contractVersion","format","fromDate","toDate","status","recordCount","artifactKey","completedAt")
+      VALUES (${exportJobId}::uuid,${scope}::uuid,${owner}::uuid,${key},${'a'.repeat(64)},'aaraagate.accounting.journal.v1','CSV',
+        DATE '2026-10-01',DATE '2026-10-31','COMPLETED',1,${artifactId},CURRENT_TIMESTAMP)`);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingExportArtifact"
+      ("id","societyId","jobId","filename","contentType","sha256","byteLength","content")
+      VALUES (${artifactId}::uuid,${scope}::uuid,${exportJobId}::uuid,'journal.csv','text/csv',${'a'.repeat(64)},4,'a,b\n')`);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingConnectorDelivery"
+      ("id","societyId","exportJobId","provider","idempotencyKey","status","attemptCount","leaseUntil")
+      VALUES (${id}::uuid,${scope}::uuid,${exportJobId}::uuid,'RLS_CONNECTOR',${key},'PROCESSING',1,CURRENT_TIMESTAMP+INTERVAL '1 hour')`);
+    return { id, societyId: scope, exportJobId, provider: 'RLS_CONNECTOR', idempotencyKey: key, attemptCount: 1 };
+  }
+
+  async function executeConnector(job: Awaited<ReturnType<typeof connectorJob>>, fail = false) {
+    const sent: unknown[] = [];
+    // Global dispatch is a simulated, server-owned handoff. Only per-job I/O is
+    // under test here; this does not certify global seeding/claim permissions.
+    const dispatch = {
+      $executeRaw: async () => 0,
+      $transaction: async (run: (tx: unknown) => Promise<unknown>) => run({ $queryRaw: async () => [job] }),
+      $queryRaw: async () => { throw new Error('unscoped artifact access'); },
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, run),
+    };
+    await new AccountingConnectorDeliveryRunner(dispatch as never, {
+      provider: 'RLS_CONNECTOR', deliver: async (input: unknown) => {
+        sent.push(input);
+        if (fail) throw new Error('Bearer confidential-provider-token');
+        return { status: 'DELIVERED', providerReceiptId: 'rls-receipt' };
+      },
+    } as never).runOnce();
+    return sent;
+  }
+
+  it('delivers connector artifacts in each stored society and commits scoped result evidence', async () => {
+    for (const scope of [societyA, societyB]) {
+      const job = await connectorJob(scope);
+      expect(await executeConnector(job)).toEqual([expect.objectContaining({ societyId: scope, exportJobId: job.exportJobId,
+        idempotencyKey: job.idempotencyKey, content: Buffer.from('a,b\n'), sha256: 'a'.repeat(64) })]);
+      const [saved] = await fixture.$queryRaw<Array<{ status: string; providerReceiptId: string; leaseUntil: Date | null }>>(Prisma.sql`
+        SELECT "status","providerReceiptId","leaseUntil" FROM "AccountingConnectorDelivery" WHERE "id"=${job.id}::uuid`);
+      expect(saved).toEqual({ status: 'DELIVERED', providerReceiptId: 'rls-receipt', leaseUntil: null });
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "content" FROM "AccountingExportArtifact"`)).toEqual([]);
+  });
+
+  it('denies foreign connector routing without sending bytes or updating the foreign delivery', async () => {
+    const job = await connectorJob(societyB);
+    expect(await executeConnector({ ...job, societyId: societyA })).toEqual([]);
+    const [saved] = await fixture.$queryRaw<Array<{ status: string; failureMessage: string | null }>>(Prisma.sql`
+      SELECT "status","failureMessage" FROM "AccountingConnectorDelivery" WHERE "id"=${job.id}::uuid`);
+    expect(saved).toEqual({ status: 'PROCESSING', failureMessage: null });
+  });
+
+  it('records sanitized connector failure and retry state in the selected society', async () => {
+    const job = await connectorJob();
+    expect(await executeConnector(job, true)).toHaveLength(1);
+    const [saved] = await fixture.$queryRaw<Array<{ status: string; failureCode: string; failureMessage: string; leaseUntil: Date | null; retrySeconds: number }>>(Prisma.sql`
+      SELECT "status","failureCode","failureMessage","leaseUntil",EXTRACT(EPOCH FROM ("nextAttemptAt"-"updatedAt"))::integer AS "retrySeconds"
+      FROM "AccountingConnectorDelivery" WHERE "id"=${job.id}::uuid`);
+    expect(saved).toEqual({ status: 'UNKNOWN', failureCode: 'DELIVERY_RETRY', failureMessage: 'Error', leaseUntil: null, retrySeconds: 60 });
+  });
+
+  it('denies a connector export whose artifact relationship crosses societies', async () => {
+    const job = await connectorJob();
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingExportArtifact" SET "societyId"=${societyB}::uuid WHERE "jobId"=${job.exportJobId}::uuid`);
+    expect(await executeConnector(job)).toEqual([]);
+    const [saved] = await fixture.$queryRaw<Array<{ status: string; failureCode: string }>>(Prisma.sql`
+      SELECT "status","failureCode" FROM "AccountingConnectorDelivery" WHERE "id"=${job.id}::uuid`);
+    expect(saved).toEqual({ status: 'UNKNOWN', failureCode: 'DELIVERY_RETRY' });
+  });
 
   it('denies capability execution until explicitly granted and never grants owner membership', async () => {
     await expect(runtime.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_resolve_payment_webhook_order('unknown')`))

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { AccountingConnectorAdapter, AccountingConnectorDeliveryRequest, AccountingConnectorDeliveryResult } from './accounting-connector.adapter';
 
+const CONNECTOR_REQUEST_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class ConfiguredHttpAccountingConnectorAdapter implements AccountingConnectorAdapter{
   readonly provider=(process.env.ACCOUNTING_CONNECTOR_PROVIDER??'configured-http').trim();
@@ -27,7 +29,7 @@ export class ConfiguredHttpAccountingConnectorAdapter implements AccountingConne
     this.ensureConfigured();
     if(!input.content.length)throw new Error('Accounting export artifact is empty');
     if(!/^[a-f0-9]{64}$/i.test(input.sha256))throw new Error('Accounting export artifact digest is invalid');
-    const result=await this.json<AccountingConnectorDeliveryResult>(await fetch(`${this.baseUrl}/accounting/exports`,{method:'POST',headers:this.headers(input),body:new Uint8Array(input.content)}));
+    const result=await this.json<AccountingConnectorDeliveryResult>(await fetch(`${this.baseUrl}/accounting/exports`,{method:'POST',headers:this.headers(input),body:new Uint8Array(input.content),signal:AbortSignal.timeout(CONNECTOR_REQUEST_TIMEOUT_MS)}));
     if(!['ACCEPTED','DELIVERED','FAILED','UNKNOWN'].includes(result?.status))throw new Error('Accounting connector bridge returned an invalid delivery result');
     return result;
   }

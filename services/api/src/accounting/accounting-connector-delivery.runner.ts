@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 import { ConfiguredHttpAccountingConnectorAdapter } from './configured-http-accounting-connector.adapter';
 
 type DeliveryJob={id:string;societyId:string;exportJobId:string;provider:string;idempotencyKey:string;attemptCount:number};
@@ -60,24 +61,24 @@ export class AccountingConnectorDeliveryRunner implements OnModuleInit,OnModuleD
   private async deliver(job:DeliveryJob){
     if(job.provider!==this.adapter.provider){await this.fail(job,'UNSUPPORTED_PROVIDER',`No configured adapter for ${job.provider}`);return;}
     try{
-      const artifacts=await this.prisma.$queryRaw<DeliveryArtifact[]>(Prisma.sql`
+      const artifacts=await this.prisma.withTenantContext(job.societyId,tx=>tx.$queryRaw<DeliveryArtifact[]>(Prisma.sql`
         SELECT j."contractVersion",j."format",a."filename",a."contentType",a."sha256",a."content"
         FROM "AccountingConnectorDelivery" d
         JOIN "AccountingExportJob" j ON j."id"=d."exportJobId" AND j."societyId"=d."societyId"
         JOIN "AccountingExportArtifact" a ON a."jobId"=j."id" AND a."societyId"=j."societyId"
         WHERE d."id"=${job.id}::uuid AND d."societyId"=${job.societyId}::uuid AND j."status"='COMPLETED' LIMIT 1
-      `);
+      `));
       const artifact=artifacts[0];if(!artifact)throw new Error('EXPORT_ARTIFACT_NOT_READY');
       const result=await this.adapter.deliver({societyId:job.societyId,exportJobId:job.exportJobId,contractVersion:artifact.contractVersion,format:artifact.format,filename:artifact.filename,contentType:artifact.contentType,sha256:artifact.sha256,content:Buffer.from(artifact.content,'utf8'),idempotencyKey:job.idempotencyKey});
       const terminal=result.status==='DELIVERED'||result.status==='FAILED';
       const delay=Math.min(3600,Math.pow(2,Math.max(0,job.attemptCount-1))*60);
-      await this.prisma.$executeRaw(Prisma.sql`
+      await this.prisma.withTenantContext(job.societyId,tx=>tx.$executeRaw(Prisma.sql`
         UPDATE "AccountingConnectorDelivery"
         SET "status"=${result.status},"providerReceiptId"=${result.providerReceiptId??null},"failureCode"=${result.failureCode??null},"failureMessage"=${this.bounded(result.failureMessage)},
             "nextAttemptAt"=${terminal?null:Prisma.sql`CURRENT_TIMESTAMP+make_interval(secs=>${delay})`},"leaseUntil"=NULL,
             "completedAt"=${terminal?Prisma.sql`CURRENT_TIMESTAMP`:null},"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${job.id}::uuid AND "societyId"=${job.societyId}::uuid AND "status"='PROCESSING'
-      `);
+      `));
     }catch(error){
       const exhausted=job.attemptCount>=this.maxAttempts;
       await this.fail(job,exhausted?'DELIVERY_RETRY_EXHAUSTED':'DELIVERY_RETRY',this.message(error),exhausted);
@@ -86,14 +87,14 @@ export class AccountingConnectorDeliveryRunner implements OnModuleInit,OnModuleD
 
   private async fail(job:DeliveryJob,code:string,message:string,terminal=true){
     const delay=Math.min(3600,Math.pow(2,Math.max(0,job.attemptCount-1))*60);
-    await this.prisma.$executeRaw(Prisma.sql`
+    await this.prisma.withTenantContext(job.societyId,tx=>tx.$executeRaw(Prisma.sql`
       UPDATE "AccountingConnectorDelivery"
       SET "status"=${terminal?'FAILED':'UNKNOWN'},"failureCode"=${code},"failureMessage"=${this.bounded(message)},
           "nextAttemptAt"=${terminal?null:Prisma.sql`CURRENT_TIMESTAMP+make_interval(secs=>${delay})`},"leaseUntil"=NULL,
           "completedAt"=${terminal?Prisma.sql`CURRENT_TIMESTAMP`:null},"updatedAt"=CURRENT_TIMESTAMP
       WHERE "id"=${job.id}::uuid AND "societyId"=${job.societyId}::uuid AND "status"='PROCESSING'
-    `);
+    `));
   }
   private bounded(value:string|undefined){return value?value.slice(0,500):null;}
-  private message(error:unknown){return error instanceof Error?error.message:String(error);}
+  private message(error:unknown){return safeOperationalError(error);}
 }

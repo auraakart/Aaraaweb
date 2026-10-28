@@ -10,7 +10,8 @@ describe('AccountingConnectorDeliveryRunner',()=>{
     const executeRaw=vi.fn().mockResolvedValue(1);
     const queryRaw=vi.fn().mockResolvedValue([artifact]);
     const tx={$queryRaw:vi.fn().mockResolvedValue([job])};
-    const prisma={$executeRaw:executeRaw,$queryRaw:queryRaw,$transaction:vi.fn(async(callback)=>(callback as (value:typeof tx)=>unknown)(tx))} as unknown as PrismaService;
+    const prisma={$executeRaw:executeRaw,$queryRaw:queryRaw,$transaction:vi.fn(async(callback)=>(callback as (value:typeof tx)=>unknown)(tx)),
+      withTenantContext:vi.fn((_scope:string,run:(client:unknown)=>unknown)=>run({$executeRaw:executeRaw,$queryRaw:queryRaw}))} as unknown as PrismaService;
     const deliver=vi.fn().mockResolvedValue({status:'DELIVERED' as const,providerReceiptId:'receipt-1'});
     const adapter={provider:'bridge-a',deliver} as unknown as ConfiguredHttpAccountingConnectorAdapter;
 

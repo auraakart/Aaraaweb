@@ -44,6 +44,7 @@ Risk is change/regression risk. Effort: S is a focused change; M crosses a bound
 | H27-11 | Device, multilingual repeated speech, screen-reader and independent Partner A/B acceptance outstanding | P1 / Medium release assurance gap | RETAIN current acceptance register; execute exact-candidate device matrix and independently operated partner tests (#1380) | Medium | L | Open external evidence |
 | H27-12 | Live dependency audit and candidate CI need fresh evidence | P0 / High if vulnerability found | RETAIN zero High/Critical dependency tolerance; run audit and required candidate CI; no blind major upgrades | Medium | M | Pending; prior green evidence not current scan |
 | H27-14 | Gateway accepts invalid/unsafe refund numbers; runner converts stored BIGINT without range validation | P0 / High boundary risk | REFACTOR to validate before conversion/fetch; retain valid request identity and retry evidence | Medium | S | Implementation and local risk pass; protected CI pending |
+| H27-15 | Connector exceptions can expose provider/DB payloads; HTTP wait is unbounded | High disclosure / P1 reliability | REFACTOR to safe exception descriptors, request deadline and per-job tenant context | Medium | S | Focused validation; protected CI pending |
 | H27-13 | Competitors already market broad ERP/AI capabilities | P5 / Medium | DEFER feature expansion; prove guard speed, trustworthy finance and useful authorized AI outcomes before adding breadth | Low | L | Comparative review below |
 
 Batch A: reproduce and fix authentication security defects; test TTL, concurrency, route equivalence, shared quotas and fail-closed behavior; review runtime diff. Batch B: current-state documentation navigation and evidence alignment, retaining history. Batch C: execute risk/full API and appropriate repository regression; audit dependencies; review migrations and candidate CI. Larger RLS/provider/device/field tasks remain explicitly gated by their actual prerequisites; no acceptance can be synthesized from a report.
@@ -219,3 +220,8 @@ See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026
 ## H27-03 follow-through — bounded reconciliation claims (28 October)
 
 [Worker claim capabilities](architecture/RECONCILIATION-CLAIM-CAPABILITIES-2026-10-28.md) records the two bounded SQL claim functions, atomic retry update, deployment grant prerequisites and restricted-owner concurrency/rollback acceptance. Runtime ownership and EXECUTE must be provisioned before deployment; other domains/jobs and hosted policy acceptance remain open.
+
+
+## H27-15 — Connector per-job privacy and tenant context
+
+[Connector delivery context](architecture/CONNECTOR-DELIVERY-CONTEXT-2026-10-28.md) records safe exception evidence, request deadline and scoped artifact/result/failure I/O. Global dispatch and hosted acceptance remain open.
