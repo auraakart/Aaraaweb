@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountingConnectorDeliveryRunner } from './accounting-connector-delivery.runner';
@@ -11,12 +12,14 @@ const artifact={contractVersion:'aaraagate.accounting.journal.v1',format:'CSV',f
 
 function fixture(jobs=[job]){
   const tx={$queryRaw:vi.fn().mockResolvedValue([artifact]),$executeRaw:vi.fn().mockResolvedValue(1)};
-  const claims={$queryRaw:vi.fn().mockResolvedValue(jobs)};
   const prisma={
-    // Explicitly retained global seeding/claim handoff; no root artifact read.
-    $executeRaw:vi.fn().mockResolvedValue(0),
-    $transaction:vi.fn((run:(client:typeof claims)=>unknown)=>run(claims)),
-    $queryRaw:vi.fn(async()=>{throw new Error('Unscoped artifact read');}),
+    $executeRaw:vi.fn(async()=>{throw new Error('Unrestricted mutation');}),
+    $transaction:vi.fn(async()=>{throw new Error('Unrestricted transaction');}),
+    $queryRaw:vi.fn(async(sql:Prisma.Sql)=>{
+      if(sql.sql.includes('aaraagate_seed_accounting_deliveries'))return [{count:0n}];
+      if(sql.sql.includes('aaraagate_claim_accounting_deliveries'))return jobs;
+      throw new Error('Unscoped artifact read');
+    }),
     withTenantContext:vi.fn((_scope:string,run:(client:typeof tx)=>unknown)=>run(tx)),
   };
   const adapter={provider:'bridge-a',deliver:vi.fn().mockResolvedValue({status:'DELIVERED',providerReceiptId:'receipt-1'})};
@@ -30,8 +33,8 @@ describe('Accounting connector per-job tenant and exception boundary',()=>{
     const {runner,prisma,tx,adapter}=fixture();
     await runner.runOnce();
     expect(prisma.withTenantContext.mock.calls.map(([scope])=>scope)).toEqual([society,society]);
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
-    expect(prisma.$executeRaw).toHaveBeenCalledOnce();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
     expect(tx.$queryRaw).toHaveBeenCalledOnce();
     expect(tx.$executeRaw).toHaveBeenCalledOnce();
     expect(adapter.deliver).toHaveBeenCalledWith(expect.objectContaining({societyId:society,
@@ -65,12 +68,13 @@ describe('Accounting connector per-job tenant and exception boundary',()=>{
 
   it('sanitizes cycle failures and resets the running guard',async()=>{
     const {runner,prisma}=fixture([]);
-    prisma.$executeRaw.mockRejectedValueOnce(new Error('database URL contains password'));
+    prisma.$queryRaw.mockRejectedValueOnce(new Error('database URL contains password'));
     const logger=vi.spyOn(Logger.prototype,'error').mockImplementation(()=>undefined);
     await runner.runOnce();
     expect(logger).toHaveBeenCalledWith('Accounting connector cycle failed: Error');
     await runner.runOnce();
-    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
   });
 
   it('marks exhausted uncertain deliveries without leaking the exception',async()=>{
@@ -91,10 +95,10 @@ describe('Accounting connector per-job tenant and exception boundary',()=>{
     vi.spyOn(Logger.prototype,'error').mockImplementation(()=>undefined);
     await runner.runOnce();
     expect(adapter.deliver).not.toHaveBeenCalled();
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     expect(tx.$queryRaw).not.toHaveBeenCalled();
     expect(tx.$executeRaw).not.toHaveBeenCalled();
-    expect(prisma.$executeRaw).toHaveBeenCalledOnce();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('records unsupported-provider failure in its own society without sending bytes',async()=>{

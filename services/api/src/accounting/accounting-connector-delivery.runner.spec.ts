@@ -9,8 +9,8 @@ describe('AccountingConnectorDeliveryRunner',()=>{
     const artifact={contractVersion:'aaraagate.accounting.journal.v1',format:'CSV' as const,filename:'journal.csv',contentType:'text/csv; charset=utf-8',sha256:'a'.repeat(64),content:'a,b\n1,2\n'};
     const executeRaw=vi.fn().mockResolvedValue(1);
     const queryRaw=vi.fn().mockResolvedValue([artifact]);
-    const tx={$queryRaw:vi.fn().mockResolvedValue([job])};
-    const prisma={$executeRaw:executeRaw,$queryRaw:queryRaw,$transaction:vi.fn(async(callback)=>(callback as (value:typeof tx)=>unknown)(tx)),
+    const capability=vi.fn().mockResolvedValueOnce([{count:1n}]).mockResolvedValueOnce([job]);
+    const prisma={$executeRaw:executeRaw,$queryRaw:capability,
       withTenantContext:vi.fn((_scope:string,run:(client:unknown)=>unknown)=>run({$executeRaw:executeRaw,$queryRaw:queryRaw}))} as unknown as PrismaService;
     const deliver=vi.fn().mockResolvedValue({status:'DELIVERED' as const,providerReceiptId:'receipt-1'});
     const adapter={provider:'bridge-a',deliver} as unknown as ConfiguredHttpAccountingConnectorAdapter;
@@ -18,19 +18,20 @@ describe('AccountingConnectorDeliveryRunner',()=>{
     await new AccountingConnectorDeliveryRunner(prisma,adapter).runOnce();
 
     expect(deliver).toHaveBeenCalledWith(expect.objectContaining({societyId:job.societyId,exportJobId:job.exportJobId,idempotencyKey:job.idempotencyKey,sha256:artifact.sha256,content:Buffer.from(artifact.content)}));
-    expect(executeRaw).toHaveBeenCalledTimes(2);
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    expect(capability).toHaveBeenCalledTimes(2);
   });
 
   it('does not overlap cycles on the same process',async()=>{
     let release:()=>void=()=>undefined;
     const blocked=new Promise<void>(resolve=>{release=resolve});
-    const prisma={$executeRaw:vi.fn(()=>blocked),$transaction:vi.fn()} as unknown as PrismaService;
+    const prisma={$queryRaw:vi.fn().mockImplementationOnce(()=>blocked).mockResolvedValue([])} as unknown as PrismaService;
     const adapter={provider:'bridge-a',deliver:vi.fn()} as unknown as ConfiguredHttpAccountingConnectorAdapter;
     const runner=new AccountingConnectorDeliveryRunner(prisma,adapter);
     const first=runner.runOnce();
     await Promise.resolve();
     await runner.runOnce();
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     release();await first;
   });
 });

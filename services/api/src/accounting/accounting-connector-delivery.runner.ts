@@ -23,40 +23,17 @@ export class AccountingConnectorDeliveryRunner implements OnModuleInit,OnModuleD
   }
   onModuleDestroy(){if(this.timer)clearInterval(this.timer);}
 
-  async runOnce(){if(this.running)return;this.running=true;try{await this.seedCompletedExports();for(const job of await this.claim(20))await this.deliver(job);}catch(error){this.logger.error(`Accounting connector cycle failed: ${this.message(error)}`);}finally{this.running=false;}}
+  async runOnce(){if(this.running)return;this.running=true;try{await this.seedCompletedExports();for(const job of await this.claim())await this.deliver(job);}catch(error){this.logger.error(`Accounting connector cycle failed: ${this.message(error)}`);}finally{this.running=false;}}
 
   private async seedCompletedExports(){
     const provider=this.adapter.provider;
     if(!provider)return;
-    await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "AccountingConnectorDelivery" ("societyId","exportJobId","provider","idempotencyKey")
-      SELECT j."societyId",j."id",${provider},('accounting-export:'||j."id"::text||':'||${provider})
-      FROM "AccountingExportJob" j
-      JOIN "AccountingExportArtifact" a ON a."jobId"=j."id" AND a."societyId"=j."societyId"
-      WHERE j."status"='COMPLETED'
-      ON CONFLICT ("societyId","exportJobId","provider") DO NOTHING
-    `);
+    await this.prisma.$queryRaw(Prisma.sql`SELECT aaraagate_seed_accounting_deliveries(${provider}::text)`);
   }
 
-  private claim(limit:number){return this.prisma.$transaction(async tx=>{
-    const rows=await tx.$queryRaw<DeliveryJob[]>(Prisma.sql`
-      WITH due AS (
-        SELECT "id" FROM "AccountingConnectorDelivery"
-        WHERE (
-          ("status" IN ('QUEUED','ACCEPTED','UNKNOWN') AND ("nextAttemptAt" IS NULL OR "nextAttemptAt"<=CURRENT_TIMESTAMP))
-          OR ("status"='PROCESSING' AND "leaseUntil"<CURRENT_TIMESTAMP)
-        )
-        ORDER BY COALESCE("nextAttemptAt","createdAt"),"createdAt"
-        FOR UPDATE SKIP LOCKED LIMIT ${limit}
-      )
-      UPDATE "AccountingConnectorDelivery" d
-      SET "status"='PROCESSING',"attemptCount"=d."attemptCount"+1,"lastAttemptAt"=CURRENT_TIMESTAMP,
-          "leaseUntil"=CURRENT_TIMESTAMP+make_interval(secs=>${Math.max(60,Math.floor(this.intervalMs/1000)*2)}),"updatedAt"=CURRENT_TIMESTAMP
-      FROM due WHERE d."id"=due."id"
-      RETURNING d."id",d."societyId",d."exportJobId",d."provider",d."idempotencyKey",d."attemptCount"
-    `);
-    return rows;
-  });}
+  private claim(){return this.prisma.$queryRaw<DeliveryJob[]>(Prisma.sql`
+    SELECT * FROM aaraagate_claim_accounting_deliveries(${Math.max(60,Math.floor(this.intervalMs/1000)*2)}::integer)
+  `);}
 
   private async deliver(job:DeliveryJob){
     if(job.provider!==this.adapter.provider){await this.fail(job,'UNSUPPORTED_PROVIDER',`No configured adapter for ${job.provider}`);return;}

@@ -13,6 +13,7 @@ import { PaymentReconciliationService } from '../accounting/payment-reconciliati
 import { PaymentReconciliationObservabilityService } from '../accounting/payment-reconciliation-observability.service';
 import { AccountingExportService, ACCOUNTING_EXPORT_CONTRACT_V1 } from '../accounting/accounting-export.service';
 import { AccountingConnectorDeliveryService } from '../accounting/accounting-connector-delivery.service';
+import { AccountingExportRunner } from '../accounting/accounting-export.runner';
 import { AccountingConnectorDeliveryRunner } from '../accounting/accounting-connector-delivery.runner';
 
 // Creates a restricted role and isolated copies of migrated tables. Never run
@@ -33,6 +34,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const role = `billing_rls_${suffix}`;
   const lookupOwner = `${role}_lookup`;
   const claimsOwner = `${role}_claims`;
+  const accountingOwner = `${role}_accounting`;
   const password = randomUUID();
   const base = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost/aaraagate_test');
   const fixtureUrl = new URL(base);
@@ -57,7 +59,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
     'AccountingConnectorDeliveryAction', 'AuditEvent', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
-  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false;
+  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
     execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'execute', '--stdin', '--url', url], {
@@ -118,6 +120,30 @@ database('Billing transactions under a non-owner RLS role', () => {
       ALTER FUNCTION "${schema}".aaraagate_claim_payment_gateway_operations() OWNER TO "${claimsOwner}";
       ALTER FUNCTION "${schema}".aaraagate_claim_payment_reconciliation_cases(integer) OWNER TO "${claimsOwner}";
       REVOKE CREATE ON SCHEMA "${schema}" FROM "${claimsOwner}";`);
+    executeDdl(`CREATE ROLE "${accountingOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+    accountingOwnerCreated = true;
+    const accountingMigration = readFileSync(join(__dirname,
+      '../../prisma/migrations/20261028080000_v510_accounting_worker_capabilities/migration.sql'), 'utf8');
+    executeDdl(accountingMigration.replaceAll('public.', `"${schema}".`), fixtureUrl.toString());
+    executeDdl(`GRANT USAGE, CREATE ON SCHEMA "${schema}" TO "${accountingOwner}";
+      GRANT SELECT ("id","societyId","format","fromDate","toDate","status","createdAt","leaseUntil","attemptCount")
+        ON "${schema}"."AccountingExportJob" TO "${accountingOwner}";
+      GRANT UPDATE ("status","attemptCount","lastAttemptAt","leaseUntil","errorCode") ON "${schema}"."AccountingExportJob" TO "${accountingOwner}";
+      GRANT SELECT ("jobId","societyId") ON "${schema}"."AccountingExportArtifact" TO "${accountingOwner}";
+      GRANT SELECT ("id","societyId","exportJobId","provider","idempotencyKey","attemptCount","status","nextAttemptAt","leaseUntil","createdAt")
+        ON "${schema}"."AccountingConnectorDelivery" TO "${accountingOwner}";
+      GRANT INSERT ("societyId","exportJobId","provider","idempotencyKey") ON "${schema}"."AccountingConnectorDelivery" TO "${accountingOwner}";
+      GRANT UPDATE ("status","attemptCount","lastAttemptAt","leaseUntil","updatedAt") ON "${schema}"."AccountingConnectorDelivery" TO "${accountingOwner}";
+      CREATE POLICY accounting_read ON "${schema}"."AccountingExportJob" FOR SELECT TO "${accountingOwner}" USING (true);
+      CREATE POLICY accounting_update ON "${schema}"."AccountingExportJob" FOR UPDATE TO "${accountingOwner}" USING (true) WITH CHECK (true);
+      CREATE POLICY accounting_read ON "${schema}"."AccountingExportArtifact" FOR SELECT TO "${accountingOwner}" USING (true);
+      CREATE POLICY accounting_read ON "${schema}"."AccountingConnectorDelivery" FOR SELECT TO "${accountingOwner}" USING (true);
+      CREATE POLICY accounting_update ON "${schema}"."AccountingConnectorDelivery" FOR UPDATE TO "${accountingOwner}" USING (true) WITH CHECK (true);
+      CREATE POLICY accounting_insert ON "${schema}"."AccountingConnectorDelivery" FOR INSERT TO "${accountingOwner}" WITH CHECK (true);
+      ALTER FUNCTION "${schema}".aaraagate_claim_accounting_export(integer) OWNER TO "${accountingOwner}";
+      ALTER FUNCTION "${schema}".aaraagate_seed_accounting_deliveries(text) OWNER TO "${accountingOwner}";
+      ALTER FUNCTION "${schema}".aaraagate_claim_accounting_deliveries(integer) OWNER TO "${accountingOwner}";
+      REVOKE CREATE ON SCHEMA "${schema}" FROM "${accountingOwner}";`);
     for (const user of [owner, tenant]) await fixture.$executeRaw(Prisma.sql`
       INSERT INTO "User" ("id","phone","updatedAt") VALUES (${user}::uuid,${`rls-${user}`},CURRENT_TIMESTAMP)`);
     for (const society of [societyA, societyB]) await fixture.$executeRaw(Prisma.sql`
@@ -147,6 +173,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (roleCreated) executeDdl(`DROP ROLE "${role}"`);
     if (lookupOwnerCreated) executeDdl(`DROP ROLE "${lookupOwner}"`);
     if (claimsOwnerCreated) executeDdl(`DROP ROLE "${claimsOwner}"`);
+    if (accountingOwnerCreated) executeDdl(`DROP ROLE "${accountingOwner}"`);
   });
 
   async function invoice(societyId = societyA, unitId = unitA) {
@@ -212,7 +239,11 @@ database('Billing transactions under a non-owner RLS role', () => {
     const dispatch = {
       $executeRaw: async () => 0,
       $transaction: async (run: (tx: unknown) => Promise<unknown>) => run({ $queryRaw: async () => [job] }),
-      $queryRaw: async () => { throw new Error('unscoped artifact access'); },
+      $queryRaw: async (sql: Prisma.Sql) => {
+        if (sql.sql.includes('aaraagate_seed_accounting_deliveries')) return [];
+        if (sql.sql.includes('aaraagate_claim_accounting_deliveries')) return [job];
+        throw new Error('unscoped artifact access');
+      },
       withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, run),
     };
     await new AccountingConnectorDeliveryRunner(dispatch as never, {
@@ -317,6 +348,151 @@ database('Billing transactions under a non-owner RLS role', () => {
       expect(metrics.providers.reduce((sum, row) => sum + row.totalCount, 0)).toBe(expected.count);
     }
     expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM "AccountingConnectorDeliveryAction"`)).toEqual([]);
+  });
+
+  type AccountingClaim = { id: string; societyId: string; attemptCount?: number };
+  function claimAccounting(client: Prisma.TransactionClient, kind: 'export' | 'delivery', seconds: number | null = 300) {
+    return kind === 'export'
+      ? client.$queryRaw<AccountingClaim[]>(Prisma.sql`SELECT * FROM aaraagate_claim_accounting_export(${seconds}::integer)`)
+      : client.$queryRaw<AccountingClaim[]>(Prisma.sql`SELECT * FROM aaraagate_claim_accounting_deliveries(${seconds}::integer)`);
+  }
+  async function clearAccountingFixture() {
+    // UUID-isolated copied tables only. Public append-only evidence is retained.
+    for (const table of ['AccountingConnectorDeliveryAction', 'AccountingConnectorDelivery', 'AccountingExportArtifact', 'AccountingExportJob']) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM ${Prisma.raw(`"${table}"`)}`);
+    }
+  }
+  async function queuedExports(count: number) {
+    const jobs = Array.from({ length: count }, (_, i) => ({ id: randomUUID(), scope: i % 2 ? societyA : societyB,
+      at: new Date(Date.now() - 86_400_000 + i * 1000), key: randomUUID() }));
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingExportJob"
+      ("id","societyId","requestedByUserId","idempotencyKey","requestHash","contractVersion","format","fromDate","toDate","createdAt")
+      VALUES ${Prisma.join(jobs.map(j => Prisma.sql`(${j.id}::uuid,${j.scope}::uuid,${owner}::uuid,${j.key},${'a'.repeat(64)},'aaraagate.accounting.journal.v1','JSONL',DATE '2026-10-01',DATE '2026-10-31',${j.at})`))}`);
+    return jobs;
+  }
+
+  it('denies accounting capabilities until granted and limits non-owner privilege to dispatch metadata', async () => {
+    await expect(claimAccounting(runtime, 'export')).rejects.toThrow(/permission denied for function/);
+    await expect(claimAccounting(runtime, 'delivery')).rejects.toThrow(/permission denied for function/);
+    await expect(runtime.$queryRaw(Prisma.sql`SELECT aaraagate_seed_accounting_deliveries('RLS_CONNECTOR')`)).rejects.toThrow(/permission denied for function/);
+    const [identity] = await runtime.$queryRaw<Array<Record<string, boolean>>>(Prisma.sql`
+      SELECT pg_has_role(current_user,r.oid,'MEMBER') AS member,r.rolsuper AS superuser,r.rolbypassrls AS bypass,r.rolcanlogin AS login,
+        has_column_privilege(r.oid,a.oid,'content','SELECT') AS "contentRead",
+        has_table_privilege(r.oid,j.oid,'DELETE') AS "deleteJobs",j.relowner=r.oid AS owns
+      FROM pg_roles r JOIN pg_class j ON j.relname='AccountingExportJob' JOIN pg_namespace n ON n.oid=j.relnamespace
+      JOIN pg_class a ON a.relnamespace=n.oid AND a.relname='AccountingExportArtifact'
+      WHERE r.rolname=${accountingOwner} AND n.nspname=${schema}`);
+    expect(identity).toEqual({ member: false, superuser: false, bypass: false, login: false, contentRead: false, deleteJobs: false, owns: false });
+    const metadata = await runtime.$queryRaw<Array<{ definer: boolean; strict: boolean; settings: string[]; publicExecute: boolean }>>(Prisma.sql`
+      SELECT p.prosecdef AS definer,p.proisstrict AS strict,p.proconfig AS settings,
+        EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS "publicExecute"
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname=${schema} AND p.proname IN ('aaraagate_claim_accounting_export','aaraagate_seed_accounting_deliveries','aaraagate_claim_accounting_deliveries')`);
+    expect(metadata).toHaveLength(3);
+    for (const row of metadata) {
+      expect(row).toMatchObject({ definer: true, strict: true, publicExecute: false });
+      expect(row.settings).toEqual(expect.arrayContaining(['search_path=pg_catalog, pg_temp','row_security=on']));
+    }
+    executeDdl(`GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_claim_accounting_export(integer),
+      "${schema}".aaraagate_seed_accounting_deliveries(text),"${schema}".aaraagate_claim_accounting_deliveries(integer) TO "${role}"`);
+  });
+
+  it('seeds only completed same-society artifacts and keeps duplicate-safe provider keys', async () => {
+    await clearAccountingFixture();
+    const a = await connectorJob(), b = await connectorJob(societyB), bad = await connectorJob();
+    await fixture.$executeRaw(Prisma.sql`DELETE FROM "AccountingConnectorDelivery"`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingExportArtifact" SET "societyId"=${societyB}::uuid WHERE "jobId"=${bad.exportJobId}::uuid`);
+    await queuedExports(1);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT aaraagate_seed_accounting_deliveries(NULL::text) AS count`)).toEqual([{count:null}]);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT aaraagate_seed_accounting_deliveries('RLS_CONNECTOR') AS count`)).toEqual([{count:2n}]);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT aaraagate_seed_accounting_deliveries('RLS_CONNECTOR') AS count`)).toEqual([{count:0n}]);
+    const saved = await fixture.$queryRaw<Array<{ exportJobId: string; societyId: string; idempotencyKey: string }>>(Prisma.sql`
+      SELECT "exportJobId","societyId","idempotencyKey" FROM "AccountingConnectorDelivery"`);
+    expect(saved).toHaveLength(2);
+    for (const job of [a,b]) expect(saved).toContainEqual({ exportJobId: job.exportJobId, societyId: job.societyId, idempotencyKey: `accounting-export:${job.exportJobId}:RLS_CONNECTOR` });
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "AccountingConnectorDelivery"`)).toEqual([]);
+    await clearAccountingFixture();
+  });
+
+  it('claims one oldest queued or expired export and exposes only execution fields', async () => {
+    await clearAccountingFixture();
+    const jobs = await queuedExports(5);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingExportJob" SET "status"='PROCESSING',"leaseUntil"=CURRENT_TIMESTAMP-INTERVAL '1 minute' WHERE "id"=${jobs[0].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingExportJob" SET "status"='PROCESSING',"leaseUntil"=CURRENT_TIMESTAMP+INTERVAL '1 day' WHERE "id"=${jobs[2].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingExportJob" SET "status"='FAILED',"completedAt"=CURRENT_TIMESTAMP WHERE "id"=${jobs[3].id}::uuid`);
+    for (const seconds of [null,0,59,-1]) expect(await claimAccounting(runtime,'export',seconds)).toEqual([]);
+    const first = await claimAccounting(runtime,'export');
+    expect(first).toEqual([{ id:jobs[0].id, societyId:jobs[0].scope, format:'JSONL', fromDate:new Date('2026-10-01'), toDate:new Date('2026-10-31') }]);
+    expect((await claimAccounting(runtime,'export')).map(j=>j.id)).toEqual([jobs[1].id]);
+    expect((await claimAccounting(runtime,'export')).map(j=>j.id)).toEqual([jobs[4].id]);
+    expect(await claimAccounting(runtime,'export')).toEqual([]);
+    const [saved] = await fixture.$queryRaw<Array<{ attemptCount: number; seconds: number; key: string }>>(Prisma.sql`
+      SELECT "attemptCount",EXTRACT(EPOCH FROM ("leaseUntil"-"lastAttemptAt"))::integer AS seconds,"idempotencyKey" AS key FROM "AccountingExportJob" WHERE "id"=${jobs[0].id}::uuid`);
+    expect(saved).toEqual({ attemptCount:1, seconds:300, key:jobs[0].key });
+    await clearAccountingFixture();
+  });
+
+  it('claims twenty due deliveries, retains stored keys and excludes terminal or fresh leases', async () => {
+    await clearAccountingFixture();
+    const jobs = await queuedExports(25);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingConnectorDelivery"
+      ("id","societyId","exportJobId","provider","idempotencyKey","status","createdAt")
+      VALUES ${Prisma.join(jobs.map(j=>Prisma.sql`(${j.id}::uuid,${j.scope}::uuid,${j.id}::uuid,'RLS_CONNECTOR',${j.key},'QUEUED',${j.at})`))}`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingConnectorDelivery" SET "status"='PROCESSING',"leaseUntil"=CURRENT_TIMESTAMP-INTERVAL '1 minute' WHERE "id"=${jobs[0].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingConnectorDelivery" SET "status"='UNKNOWN' WHERE "id"=${jobs[1].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingConnectorDelivery" SET "status"='ACCEPTED' WHERE "id"=${jobs[2].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingConnectorDelivery" SET "status"='DELIVERED',"completedAt"=CURRENT_TIMESTAMP WHERE "id"=${jobs[22].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingConnectorDelivery" SET "nextAttemptAt"=CURRENT_TIMESTAMP+INTERVAL '1 day' WHERE "id"=${jobs[23].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AccountingConnectorDelivery" SET "status"='PROCESSING',"leaseUntil"=CURRENT_TIMESTAMP+INTERVAL '1 day' WHERE "id"=${jobs[24].id}::uuid`);
+    for (const seconds of [null,0,59,-1]) expect(await claimAccounting(runtime,'delivery',seconds)).toEqual([]);
+    const first = await claimAccounting(runtime,'delivery');
+    expect(first.map(j=>j.id)).toEqual(jobs.slice(0,20).map(j=>j.id));
+    expect(first[0]).toEqual({ id:jobs[0].id, societyId:jobs[0].scope, exportJobId:jobs[0].id, provider:'RLS_CONNECTOR', idempotencyKey:jobs[0].key, attemptCount:1 });
+    expect((await claimAccounting(runtime,'delivery')).map(j=>j.id)).toEqual(jobs.slice(20,22).map(j=>j.id));
+    expect(await claimAccounting(runtime,'delivery')).toEqual([]);
+    const [saved] = await fixture.$queryRaw<Array<{ attemptCount: number; seconds: number }>>(Prisma.sql`
+      SELECT "attemptCount",EXTRACT(EPOCH FROM ("leaseUntil"-"lastAttemptAt"))::integer AS seconds FROM "AccountingConnectorDelivery" WHERE "id"=${jobs[0].id}::uuid`);
+    expect(saved).toEqual({ attemptCount:1, seconds:300 });
+    await clearAccountingFixture();
+  });
+
+  it.each(['export','delivery'] as const)('skips locked accounting %s work and restores rolled-back claims', async kind => {
+    await clearAccountingFixture();
+    const jobs = await queuedExports(kind === 'export' ? 2 : 21), limit = kind === 'export' ? 1 : 20;
+    if (kind === 'delivery') await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingConnectorDelivery"
+      ("id","societyId","exportJobId","provider","idempotencyKey","createdAt")
+      VALUES ${Prisma.join(jobs.map(j=>Prisma.sql`(${j.id}::uuid,${j.scope}::uuid,${j.id}::uuid,'RLS_CONNECTOR',${j.key},${j.at})`))}`);
+    let release!: () => void, ready!: (rows: AccountingClaim[]) => void;
+    const gate = new Promise<void>(resolve=>{release=resolve;});
+    const started = new Promise<AccountingClaim[]>(resolve=>{ready=resolve;});
+    const pending = runtime.$transaction(async tx=>{
+      const claimed=await claimAccounting(tx,kind);ready(claimed);await gate;throw new Error('accounting rollback');
+    },{timeout:10000});
+    const rejected=expect(pending).rejects.toThrow('accounting rollback');
+    try {
+      expect((await started).map(j=>j.id)).toEqual(jobs.slice(0,limit).map(j=>j.id));
+      expect((await claimAccounting(runtime,kind)).map(j=>j.id)).toEqual(jobs.slice(limit).map(j=>j.id));
+    } finally {release();}
+    await rejected;
+    expect((await claimAccounting(runtime,kind)).map(j=>j.id)).toEqual(jobs.slice(0,limit).map(j=>j.id));
+    await clearAccountingFixture();
+  });
+
+  it('executes both real worker handoffs under restricted RLS without returning artifact bytes globally', async () => {
+    await clearAccountingFixture();
+    const jobs=await queuedExports(2);
+    await new AccountingExportRunner(runtime,new AccountingExportService(runtime)).runOnce();
+    const sent:Array<{societyId:string;exportJobId:string;content:Buffer;idempotencyKey:string}>=[];
+    await new AccountingConnectorDeliveryRunner(runtime, {provider:'RLS_CONNECTOR',deliver:async(input:typeof sent[number])=>{
+      sent.push(input);return {status:'DELIVERED',providerReceiptId:'rls-worker-receipt'};
+    }} as never).runOnce();
+    expect(sent).toHaveLength(2);
+    for(const job of jobs) expect(sent).toContainEqual(expect.objectContaining({societyId:job.scope,exportJobId:job.id,
+      content:Buffer.from(''),idempotencyKey:`accounting-export:${job.id}:RLS_CONNECTOR`}));
+    const saved=await fixture.$queryRaw<Array<{status:string;providerReceiptId:string}>>(Prisma.sql`SELECT "status","providerReceiptId" FROM "AccountingConnectorDelivery"`);
+    expect(saved).toEqual([expect.objectContaining({status:'DELIVERED',providerReceiptId:'rls-worker-receipt'}),expect.objectContaining({status:'DELIVERED',providerReceiptId:'rls-worker-receipt'})]);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "content" FROM "AccountingExportArtifact"`)).toEqual([]);
+    await clearAccountingFixture();
   });
 
   it('denies capability execution until explicitly granted and never grants owner membership', async () => {

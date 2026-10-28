@@ -81,7 +81,7 @@ export class AccountingExportService {
     return rows[0];
   }
 
-  async executeClaimed(job:ExportJob&{societyId:string}){
+  async executeClaimed(job:Pick<ExportJob,'id'|'format'|'fromDate'|'toDate'>&{societyId:string}){
     try{
       const rows=await this.prisma.withTenantContext(job.societyId, tx => tx.$queryRaw<ExportRow[]>(Prisma.sql`
         SELECT je."id"::text AS "entryId",je."entryNumber",je."entryDate",je."status"::text AS "journalStatus",je."description" AS "journalDescription",

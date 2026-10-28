@@ -1,9 +1,10 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { AccountingExportService, ExportJob } from './accounting-export.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
+import { AccountingExportService } from './accounting-export.service';
 
-type ClaimedJob=ExportJob&{societyId:string};
+type ClaimedJob=Parameters<AccountingExportService['executeClaimed']>[0];
 
 @Injectable()
 export class AccountingExportRunner implements OnModuleInit,OnModuleDestroy{
@@ -20,21 +21,12 @@ export class AccountingExportRunner implements OnModuleInit,OnModuleDestroy{
 
   async runOnce(){if(this.running)return;this.running=true;try{for(;;){const job=await this.claimOne();if(!job)break;await this.exports.executeClaimed(job);}}catch(error){this.logger.error(`Accounting export cycle failed: ${this.message(error)}`);}finally{this.running=false;}}
 
-  private claimOne(){return this.prisma.$transaction(async tx=>{
-    const rows=await tx.$queryRaw<ClaimedJob[]>(Prisma.sql`
-      WITH candidate AS (
-        SELECT "id" FROM "AccountingExportJob"
-        WHERE "status"='QUEUED' OR ("status"='PROCESSING' AND "leaseUntil"<CURRENT_TIMESTAMP)
-        ORDER BY "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1
-      )
-      UPDATE "AccountingExportJob" j
-      SET "status"='PROCESSING',"attemptCount"=j."attemptCount"+1,"lastAttemptAt"=CURRENT_TIMESTAMP,
-          "leaseUntil"=CURRENT_TIMESTAMP+make_interval(secs=>${this.leaseSeconds}),"errorCode"=NULL
-      FROM candidate WHERE j."id"=candidate."id"
-      RETURNING j.*
+  private async claimOne(){
+    const rows=await this.prisma.$queryRaw<ClaimedJob[]>(Prisma.sql`
+      SELECT * FROM aaraagate_claim_accounting_export(${this.leaseSeconds}::integer)
     `);
     return rows[0]??null;
-  });}
+  }
 
-  private message(error:unknown){return error instanceof Error?error.message:String(error);}
+  private message(error:unknown){return safeOperationalError(error);}
 }
