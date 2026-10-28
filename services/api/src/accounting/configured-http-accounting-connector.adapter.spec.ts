@@ -6,7 +6,25 @@ import { ConfiguredHttpAccountingConnectorAdapter } from './configured-http-acco
 const input={societyId:'11111111-1111-1111-1111-111111111111',exportJobId:'22222222-2222-2222-2222-222222222222',contractVersion:'aaraagate.accounting.journal.v1',format:'CSV' as const,filename:'journal.csv',contentType:'text/csv; charset=utf-8',sha256:'a'.repeat(64),content:Buffer.from('a,b\n1,2\n'),idempotencyKey:'delivery-1'};
 
 describe('ConfiguredHttpAccountingConnectorAdapter',()=>{
-  afterEach(()=>{vi.unstubAllGlobals();delete process.env.ACCOUNTING_CONNECTOR_BASE_URL;delete process.env.ACCOUNTING_CONNECTOR_API_KEY;delete process.env.ACCOUNTING_CONNECTOR_PROVIDER;});
+  it('aborts a stalled export request while preserving artifact bytes and retry identity',async()=>{
+    process.env.ACCOUNTING_CONNECTOR_BASE_URL='https://bridge.example.test';
+    const controller=new AbortController();
+    const timeout=vi.spyOn(AbortSignal,'timeout').mockReturnValue(controller.signal);
+    const fetchMock=vi.fn((_url:string,options:RequestInit)=>new Promise<Response>((_resolve,reject)=>{
+      options.signal?.addEventListener('abort',()=>reject(options.signal?.reason),{once:true});
+    }));
+    vi.stubGlobal('fetch',fetchMock);
+    const request=new ConfiguredHttpAccountingConnectorAdapter().deliver(input);
+    const rejected=expect(request).rejects.toThrow('connector deadline');
+    controller.abort(new Error('connector deadline'));
+    await rejected;
+    expect(timeout).toHaveBeenCalledExactlyOnceWith(10000);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const options=fetchMock.mock.calls[0][1];
+    expect(options.headers).toMatchObject({'Idempotency-Key':input.idempotencyKey,'X-Aaraagate-Society-Id':input.societyId});
+    expect(Buffer.from(options.body as Uint8Array)).toEqual(input.content);
+  });
+  afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();delete process.env.ACCOUNTING_CONNECTOR_BASE_URL;delete process.env.ACCOUNTING_CONNECTOR_API_KEY;delete process.env.ACCOUNTING_CONNECTOR_PROVIDER;});
 
   it('delivers the immutable artifact through the provider-neutral bridge contract',async()=>{
     process.env.ACCOUNTING_CONNECTOR_BASE_URL='https://bridge.example.test/';
@@ -17,6 +35,7 @@ describe('ConfiguredHttpAccountingConnectorAdapter',()=>{
     const adapter=new ConfiguredHttpAccountingConnectorAdapter();
     await expect(adapter.deliver(input)).resolves.toEqual({status:'DELIVERED',providerReceiptId:'receipt-1'});
     expect(adapter.provider).toBe('bridge-a');
+    expect(adapter.readiness()).toEqual({provider:'bridge-a',bridgeConfigured:true,apiKeyConfigured:true});
     const [url,init]=fetchMock.mock.calls[0] as [string,RequestInit];
     expect(url).toBe('https://bridge.example.test/accounting/exports');
     expect(init.method).toBe('POST');
