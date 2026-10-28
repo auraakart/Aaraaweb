@@ -227,3 +227,5 @@ See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026
 [Connector delivery context](architecture/CONNECTOR-DELIVERY-CONTEXT-2026-10-28.md) records safe exception evidence, request deadline and scoped artifact/result/failure I/O. Global dispatch and hosted acceptance remain open.
 
 Batch K continuation — H27-03/H27-08 partial: [accounting service context](architecture/ACCOUNTING-SERVICE-CONTEXT-2026-10-28.md) scopes export service and connector administration while retaining locks, audit and provider keys. Global dispatch and hosted policy acceptance remain open; no functionality/files/dependencies removed.
+
+Batch L continuation — H27-03/H27-08 partial: [accounting worker capabilities](architecture/ACCOUNTING-WORKER-CAPABILITIES-2026-10-28.md) replace root export/connector dispatch SQL with three fixed functions; retain one/20 claims, seeding keys, leases and per-job context. Export-cycle exception payloads use the established safe descriptor. Additive migration grants no runtime role or RLS policy; hosted provisioning and broader isolation remain open. No complete file/dependency removal.

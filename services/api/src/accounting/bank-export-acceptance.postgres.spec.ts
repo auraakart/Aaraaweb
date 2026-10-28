@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
+import { AccountingExportRunner } from './accounting-export.runner';
 import { BankReconciliationService } from './bank-reconciliation.service';
 import { ACCOUNTING_EXPORT_CONTRACT_V1, AccountingExportService } from './accounting-export.service';
 
@@ -165,11 +166,7 @@ const disposable = (() => {
       idempotencyKey: randomUUID(), contractVersion: ACCOUNTING_EXPORT_CONTRACT_V1,
       format: 'TALLY_CSV', fromDate: '2026-10-10', toDate: '2026-10-10',
     }) as { id: string };
-    await prisma.$executeRaw(Prisma.sql`
-      UPDATE "AccountingExportJob" SET "status"='PROCESSING'
-      WHERE "societyId"=${societyId}::uuid AND "id"=${job.id}::uuid
-    `);
-    await exports.executeClaimed(await exports.get(societyId, job.id) as never);
+    await new AccountingExportRunner(prisma, exports).runOnce();
     const artifact = await exports.artifact(societyId, job.id) as {
       sha256: string; content: string; byteLength: number; filename: string;
     };
@@ -191,5 +188,15 @@ const disposable = (() => {
     }, 0n);
     expect(sum(4)).toBe(12345n);
     expect(sum(5)).toBe(12345n);
+    // Public migrated FK/constraint acceptance, separate from copied RLS tables.
+    const provider = `CI_${randomUUID()}`;
+    const [seeded] = await prisma.$queryRaw<Array<{count:bigint}>>(Prisma.sql`SELECT public.aaraagate_seed_accounting_deliveries(${provider}) AS count`);
+    expect(seeded.count).toBeGreaterThanOrEqual(1n);
+    expect(await prisma.$queryRaw(Prisma.sql`SELECT public.aaraagate_seed_accounting_deliveries(${provider}) AS count`)).toEqual([{count:0n}]);
+    const claimed = await prisma.$queryRaw<Array<{id:string;exportJobId:string;societyId:string;idempotencyKey:string}>>(Prisma.sql`SELECT * FROM public.aaraagate_claim_accounting_deliveries(300)`);
+    expect(claimed).toContainEqual(expect.objectContaining({exportJobId:job.id,societyId,idempotencyKey:`accounting-export:${job.id}:${provider}`}));
+    const [saved] = await prisma.$queryRaw<Array<{attemptCount:number;status:string;idempotencyKey:string}>>(Prisma.sql`
+      SELECT "attemptCount","status","idempotencyKey" FROM "AccountingConnectorDelivery" WHERE "exportJobId"=${job.id}::uuid AND "societyId"=${societyId}::uuid AND "provider"=${provider}`);
+    expect(saved).toEqual({attemptCount:1,status:'PROCESSING',idempotencyKey:`accounting-export:${job.id}:${provider}`});
   }, 25_000);
 });

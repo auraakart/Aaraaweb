@@ -17,6 +17,7 @@ export default defineConfig({
       'src/accounting/accounting-export.service.spec.ts',
       'src/accounting/accounting-connector-delivery.service.spec.ts',
       'src/accounting/accounting-connector-delivery.runner.spec.ts',
+      'src/accounting/accounting-export.runner.spec.ts',
       'src/accounting/configured-http-accounting-connector.adapter.spec.ts',
       'src/accounting/configured-http-payment-gateway.adapter.spec.ts',
       'src/auth/session.service.spec.ts',
@@ -68,6 +69,7 @@ export default defineConfig({
         'src/accounting/payment-reconciliation-observability.service.ts',
         'src/accounting/payment-reconciliation.runner.ts',
         'src/accounting/accounting-connector-delivery.runner.ts',
+        'src/accounting/accounting-export.runner.ts',
         'src/accounting/accounting-export.service.ts',
         'src/accounting/accounting-connector-delivery.service.ts',
         'src/accounting/configured-http-accounting-connector.adapter.ts',
@@ -76,6 +78,7 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/accounting/accounting-export.runner.ts': { statements: 90, branches: 80, functions: 90, lines: 90 },
         'src/accounting/accounting-export.service.ts': { statements: 90, branches: 80, functions: 90, lines: 90 },
         'src/accounting/accounting-connector-delivery.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },
         'src/accounting/accounting-connector-delivery.runner.ts': { statements: 75, branches: 60, functions: 70, lines: 75 },

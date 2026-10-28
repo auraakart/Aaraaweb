@@ -14,14 +14,14 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | --- | ---: |
 | Tables, including SQL-only tables | 287 |
 | API runtime/script source files | 455 |
-| Migration SQL files | 220 |
+| Migration SQL files | 221 |
 | Database access sites | 2461 |
 | Raw SQL / ORM sites | 1714 / 747 |
 | Controller route handlers | 967 |
 | Unsafe runtime SQL calls discovered | 0 |
 | Unsafe disposable performance-seed calls | 11 |
 | Recognized SQL utility sites | 66 |
-| Indirect SQL expressions requiring manual resolution | 10 |
+| Indirect SQL expressions requiring manual resolution | 13 |
 | Runtime calls to `withTenantContext` | 189 |
 | RLS enable/force/policy statements in migrations | 0 |
 
