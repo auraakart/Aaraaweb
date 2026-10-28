@@ -12,7 +12,7 @@ const event = { eventId: 'event', providerOrderId: 'order', providerPaymentId: '
 function fixture() {
   const tx = { $queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn().mockResolvedValue(1) };
   const prisma = {
-    $queryRaw: vi.fn(async (): Promise<unknown[]> => { throw new Error('Unscoped root read'); }),
+    $queryRaw: vi.fn<(query: unknown) => Promise<unknown[]>>(async () => { throw new Error('Unscoped root read'); }),
     $executeRaw: vi.fn(async (): Promise<number> => { throw new Error('Unscoped root write'); }),
     $transaction: vi.fn(async (): Promise<unknown> => { throw new Error('Unscoped root transaction'); }),
     withTenantContext: vi.fn((_scope: string, run: (client: typeof tx) => unknown) => run(tx)),
@@ -77,6 +77,10 @@ describe('Billing selected transaction client boundaries', () => {
       payloadDigest: createHash('sha256').update(canonical).digest('hex'), processingStatus: 'PROCESSED' }]);
     await expect(new BillingService(prisma as never).reconcile(signature, event)).resolves.toEqual({ duplicate: true, receiptId: 'receipt' });
     expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+    const lookup = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(lookup.strings.join(' ')).toContain('public.aaraagate_resolve_payment_webhook_order(');
+    expect(lookup.strings.join(' ')).not.toContain('FROM "Payment"');
+    expect(lookup.values).toEqual([event.providerOrderId]);
     expect(prisma.withTenantContext).toHaveBeenCalledWith(society, expect.any(Function));
     expect(tx.$queryRaw).toHaveBeenCalledOnce();
   });
@@ -87,6 +91,18 @@ describe('Billing selected transaction client boundaries', () => {
     await expect(service.reconcile(undefined, event)).rejects.toThrow('Invalid payment signature');
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(prisma.withTenantContext).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing', 'denied'])('fails closed when exact-order resolution is %s', async result => {
+    vi.stubEnv('PAYMENT_WEBHOOK_SECRET', 'test-only-secret');
+    const signature = createHmac('sha256', 'test-only-secret').update('event|order|payment|CAPTURED').digest('hex');
+    const { prisma, service } = fixture();
+    if (result === 'missing') prisma.$queryRaw.mockResolvedValueOnce([]);
+    else prisma.$queryRaw.mockRejectedValueOnce(new Error('resolver execution denied'));
+    await expect(service.reconcile(signature, event)).rejects.toThrow(result === 'missing' ? 'Payment order not found' : 'resolver execution denied');
+    expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('records webhook processing failure through a fresh scoped transaction', async () => {

@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "5208aec82b654a53bf38c1b357b91861b4aa1045859a7ed3d985d00860f8c647",
+  "sourceDigest": "5334ddfde40c9b74bf09ede856640a60309e71194f8078adb0e1ebb4532484b9",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -19,14 +19,14 @@
   "summary": {
     "tables": 287,
     "sourceFilesScanned": 455,
-    "migrationFilesScanned": 218,
+    "migrationFilesScanned": 219,
     "accessSites": 2462,
     "rawSqlSites": 1715,
     "ormSites": 747,
     "routeHandlers": 967,
     "unsafeSqlSites": 11,
     "runtimeUnsafeSqlSites": 0,
-    "unresolvedSqlSites": 7,
+    "unresolvedSqlSites": 8,
     "utilitySqlSites": 66,
     "runtimeTenantContextCalls": 172,
     "migrationPolicySignals": 0
@@ -122,7 +122,7 @@
     },
     {
       "file": "services/api/src/billing/billing.service.ts",
-      "line": 381
+      "line": 378
     },
     {
       "file": "services/api/src/billing/payment-order.service.ts",
@@ -900,7 +900,7 @@
     {"name":"PatrolCheckpoint","model":null,"fields":["active","code","createdAt","createdByUserId","id","location","name","societyId","updatedAt"],"origins":["services/api/prisma/migrations/20260917162000_v3_guard_operations/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["ai-society-insights.ts","guard-operations.service.ts","guard-shift-handover.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":7,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PatrolScan","model":null,"fields":["checkpointId","gateId","guardUserId","id","note","scannedAt","societyId"],"origins":["services/api/prisma/migrations/20260917162000_v3_guard_operations/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["ai-society-insights.ts","guard-operations.service.ts","guard-shift-handover.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":4,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PayableSettlement","model":null,"fields":["amountPaise","createdAt","createdByUserId","id","idempotencyKey","journalEntryId","payableId","reference","settledOn","societyId"],"origins":["services/api/prisma/migrations/20260912174500_v2_payables_operational_hardening/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["finance-operations.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":7,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
-    {"name":"Payment","model":"Payment","fields":["amenityBookingId","amountPaise","completedAt","createdAt","failureCode","id","idempotencyKey","invoice","invoiceId","payerUserId","provider","providerOrderId","providerPaymentId","purposeType","society","societyId","status","updatedAt"],"origins":["services/api/prisma/migrations/20260902093000_maintenance_billing_payments/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["ai-assistant.service.ts","ai-operations.service.ts","ai-society-insights.ts","billing.service.ts","migration-resident-commit.service.ts","payment-availability.service.ts","payment-exceptions.service.ts","payment-order.service.ts","payment-reconciliation.service.ts","payment-webhook.processor.ts","privacy-subject-data.service.ts","reports-analytics.service.ts","resident-statement.service.ts","settlement.service.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":27,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
+    {"name":"Payment","model":"Payment","fields":["amenityBookingId","amountPaise","completedAt","createdAt","failureCode","id","idempotencyKey","invoice","invoiceId","payerUserId","provider","providerOrderId","providerPaymentId","purposeType","society","societyId","status","updatedAt"],"origins":["services/api/prisma/migrations/20260902093000_maintenance_billing_payments/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["ai-assistant.service.ts","ai-operations.service.ts","ai-society-insights.ts","billing.service.ts","migration-resident-commit.service.ts","payment-availability.service.ts","payment-exceptions.service.ts","payment-order.service.ts","payment-reconciliation.service.ts","payment-webhook.processor.ts","privacy-subject-data.service.ts","reports-analytics.service.ts","resident-statement.service.ts","settlement.service.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":26,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PaymentAutopayPreference","model":"PaymentAutopayPreference","fields":["createdAt","debitDaysBefore","enabled","id","maxAmountPaise","payerUserId","provider","providerMandateId","providerMandateStatus","societyId","unitId","updatedAt"],"origins":["services/api/prisma/migrations/20260924033000_v452_autopay_preference/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["billing.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":2,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PaymentEvent","model":"PaymentEvent","fields":["actorUser","actorUserId","id","occurredAt","payloadDigest","payment","paymentId","providerEventId","society","societyId","type"],"origins":["services/api/prisma/migrations/20260902093000_maintenance_billing_payments/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["billing.service.ts","payment-order.service.ts","payment-webhook.processor.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":4,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"PaymentGatewayOperation","model":null,"fields":["amountPaise","attemptCount","createdAt","failureCode","failureMessage","id","idempotencyKey","lastAttemptAt","nextAttemptAt","operationType","paymentId","provider","providerOperationId","requestedAt","requestedByUserId","settledAt","societyId","status","updatedAt"],"origins":["services/api/prisma/migrations/20260912235500_v2_payment_reconciliation_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["finance-operations.service.ts","payment-reconciliation-observability.service.ts","payment-reconciliation.runner.ts","payment-reconciliation.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":10,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
@@ -1512,8 +1512,8 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":292,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":337,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Amenity","AmenityBooking","MaintenanceInvoice","Payment","PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":355,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":372,"method":"reconcile","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","withTenantContext"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":381,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":372,"method":"reconcile","operation":"$queryRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","withTenantContext"],"nestedRelationSignals":[],"disposition":"UNRESOLVED_SQL_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/billing.service.ts","line":378,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-order.service.ts","line":16,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-order.service.ts","line":43,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-order.service.ts","line":56,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Payment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
