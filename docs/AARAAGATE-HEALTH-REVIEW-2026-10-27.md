@@ -214,3 +214,8 @@ See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026
 ## H27-03 follow-through — signed callback resolver (28 October)
 
 [Callback routing capability](architecture/PAYMENT-CALLBACK-RESOLVER-2026-10-28.md) records the exact-order two-identifier function, migration, deployment grant prerequisites and restricted-owner RLS/public callback acceptance. Runtime deployment must provision reviewed ownership and EXECUTE before this application update. Global worker claims and hosted policy acceptance remain open.
+
+
+## H27-03 follow-through — bounded reconciliation claims (28 October)
+
+[Worker claim capabilities](architecture/RECONCILIATION-CLAIM-CAPABILITIES-2026-10-28.md) records the two bounded SQL claim functions, atomic retry update, deployment grant prerequisites and restricted-owner concurrency/rollback acceptance. Runtime ownership and EXECUTE must be provisioned before deployment; other domains/jobs and hosted policy acceptance remain open.

@@ -23,7 +23,7 @@ export class PaymentReconciliationRunner implements OnModuleInit,OnModuleDestroy
   async runOnce(){if(this.running)return;this.running=true;try{await this.processOperations();await this.refreshCases();}catch(error){this.logger.error(`Payment reconciliation cycle failed: ${safeOperationalError(error)}`);}finally{this.running=false;}}
 
   private async processOperations(){
-    const due=await this.claimOperations(25);
+    const due=await this.claimOperations();
     for(const op of due){
       if(op.provider!==this.adapter.provider){await this.deferUnsupported(op);continue;}
       try{
@@ -45,30 +45,17 @@ export class PaymentReconciliationRunner implements OnModuleInit,OnModuleDestroy
   }
 
   private async refreshCases(){
-    const cases=await this.claimCases(25);
+    const cases=await this.claimCases();
     for(const c of cases){if(c.provider!==this.adapter.provider)continue;try{const observation=await this.adapter.queryPayment(c.paymentId);await this.reconciliation.recordObservation(c.societyId,c.id,{providerPaymentId:observation.providerPaymentId,observedProviderStatus:observation.providerStatus,observedAmountPaise:observation.amountPaise});}catch(error){this.logger.warn(`Reconciliation case ${c.id} refresh failed: ${safeOperationalError(error)}`);}}
   }
 
-  private claimOperations(limit:number){return this.prisma.$transaction(async tx=>{
-    const rows=await tx.$queryRaw<DueOperation[]>(Prisma.sql`
-      SELECT "id","societyId","paymentId","operationType","provider","providerOperationId","amountPaise","idempotencyKey","attemptCount"
-      FROM "PaymentGatewayOperation"
-      WHERE "status" IN ('REQUESTED','UNKNOWN') AND ("nextAttemptAt" IS NULL OR "nextAttemptAt"<=CURRENT_TIMESTAMP)
-      ORDER BY COALESCE("nextAttemptAt","requestedAt"),"requestedAt" FOR UPDATE SKIP LOCKED LIMIT ${limit}
-    `);
-    for(const row of rows){const nextAttempt=row.attemptCount+1;const delay=Math.min(3600,Math.pow(2,Math.max(0,nextAttempt-1))*60);await tx.$executeRaw(Prisma.sql`UPDATE "PaymentGatewayOperation" SET "attemptCount"=${nextAttempt},"lastAttemptAt"=CURRENT_TIMESTAMP,"nextAttemptAt"=CURRENT_TIMESTAMP+make_interval(secs=>${delay}),"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${row.id}::uuid AND "societyId"=${row.societyId}::uuid`);row.attemptCount=nextAttempt;}
-    return rows;
-  });}
+  private claimOperations(){return this.prisma.$queryRaw<DueOperation[]>(Prisma.sql`
+    SELECT * FROM public.aaraagate_claim_payment_gateway_operations()
+  `);}
 
-  private claimCases(limit:number){const staleSeconds=Math.floor(this.intervalMs/1000);return this.prisma.$transaction(async tx=>tx.$queryRaw<DueCase[]>(Prisma.sql`
-    WITH due AS (
-      SELECT "id" FROM "PaymentReconciliationCase"
-      WHERE "status" IN ('PENDING','MISMATCH','ACTION_REQUIRED') AND ("lastCheckedAt" IS NULL OR "lastCheckedAt"<CURRENT_TIMESTAMP-make_interval(secs=>${staleSeconds}))
-      ORDER BY COALESCE("lastCheckedAt","createdAt") FOR UPDATE SKIP LOCKED LIMIT ${limit}
-    )
-    UPDATE "PaymentReconciliationCase" c SET "lastCheckedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP FROM due WHERE c."id"=due."id"
-    RETURNING c."id",c."societyId",c."paymentId",c."provider"
-  `));}
+  private claimCases(){const staleSeconds=Math.floor(this.intervalMs/1000);return this.prisma.$queryRaw<DueCase[]>(Prisma.sql`
+    SELECT * FROM public.aaraagate_claim_payment_reconciliation_cases(${staleSeconds}::integer)
+  `);}
 
   private async deferUnsupported(op:DueOperation){const exhausted=op.attemptCount>=this.maxAttempts;await this.reconciliation.recordOperationResult(op.societyId,op.id,{status:exhausted?'FAILED':'UNKNOWN',failureCode:'UNSUPPORTED_PROVIDER',failureMessage:`No configured adapter for ${op.provider}`});}
   private message(error:unknown){return error instanceof Error?error.message:String(error);}
