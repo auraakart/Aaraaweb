@@ -8,16 +8,18 @@ function operation(overrides = {}) {
     providerOperationId: null, amountPaise: 500n, idempotencyKey: 'stored-key', attemptCount: 0, ...overrides };
 }
 function fixture(operations: ReturnType<typeof operation>[] = [], cases: unknown[] = []) {
-  const tx = { $queryRaw: vi.fn().mockResolvedValueOnce(operations).mockResolvedValueOnce(cases),
-    $executeRaw: vi.fn().mockResolvedValue(1) };
-  const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
+  const query = vi.fn<(sql: unknown) => Promise<unknown[]>>()
+    .mockResolvedValueOnce(operations.map(op => ({ ...op, attemptCount: op.attemptCount + 1 }))).mockResolvedValueOnce(cases);
+  const prisma = { $queryRaw: query,
+    $transaction: vi.fn(async () => { throw new Error('Unrestricted transaction'); }),
+    $executeRaw: vi.fn(async () => { throw new Error('Unrestricted write'); }) };
   const adapter = { provider: 'test-provider', environment: 'sandbox', isConfigured: vi.fn().mockReturnValue(true),
     queryPayment: vi.fn().mockResolvedValue({ providerPaymentId: 'provider-pay', providerStatus: 'CAPTURED', amountPaise: 500 }),
     refund: vi.fn().mockResolvedValue({ status: 'ACCEPTED', providerOperationId: 'provider-op' }) };
   const reconciliation = { openOrRefreshCase: vi.fn().mockResolvedValue({ id: 'case-1' }),
     recordObservation: vi.fn().mockResolvedValue({}), recordOperationResult: vi.fn().mockResolvedValue({}) };
   const runner = new PaymentReconciliationRunner(prisma as never, adapter as never, reconciliation as never);
-  return { tx, prisma, adapter, reconciliation, runner };
+  return { query, prisma, adapter, reconciliation, runner };
 }
 
 describe('Payment reconciliation runner financial boundary', () => {
@@ -27,6 +29,31 @@ describe('Payment reconciliation runner financial boundary', () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+
+  it('calls only bounded worker capabilities with the configured stale interval', async () => {
+    vi.stubEnv('PAYMENT_RECONCILIATION_INTERVAL_MS', '300000');
+    const { runner, query, prisma } = fixture();
+    await runner.runOnce();
+    const calls = query.mock.calls.map(([sql]) => sql as { strings: readonly string[]; values: unknown[] });
+    expect(calls).toHaveLength(2);
+    expect(calls[0].strings.join(' ')).toContain('public.aaraagate_claim_payment_gateway_operations()');
+    expect(calls[0].values).toEqual([]);
+    expect(calls[1].strings.join(' ')).toContain('public.aaraagate_claim_payment_reconciliation_cases(');
+    expect(calls[1].values).toEqual([300]);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to unrestricted SQL when a claim capability is denied', async () => {
+    const { runner, query, prisma, adapter } = fixture();
+    query.mockReset().mockRejectedValue(new Error('execution denied'));
+    await runner.runOnce();
+    expect(query).toHaveBeenCalledOnce();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    expect(adapter.refund).not.toHaveBeenCalled();
+    expect(adapter.queryPayment).not.toHaveBeenCalled();
+  });
 
   it('does not schedule or query when the provider is unconfigured', () => {
     const { runner, adapter, prisma } = fixture();
@@ -40,33 +67,35 @@ describe('Payment reconciliation runner financial boundary', () => {
   it('runs immediately, schedules later work and stops the timer on shutdown', async () => {
     vi.useFakeTimers();
     vi.stubEnv('PAYMENT_RECONCILIATION_INTERVAL_MS', '60000');
-    const { runner, tx, prisma } = fixture();
-    tx.$queryRaw.mockReset().mockResolvedValue([]);
+    const { runner, query, prisma } = fixture();
+    query.mockReset().mockResolvedValue([]);
     runner.onModuleInit();
     await vi.advanceTimersByTimeAsync(0);
-    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(60000);
-    expect(prisma.$transaction).toHaveBeenCalledTimes(4);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(4);
     runner.onModuleDestroy();
     await vi.advanceTimersByTimeAsync(60000);
-    expect(prisma.$transaction).toHaveBeenCalledTimes(4);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(4);
   });
 
   it('does not overlap an active cycle and recovers after a claim failure', async () => {
-    const { runner, tx, prisma } = fixture();
+    const { runner, query, prisma } = fixture();
     let release!: (rows: unknown[]) => void;
-    tx.$queryRaw.mockReset().mockResolvedValue([]).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    query.mockReset().mockResolvedValue([]).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
     const pending = runner.runOnce();
     await runner.runOnce();
-    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(prisma.$queryRaw).toHaveBeenCalledOnce();
     release([]);
     await pending;
-    tx.$queryRaw.mockReset().mockRejectedValueOnce(new Error('private database details'));
+    expect(query).toHaveBeenCalledTimes(2);
+    query.mockReset().mockRejectedValueOnce(new Error('private database details'));
     await runner.runOnce();
+    expect(query).toHaveBeenCalledOnce();
     expect(Logger.prototype.error).toHaveBeenCalledWith('Payment reconciliation cycle failed: Error');
-    tx.$queryRaw.mockReset().mockResolvedValue([]);
+    query.mockReset().mockResolvedValue([]);
     await runner.runOnce();
-    expect(prisma.$transaction).toHaveBeenCalledTimes(5);
+    expect(query).toHaveBeenCalledTimes(2);
   });
 
   it.each([null, 0n, -1n, BigInt(Number.MAX_SAFE_INTEGER) + 1n, 9223372036854775807n])(
@@ -80,12 +109,12 @@ describe('Payment reconciliation runner financial boundary', () => {
   );
 
   it.each([1n, BigInt(Number.MAX_SAFE_INTEGER)])('preserves exact valid stored refund %s and retry identity', async amount => {
-    const { runner, adapter, reconciliation, tx } = fixture([operation({ amountPaise: amount, providerOperationId: 'existing-provider-op' })]);
+    const { runner, adapter, reconciliation } = fixture([operation({ amountPaise: amount, providerOperationId: 'existing-provider-op' })]);
     await runner.runOnce();
     expect(adapter.refund).toHaveBeenCalledExactlyOnceWith({ paymentId: 'payment-1', amountPaise: Number(amount),
       providerOperationId: 'existing-provider-op', idempotencyKey: 'stored-key' });
     expect(reconciliation.recordOperationResult).toHaveBeenCalledWith(society, 'op-1', { status: 'ACCEPTED', providerOperationId: 'provider-op' });
-    expect(tx.$executeRaw.mock.calls[0][0].values).toEqual([1, 60, 'op-1', society]);
+
   });
 
   it('records exhausted invalid refunds without external action and continues the claimed batch', async () => {
@@ -109,10 +138,10 @@ describe('Payment reconciliation runner financial boundary', () => {
   });
 
   it('retains retry/backoff and sanitizes uncertain provider failure evidence', async () => {
-    const { runner, adapter, reconciliation, tx } = fixture([operation({ attemptCount: 2 })]);
+    const { runner, adapter, reconciliation } = fixture([operation({ attemptCount: 2 })]);
     adapter.refund.mockRejectedValueOnce(new Error('private token and provider payload'));
     await runner.runOnce();
-    expect(tx.$executeRaw.mock.calls[0][0].values).toEqual([3, 240, 'op-1', society]);
+
     expect(reconciliation.recordOperationResult).toHaveBeenCalledWith(society, 'op-1',
       { status: 'UNKNOWN', failureCode: 'RUNNER_RETRY', failureMessage: 'Error' });
   });

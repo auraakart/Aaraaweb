@@ -220,4 +220,18 @@ disposable('V4.90.16 finance concurrent acceptance on migrated disposable Postgr
       allocatedPaise: '300', refundedPaise: '600', availablePaise: '300',
     });
   }, 25_000);
+
+  it('claims real migrated operations without changing provider identity or economics', async () => {
+    const paymentId = await createCapturedPayment(1000), key = randomUUID();
+    const operation = await reconciliation.createOperation(societyId, userId, paymentId, {
+      operationType: 'REFUND', provider: 'CI_TEST_ONLY', amountPaise: 500, idempotencyKey: key,
+    }) as { id: string };
+    const claimed = await prisma.$queryRaw<Array<{ id: string; societyId: string; attemptCount: number }>>(Prisma.sql`
+      SELECT * FROM public.aaraagate_claim_payment_gateway_operations()`);
+    expect(claimed).toContainEqual(expect.objectContaining({ id: operation.id, societyId, attemptCount: 1 }));
+    const [saved] = await prisma.$queryRaw(Prisma.sql`
+      SELECT "status","provider","amountPaise","idempotencyKey","attemptCount" FROM "PaymentGatewayOperation"
+      WHERE "id"=${operation.id}::uuid AND "societyId"=${societyId}::uuid`) as Array<Record<string, unknown>>;
+    expect(saved).toEqual({ status: 'REQUESTED', provider: 'CI_TEST_ONLY', amountPaise: 500n, idempotencyKey: key, attemptCount: 1 });
+  });
 });

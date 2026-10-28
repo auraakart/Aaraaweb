@@ -29,6 +29,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const schema = `billing_rls_${suffix}`;
   const role = `billing_rls_${suffix}`;
   const lookupOwner = `${role}_lookup`;
+  const claimsOwner = `${role}_claims`;
   const password = randomUUID();
   const base = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost/aaraagate_test');
   const fixtureUrl = new URL(base);
@@ -51,7 +52,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation'];
-  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false;
+  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
     execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'execute', '--stdin', '--url', url], {
@@ -94,6 +95,24 @@ database('Billing transactions under a non-owner RLS role', () => {
       CREATE POLICY callback_route ON "${schema}"."Payment" FOR SELECT TO "${lookupOwner}" USING (true);
       ALTER FUNCTION "${schema}".aaraagate_resolve_payment_webhook_order(text) OWNER TO "${lookupOwner}";
       REVOKE CREATE ON SCHEMA "${schema}" FROM "${lookupOwner}";`);
+    executeDdl(`CREATE ROLE "${claimsOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+    claimsOwnerCreated = true;
+    const claimsMigration = readFileSync(join(__dirname,
+      '../../prisma/migrations/20261028070000_v510_reconciliation_claim_capabilities/migration.sql'), 'utf8');
+    executeDdl(claimsMigration.replaceAll('public.', `"${schema}".`), fixtureUrl.toString());
+    executeDdl(`GRANT USAGE, CREATE ON SCHEMA "${schema}" TO "${claimsOwner}";
+      GRANT SELECT ("id","societyId","paymentId","operationType","provider","providerOperationId","amountPaise","idempotencyKey","attemptCount","status","nextAttemptAt","requestedAt")
+        ON "${schema}"."PaymentGatewayOperation" TO "${claimsOwner}";
+      GRANT UPDATE ("attemptCount","lastAttemptAt","nextAttemptAt","updatedAt") ON "${schema}"."PaymentGatewayOperation" TO "${claimsOwner}";
+      GRANT SELECT ("id","societyId","paymentId","provider","status","lastCheckedAt","createdAt") ON "${schema}"."PaymentReconciliationCase" TO "${claimsOwner}";
+      GRANT UPDATE ("lastCheckedAt","updatedAt") ON "${schema}"."PaymentReconciliationCase" TO "${claimsOwner}";
+      CREATE POLICY worker_read ON "${schema}"."PaymentGatewayOperation" FOR SELECT TO "${claimsOwner}" USING (true);
+      CREATE POLICY worker_update ON "${schema}"."PaymentGatewayOperation" FOR UPDATE TO "${claimsOwner}" USING (true) WITH CHECK (true);
+      CREATE POLICY worker_read ON "${schema}"."PaymentReconciliationCase" FOR SELECT TO "${claimsOwner}" USING (true);
+      CREATE POLICY worker_update ON "${schema}"."PaymentReconciliationCase" FOR UPDATE TO "${claimsOwner}" USING (true) WITH CHECK (true);
+      ALTER FUNCTION "${schema}".aaraagate_claim_payment_gateway_operations() OWNER TO "${claimsOwner}";
+      ALTER FUNCTION "${schema}".aaraagate_claim_payment_reconciliation_cases(integer) OWNER TO "${claimsOwner}";
+      REVOKE CREATE ON SCHEMA "${schema}" FROM "${claimsOwner}";`);
     for (const user of [owner, tenant]) await fixture.$executeRaw(Prisma.sql`
       INSERT INTO "User" ("id","phone","updatedAt") VALUES (${user}::uuid,${`rls-${user}`},CURRENT_TIMESTAMP)`);
     for (const society of [societyA, societyB]) await fixture.$executeRaw(Prisma.sql`
@@ -122,6 +141,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (schemaCreated) executeDdl(`DROP SCHEMA "${schema}" CASCADE`);
     if (roleCreated) executeDdl(`DROP ROLE "${role}"`);
     if (lookupOwnerCreated) executeDdl(`DROP ROLE "${lookupOwner}"`);
+    if (claimsOwnerCreated) executeDdl(`DROP ROLE "${claimsOwner}"`);
   });
 
   async function invoice(societyId = societyA, unitId = unitA) {
@@ -214,6 +234,125 @@ database('Billing transactions under a non-owner RLS role', () => {
       expect(await tx.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_resolve_payment_webhook_order(${order.providerOrderId})`))
         .toEqual([{ id: order.id, societyId: societyA }]);
     });
+  });
+
+  type Claim = { id: string; societyId: string; attemptCount?: number };
+  async function claimWorker(client: Prisma.TransactionClient, kind: 'operations' | 'cases') {
+    return kind === 'operations'
+      ? client.$queryRaw<Claim[]>(Prisma.sql`SELECT * FROM aaraagate_claim_payment_gateway_operations()`)
+      : client.$queryRaw<Claim[]>(Prisma.sql`SELECT * FROM aaraagate_claim_payment_reconciliation_cases(300)`);
+  }
+  async function clearWorkerFixture() {
+    // Only the UUID-isolated copied tables; public append-only records are untouched.
+    await fixture.$executeRaw(Prisma.sql`DELETE FROM "PaymentGatewayOperation"`);
+    await fixture.$executeRaw(Prisma.sql`DELETE FROM "PaymentReconciliationCase"`);
+  }
+  async function seedWorker(kind: 'operations' | 'cases', count: number) {
+    const rows = Array.from({ length: count }, (_, i) => ({ id: randomUUID(), scope: i % 2 ? societyA : societyB,
+      payment: randomUUID(), key: randomUUID(), attempts: [0, 1, 6, 100][i % 4],
+      at: new Date(Date.now() - 86_400_000 + i * 1000) }));
+    if (kind === 'operations') await fixture.$executeRaw(Prisma.sql`
+      INSERT INTO "PaymentGatewayOperation" ("id","societyId","paymentId","operationType","provider","amountPaise","idempotencyKey","attemptCount","requestedAt")
+      VALUES ${Prisma.join(rows.map(row => Prisma.sql`(${row.id}::uuid,${row.scope}::uuid,${row.payment}::uuid,'STATUS_QUERY','WORKER_TEST',500,${row.key},${row.attempts},${row.at})`))}`);
+    else await fixture.$executeRaw(Prisma.sql`
+      INSERT INTO "PaymentReconciliationCase" ("id","societyId","paymentId","provider","expectedCapturedPaise","createdAt")
+      VALUES ${Prisma.join(rows.map(row => Prisma.sql`(${row.id}::uuid,${row.scope}::uuid,${row.payment}::uuid,'WORKER_TEST',500,${row.at})`))}`);
+    return rows;
+  }
+
+  it('denies worker capabilities without EXECUTE and exposes no owner membership', async () => {
+    for (const kind of ['operations', 'cases'] as const) await expect(claimWorker(runtime, kind)).rejects.toThrow(/permission denied for function/i);
+    const [identity] = await runtime.$queryRaw<Array<{ member: boolean; superuser: boolean; bypass: boolean; login: boolean }>>(Prisma.sql`
+      SELECT pg_has_role(current_user,r.oid,'MEMBER') AS member,r.rolsuper AS superuser,r.rolbypassrls AS bypass,r.rolcanlogin AS login
+      FROM pg_roles r WHERE r.rolname=${claimsOwner}`);
+    expect(identity).toEqual({ member: false, superuser: false, bypass: false, login: false });
+    executeDdl(`GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_claim_payment_gateway_operations(),
+      "${schema}".aaraagate_claim_payment_reconciliation_cases(integer) TO "${role}"`);
+  });
+
+  it('restricts worker ownership to claim metadata and pins public ACL/settings', async () => {
+    const metadata = await runtime.$queryRaw<Array<{ name: string; definer: boolean; volatile: string; settings: string[]; publicExecute: boolean }>>(Prisma.sql`
+      SELECT p.proname AS name,p.prosecdef AS definer,p.provolatile::text AS volatile,p.proconfig AS settings,
+        EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+          WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS "publicExecute"
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname=${schema} AND p.proname IN ('aaraagate_claim_payment_gateway_operations','aaraagate_claim_payment_reconciliation_cases')`);
+    expect(metadata).toHaveLength(2);
+    for (const row of metadata) {
+      expect(row).toMatchObject({ definer: true, volatile: 'v', publicExecute: false });
+      expect(row.settings).toEqual(expect.arrayContaining(['search_path=pg_catalog, pg_temp', 'row_security=on']));
+    }
+    const [rights] = await runtime.$queryRaw<Array<{ statusWrite: boolean; amountWrite: boolean; deleteRows: boolean; owns: boolean }>>(Prisma.sql`
+      SELECT has_column_privilege(${claimsOwner},c.oid,'status','UPDATE') AS "statusWrite",
+        has_column_privilege(${claimsOwner},c.oid,'amountPaise','UPDATE') AS "amountWrite",
+        has_table_privilege(${claimsOwner},c.oid,'DELETE') AS "deleteRows",c.relowner=r.oid AS owns
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.rolname=${claimsOwner}
+      WHERE n.nspname=${schema} AND c.relname='PaymentGatewayOperation'`);
+    expect(rights).toEqual({ statusWrite: false, amountWrite: false, deleteRows: false, owns: false });
+  });
+
+  it('claims only 25 oldest due operations with exact retry metadata and unchanged economics', async () => {
+    await clearWorkerFixture();
+    const rows = await seedWorker('operations', 34);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "PaymentGatewayOperation" SET "status"='SETTLED' WHERE "id"=${rows[31].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "PaymentGatewayOperation" SET "nextAttemptAt"=CURRENT_TIMESTAMP+INTERVAL '1 day' WHERE "id"=${rows[32].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "PaymentGatewayOperation" SET "status"='FAILED' WHERE "id"=${rows[33].id}::uuid`);
+    const claimed = await claimWorker(runtime, 'operations');
+    expect(claimed.map(row => row.id)).toEqual(rows.slice(0, 25).map(row => row.id));
+    expect(claimed[0]).toEqual({ id: rows[0].id, societyId: rows[0].scope, paymentId: rows[0].payment,
+      operationType: 'STATUS_QUERY', provider: 'WORKER_TEST', providerOperationId: null, amountPaise: 500n,
+      idempotencyKey: rows[0].key, attemptCount: 1 });
+    const saved = await fixture.$queryRaw<Array<{ id: string; status: string; attemptCount: number; delay: number }>>(Prisma.sql`
+      SELECT "id","status","attemptCount",EXTRACT(EPOCH FROM ("nextAttemptAt"-"lastAttemptAt"))::integer AS delay
+      FROM "PaymentGatewayOperation" WHERE "id" IN (${Prisma.join(rows.slice(0, 4).map(row => Prisma.sql`${row.id}::uuid`))}) ORDER BY "requestedAt"`);
+    expect(saved.map(row => [row.status,row.attemptCount,row.delay])).toEqual([
+      ['REQUESTED',1,60],['REQUESTED',2,120],['REQUESTED',7,3600],['REQUESTED',101,3600],
+    ]);
+    expect((await claimWorker(runtime, 'operations')).map(row => row.id)).toEqual(rows.slice(25,31).map(row => row.id));
+    expect(await claimWorker(runtime, 'operations')).toEqual([]);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "PaymentGatewayOperation"`)).toEqual([]);
+    await clearWorkerFixture();
+  });
+
+  it('claims only 25 stale open cases and rejects unsafe stale intervals', async () => {
+    await clearWorkerFixture();
+    const rows = await seedWorker('cases', 34);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "PaymentReconciliationCase" SET "status"='MATCHED' WHERE "id"=${rows[31].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "PaymentReconciliationCase" SET "lastCheckedAt"=CURRENT_TIMESTAMP WHERE "id"=${rows[32].id}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "PaymentReconciliationCase" SET "status"='RESOLVED',"resolvedAt"=CURRENT_TIMESTAMP WHERE "id"=${rows[33].id}::uuid`);
+    for (const seconds of [null, -1, 0, 59]) expect(await runtime.$queryRaw(Prisma.sql`
+      SELECT * FROM aaraagate_claim_payment_reconciliation_cases(${seconds}::integer)`)).toEqual([]);
+    const claimed = await claimWorker(runtime, 'cases');
+    expect(claimed.map(row => row.id)).toEqual(rows.slice(0,25).map(row => row.id));
+    expect(claimed[0]).toEqual({ id: rows[0].id, societyId: rows[0].scope, paymentId: rows[0].payment, provider: 'WORKER_TEST' });
+    expect((await claimWorker(runtime, 'cases')).map(row => row.id)).toEqual(rows.slice(25,31).map(row => row.id));
+    expect(await claimWorker(runtime, 'cases')).toEqual([]);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "PaymentReconciliationCase"`)).toEqual([]);
+    await clearWorkerFixture();
+  });
+
+  it.each(['operations', 'cases'] as const)('skips concurrently locked %s and restores rolled-back claims', async kind => {
+    await clearWorkerFixture();
+    const rows = await seedWorker(kind, 30);
+    let release!: () => void;
+    let ready!: (rows: Claim[]) => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<Claim[]>(resolve => { ready = resolve; });
+    const pending = runtime.$transaction(async tx => {
+      const claimed = await claimWorker(tx, kind);
+      ready(claimed);
+      await gate;
+      throw new Error('worker claim rollback');
+    }, { timeout: 10000 });
+    const rejected = expect(pending).rejects.toThrow('worker claim rollback');
+    try {
+      expect((await started).map(row => row.id)).toEqual(rows.slice(0,25).map(row => row.id));
+      expect((await claimWorker(runtime, kind)).map(row => row.id)).toEqual(rows.slice(25).map(row => row.id));
+    } finally { release(); }
+    await rejected;
+    expect((await claimWorker(runtime, kind)).map(row => row.id)).toEqual(rows.slice(0,25).map(row => row.id));
+    expect(await claimWorker(runtime, kind)).toEqual([]);
+    await clearWorkerFixture();
   });
 
   it('isolates reconciliation queue/detail/observation/resolution for two societies', async () => {
