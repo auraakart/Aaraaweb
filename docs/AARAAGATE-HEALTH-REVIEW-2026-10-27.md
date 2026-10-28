@@ -225,3 +225,5 @@ See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026
 ## H27-15 — Connector per-job privacy and tenant context
 
 [Connector delivery context](architecture/CONNECTOR-DELIVERY-CONTEXT-2026-10-28.md) records safe exception evidence, request deadline and scoped artifact/result/failure I/O. Global dispatch and hosted acceptance remain open.
+
+Batch K continuation — H27-03/H27-08 partial: [accounting service context](architecture/ACCOUNTING-SERVICE-CONTEXT-2026-10-28.md) scopes export service and connector administration while retaining locks, audit and provider keys. Global dispatch and hosted policy acceptance remain open; no functionality/files/dependencies removed.

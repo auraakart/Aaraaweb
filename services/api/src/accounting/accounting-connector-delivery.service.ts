@@ -33,15 +33,15 @@ type DeliveryEvidenceRow={
 export class AccountingConnectorDeliveryService{
   constructor(private readonly prisma:PrismaService,private readonly connector:ConfiguredHttpAccountingConnectorAdapter){}
 
-  list(societyId:string){return this.prisma.$queryRaw<AccountingConnectorDeliveryView[]>(Prisma.sql`
+  list(societyId:string){return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<AccountingConnectorDeliveryView[]>(Prisma.sql`
     SELECT "id","exportJobId","provider","status","attemptCount","lastAttemptAt","nextAttemptAt","providerReceiptId","failureCode","failureMessage","createdAt","updatedAt","completedAt"
     FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid ORDER BY "createdAt" DESC LIMIT 100
-  `);}
+  `));}
 
-  actions(societyId:string){return this.prisma.$queryRaw<DeliveryActionView[]>(Prisma.sql`
+  actions(societyId:string){return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<DeliveryActionView[]>(Prisma.sql`
     SELECT "id","deliveryId","actorUserId","action","fromStatus","previousAttemptCount","occurredAt"
     FROM "AccountingConnectorDeliveryAction" WHERE "societyId"=${societyId}::uuid ORDER BY "occurredAt" DESC LIMIT 100
-  `);}
+  `));}
 
   readiness(){
     const connector=this.connector.readiness();
@@ -50,7 +50,7 @@ export class AccountingConnectorDeliveryService{
   }
 
   async evidence(societyId:string,id:string){
-    const rows=await this.prisma.$queryRaw<DeliveryEvidenceRow[]>(Prisma.sql`
+    const rows=await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<DeliveryEvidenceRow[]>(Prisma.sql`
       SELECT d."id" AS "deliveryId",d."exportJobId",d."provider",d."status" AS "deliveryStatus",d."attemptCount",d."idempotencyKey",
         d."lastAttemptAt",d."nextAttemptAt",d."providerReceiptId",d."failureCode",d."failureMessage",d."createdAt" AS "deliveryCreatedAt",d."updatedAt" AS "deliveryUpdatedAt",d."completedAt" AS "deliveryCompletedAt",
         j."contractVersion",j."format",j."fromDate",j."toDate",j."status" AS "exportStatus",j."recordCount",j."createdAt" AS "exportCreatedAt",j."completedAt" AS "exportCompletedAt",
@@ -60,15 +60,15 @@ export class AccountingConnectorDeliveryService{
       JOIN "AccountingExportArtifact" a ON a."jobId"=j."id" AND a."societyId"=j."societyId"
       WHERE d."societyId"=${societyId}::uuid AND d."id"=${id}::uuid
       LIMIT 1
-    `);
+    `));
     const row=rows[0];
     if(!row)throw new NotFoundException('Accounting connector delivery evidence not found');
-    const actions=await this.prisma.$queryRaw<DeliveryActionView[]>(Prisma.sql`
+    const actions=await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<DeliveryActionView[]>(Prisma.sql`
       SELECT "id","deliveryId","actorUserId","action","fromStatus","previousAttemptCount","occurredAt"
       FROM "AccountingConnectorDeliveryAction"
       WHERE "societyId"=${societyId}::uuid AND "deliveryId"=${id}::uuid
       ORDER BY "occurredAt","id"
-    `);
+    `));
     return {
       evidenceVersion:'aaraagate.accounting.connector-evidence.v1',
       generatedAt:new Date(),
@@ -81,7 +81,7 @@ export class AccountingConnectorDeliveryService{
 
   async metrics(societyId:string){
     const [totals,providers]=await Promise.all([
-      this.prisma.$queryRaw<DeliveryMetrics[]>(Prisma.sql`
+      this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<DeliveryMetrics[]>(Prisma.sql`
         SELECT COUNT(*)::int AS "totalCount",
           COUNT(*) FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN'))::int AS "pendingCount",
           COUNT(*) FILTER (WHERE "status"='DELIVERED')::int AS "deliveredCount",
@@ -90,8 +90,8 @@ export class AccountingConnectorDeliveryService{
           MIN("createdAt") FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN')) AS "oldestPendingAt",
           CASE WHEN COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED'))=0 THEN NULL ELSE ROUND(100.0*COUNT(*) FILTER (WHERE "status"='DELIVERED')/COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED')),2)::double precision END AS "terminalSuccessRatePct"
         FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid
-      `),
-      this.prisma.$queryRaw<ProviderMetrics[]>(Prisma.sql`
+      `)),
+      this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<ProviderMetrics[]>(Prisma.sql`
         SELECT "provider",COUNT(*)::int AS "totalCount",
           COUNT(*) FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN'))::int AS "pendingCount",
           COUNT(*) FILTER (WHERE "status"='DELIVERED')::int AS "deliveredCount",
@@ -99,13 +99,13 @@ export class AccountingConnectorDeliveryService{
           MIN("createdAt") FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN')) AS "oldestPendingAt",
           CASE WHEN COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED'))=0 THEN NULL ELSE ROUND(100.0*COUNT(*) FILTER (WHERE "status"='DELIVERED')/COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED')),2)::double precision END AS "terminalSuccessRatePct"
         FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid GROUP BY "provider" ORDER BY "provider"
-      `),
+      `)),
     ]);
     return {totals:totals[0]??{totalCount:0,pendingCount:0,deliveredCount:0,failedCount:0,retryExhaustedCount:0,oldestPendingAt:null,terminalSuccessRatePct:null},providers};
   }
 
   async retry(societyId:string,userId:string,id:string){
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       const rows=await tx.$queryRaw<AccountingConnectorDeliveryView[]>(Prisma.sql`
         SELECT "id","exportJobId","provider","status","attemptCount","lastAttemptAt","nextAttemptAt","providerReceiptId","failureCode","failureMessage","createdAt","updatedAt","completedAt"
         FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid FOR UPDATE
