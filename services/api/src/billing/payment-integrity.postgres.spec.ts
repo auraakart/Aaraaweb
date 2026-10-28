@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushDeliveryOutboxService } from '../notifications/push-delivery-outbox.service';
@@ -49,11 +49,12 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     await prisma.unitOccupancy.create({ data: { societyId, unitId, userId: tenantId, relation: 'TENANT' } });
   }, 20_000);
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
   afterAll(async () => {
     // Cleanup is restricted to random fixture societies/users, never all rows.
     try {
       await prisma.$executeRaw(Prisma.sql`DELETE FROM "PushDeliveryOutbox" WHERE "societyId" IN (${societyId}::uuid,${otherSocietyId}::uuid)`);
+      await prisma.$executeRaw(Prisma.sql`DELETE FROM "PaymentWebhookReceipt" WHERE "societyId" IN (${societyId}::uuid,${otherSocietyId}::uuid)`);
       await prisma.paymentEvent.deleteMany({ where: { societyId: { in: societies } } });
       await prisma.payment.deleteMany({ where: { societyId: { in: societies } } });
       await prisma.maintenanceInvoice.deleteMany({ where: { societyId: { in: societies } } });
@@ -71,6 +72,26 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
       amountPaise: 1000, dueDate: new Date('2026-10-31T00:00:00Z'),
     } });
   }
+
+  it('routes signed callbacks through the migrated capability and captures once in each stored society', async () => {
+    vi.stubEnv('PAYMENT_WEBHOOK_SECRET', 'disposable-callback-secret');
+    const service = new BillingService(prisma);
+    for (const [scope, unit] of [[societyId, unitId], [otherSocietyId, otherUnitId]]) {
+      const bill = await invoice(unit, scope);
+      const created = await orders.createPayment(scope, ownerId, bill.id, randomUUID()) as { id: string };
+      const order = await prisma.payment.findUniqueOrThrow({ where: { id: created.id }, select: { id: true, providerOrderId: true } });
+      const event = { eventId: randomUUID(), providerOrderId: order.providerOrderId, providerPaymentId: randomUUID(), status: 'CAPTURED' as const };
+      const signature = createHmac('sha256', 'disposable-callback-secret')
+        .update(`${event.eventId}|${event.providerOrderId}|${event.providerPaymentId}|CAPTURED`).digest('hex');
+      await expect(service.reconcile(signature, event)).resolves.toMatchObject({ ok: true, paymentId: order.id });
+      await expect(service.reconcile(signature, event)).resolves.toMatchObject({ duplicate: true });
+      const receipts = await prisma.$queryRaw(Prisma.sql`SELECT "societyId","paymentId","processingStatus","receiveCount"
+        FROM "PaymentWebhookReceipt" WHERE "providerEventId"=${event.eventId}`);
+      expect(receipts).toEqual([{ societyId: scope, paymentId: order.id, processingStatus: 'PROCESSED', receiveCount: 2 }]);
+      expect(await prisma.paymentEvent.count({ where: { societyId: scope, paymentId: order.id, providerEventId: event.eventId } })).toBe(1);
+      expect(await prisma.maintenanceInvoice.findUnique({ where: { id: bill.id }, select: { status: true } })).toEqual({ status: 'PAID' });
+    }
+  });
 
   it('pages payment history without rounding microseconds or losing UUID ties', async () => {
     const ids:string[]=[randomUUID(),randomUUID(),randomUUID()].sort();

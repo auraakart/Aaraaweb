@@ -367,13 +367,10 @@ export class BillingService {
 
   async reconcile(signature: string | undefined, event: PaymentWebhookEvent) {
     const digest = this.verifyWebhookSignature(signature, event);
-    // Verified callbacks resolve their society from a server-owned order.
-    // Policy activation still requires a narrowly authorized global resolver.
-    const orders = await this.prisma.$queryRaw<PaymentWebhookRow[]>(Prisma.sql`
-      SELECT "id","invoiceId","amenityBookingId","societyId","purposeType","status"
-      FROM "Payment"
-      WHERE "providerOrderId"=${event.providerOrderId} AND "provider"='gateway-adapter'
-      LIMIT 1
+    // Only a verified callback may use this exact-order routing capability.
+    // Explicit runtime EXECUTE and reviewed owner grants are deployment prerequisites.
+    const orders = await this.prisma.$queryRaw<Array<Pick<PaymentWebhookRow, 'id' | 'societyId'>>>(Prisma.sql`
+      SELECT "id","societyId" FROM public.aaraagate_resolve_payment_webhook_order(${event.providerOrderId})
     `);
     const order = orders[0];
     if (!order) throw new NotFoundException('Payment order not found');

@@ -209,3 +209,8 @@ See [billing tenant-context conversion](architecture/BILLING-TENANT-CONTEXT-2026
 ## H27-14 — Gateway refund integrity
 
 [Gateway refund integrity](architecture/GATEWAY-REFUND-INTEGRITY-2026-10-27.md) records the worker/adapter precision defect, pre-provider validation, preserved retry identity, tests and deletion ledger. This financial-boundary correction precedes global discovery refactoring. H27-03/H27-04 remain partial; no production policy/provider acceptance is implied.
+
+
+## H27-03 follow-through — signed callback resolver (28 October)
+
+[Callback routing capability](architecture/PAYMENT-CALLBACK-RESOLVER-2026-10-28.md) records the exact-order two-identifier function, migration, deployment grant prerequisites and restricted-owner RLS/public callback acceptance. Runtime deployment must provision reviewed ownership and EXECUTE before this application update. Global worker claims and hosted policy acceptance remain open.

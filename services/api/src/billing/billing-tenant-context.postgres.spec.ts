@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service';
 import { PaymentOrderService } from './payment-order.service';
@@ -26,6 +28,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const suffix = randomUUID().replaceAll('-', '');
   const schema = `billing_rls_${suffix}`;
   const role = `billing_rls_${suffix}`;
+  const lookupOwner = `${role}_lookup`;
   const password = randomUUID();
   const base = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost/aaraagate_test');
   const fixtureUrl = new URL(base);
@@ -48,7 +51,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation'];
-  let schemaCreated = false, roleCreated = false;
+  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
     execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'execute', '--stdin', '--url', url], {
@@ -79,6 +82,18 @@ database('Billing transactions under a non-owner RLS role', () => {
     executeDdl(definitions.join(';\n') + ';', fixtureUrl.toString());
     executeDdl(`GRANT USAGE ON SCHEMA "${schema}" TO "${role}"`);
     executeDdl(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schema}" TO "${role}"`, fixtureUrl.toString());
+    // Exercise the migrated capability with a non-owner, NOBYPASSRLS owner.
+    // Its only global policy and column grants apply to this isolated schema.
+    executeDdl(`CREATE ROLE "${lookupOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+    lookupOwnerCreated = true;
+    const resolverMigration = readFileSync(join(__dirname,
+      '../../prisma/migrations/20261028060000_v510_payment_callback_resolver/migration.sql'), 'utf8');
+    executeDdl(resolverMigration.replaceAll('public.', `"${schema}".`), fixtureUrl.toString());
+    executeDdl(`GRANT USAGE, CREATE ON SCHEMA "${schema}" TO "${lookupOwner}";
+      GRANT SELECT ("id", "societyId", "providerOrderId", "provider") ON "${schema}"."Payment" TO "${lookupOwner}";
+      CREATE POLICY callback_route ON "${schema}"."Payment" FOR SELECT TO "${lookupOwner}" USING (true);
+      ALTER FUNCTION "${schema}".aaraagate_resolve_payment_webhook_order(text) OWNER TO "${lookupOwner}";
+      REVOKE CREATE ON SCHEMA "${schema}" FROM "${lookupOwner}";`);
     for (const user of [owner, tenant]) await fixture.$executeRaw(Prisma.sql`
       INSERT INTO "User" ("id","phone","updatedAt") VALUES (${user}::uuid,${`rls-${user}`},CURRENT_TIMESTAMP)`);
     for (const society of [societyA, societyB]) await fixture.$executeRaw(Prisma.sql`
@@ -106,6 +121,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     await fixture.$disconnect();
     if (schemaCreated) executeDdl(`DROP SCHEMA "${schema}" CASCADE`);
     if (roleCreated) executeDdl(`DROP ROLE "${role}"`);
+    if (lookupOwnerCreated) executeDdl(`DROP ROLE "${lookupOwner}"`);
   });
 
   async function invoice(societyId = societyA, unitId = unitA) {
@@ -140,6 +156,65 @@ database('Billing transactions under a non-owner RLS role', () => {
     await fixture.$executeRaw(Prisma.sql`UPDATE "Payment" SET "status"='CAPTURED' WHERE "id"=${order.id}::uuid`);
     return order.id;
   }
+
+  async function callbackOrder(scope = societyA, unit = unitA) {
+    const bill = await invoice(scope, unit);
+    const created = await orders.createPayment(scope, owner, bill.id, randomUUID()) as { id: string };
+    const [order] = await fixture.$queryRaw<Array<{ id: string; providerOrderId: string }>>(Prisma.sql`
+      SELECT "id","providerOrderId" FROM "Payment" WHERE "id"=${created.id}::uuid`);
+    return order;
+  }
+
+  it('denies capability execution until explicitly granted and never grants owner membership', async () => {
+    await expect(runtime.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_resolve_payment_webhook_order('unknown')`))
+      .rejects.toThrow(/permission denied for function/i);
+    const [privileges] = await runtime.$queryRaw<Array<{ member: boolean; superuser: boolean; bypass: boolean; login: boolean }>>(Prisma.sql`
+      SELECT pg_has_role(current_user, r.oid, 'MEMBER') AS member, r.rolsuper AS superuser,
+        r.rolbypassrls AS bypass, r.rolcanlogin AS login FROM pg_roles r WHERE r.rolname=${lookupOwner}`);
+    expect(privileges).toEqual({ member: false, superuser: false, bypass: false, login: false });
+    executeDdl(`GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_resolve_payment_webhook_order(text) TO "${role}"`);
+  });
+
+  it('resolves only exact gateway orders to routing identifiers while raw RLS reads stay hidden', async () => {
+    const ids: string[] = [];
+    for (const [scope, unit] of [[societyA, unitA], [societyB, unitB]]) {
+      const order = await callbackOrder(scope, unit);
+      ids.push(order.id);
+      expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_resolve_payment_webhook_order(${order.providerOrderId})`))
+        .toEqual([{ id: order.id, societyId: scope }]);
+      if (scope === societyB) {
+        await fixture.$executeRaw(Prisma.sql`UPDATE "Payment" SET "provider"='OTHER' WHERE "id"=${order.id}::uuid`);
+        expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_resolve_payment_webhook_order(${order.providerOrderId})`)).toEqual([]);
+      }
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "Payment" WHERE "id" IN (${ids[0]}::uuid,${ids[1]}::uuid)`)).toEqual([]);
+    for (const input of [null, '', "' OR true --", randomUUID()]) {
+      expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_resolve_payment_webhook_order(${input})`)).toEqual([]);
+    }
+  });
+
+  it('pins function settings, shape and public ACL and restricts its owner to routing columns', async () => {
+    const [metadata] = await runtime.$queryRaw<Array<{ definer: boolean; stable: string; strict: boolean; settings: string[]; publicExecute: boolean; amountAccess: boolean; tableOwner: boolean }>>(Prisma.sql`
+      SELECT p.prosecdef AS definer, p.provolatile::text AS stable, p.proisstrict AS strict, p.proconfig AS settings,
+        EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+          WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS "publicExecute",
+        has_column_privilege(${lookupOwner},c.oid,'amountPaise','SELECT') AS "amountAccess", c.relowner=p.proowner AS "tableOwner"
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      JOIN pg_class c ON c.relnamespace=n.oid AND c.relname='Payment'
+      WHERE n.nspname=${schema} AND p.proname='aaraagate_resolve_payment_webhook_order'`);
+    expect(metadata).toMatchObject({ definer: true, stable: 's', strict: true, publicExecute: false, amountAccess: false, tableOwner: false });
+    expect(metadata.settings).toEqual(expect.arrayContaining(['search_path=pg_catalog, pg_temp', 'row_security=on']));
+  });
+
+  it('ignores caller temporary tables when resolving orders', async () => {
+    const order = await callbackOrder();
+    await runtime.$transaction(async tx => {
+      await tx.$executeRaw(Prisma.sql`CREATE TEMP TABLE "Payment" ("id" uuid, "societyId" uuid, "providerOrderId" text, "provider" text) ON COMMIT DROP`);
+      await tx.$executeRaw(Prisma.sql`INSERT INTO pg_temp."Payment" VALUES (${randomUUID()}::uuid,${societyB}::uuid,${order.providerOrderId},'gateway-adapter')`);
+      expect(await tx.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_resolve_payment_webhook_order(${order.providerOrderId})`))
+        .toEqual([{ id: order.id, societyId: societyA }]);
+    });
+  });
 
   it('isolates reconciliation queue/detail/observation/resolution for two societies', async () => {
     const paymentA = await reconciliationPayment(), paymentB = await reconciliationPayment(societyB, unitB);
