@@ -8,6 +8,7 @@ import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service'
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
+import { GatesController } from '../gates/gates.controller';
 import { GateAuditService } from '../gates/gate-audit.service';
 import { AccessService } from '../access/access.service';
 import { GateArrivalService } from '../access/gate-arrival.service';
@@ -286,6 +287,68 @@ database('Billing transactions under a non-owner RLS role', () => {
     return fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId, relation: 'TENANT',
       effectiveFrom: new Date(Date.now() - 2 * 86_400_000), ...data } });
   }
+
+  const gates = new GatesController(runtime, new GateAuditService(runtime), {} as never);
+  async function administrationGate(scope: string, code: string, name = 'Gate', active?: boolean) {
+    const gate = await gates.create({ name, code, active }, scope);
+    arrivalGates.add(gate.id);
+    return gate;
+  }
+
+  it('isolates gate administration listing and same-code creation across restricted societies', async () => {
+    const code = randomUUID();
+    const a = await administrationGate(societyA, ` ${code.toLowerCase()} `, ' Z Gate ');
+    const b = await administrationGate(societyB, code, ' B Gate ', false);
+    const first = await administrationGate(societyA, randomUUID(), 'A Gate');
+    expect(a).toMatchObject({ societyId: societyA, code: code.toUpperCase(), name: 'Z Gate', active: true });
+    expect(b).toMatchObject({ societyId: societyB, code: code.toUpperCase(), active: false });
+    expect((await gates.list(societyA)).map(row => row.id)).toEqual([first.id, a.id]);
+    expect((await gates.list(societyB)).map(row => row.id)).toEqual([b.id]);
+    await expect(gates.create({ name: 'Duplicate', code }, societyA)).rejects.toThrow('Gate code already exists in this society');
+    expect(await fixture.gate.count({ where: { societyId: societyA, code: code.toUpperCase() } })).toBe(1);
+    expect(await runtime.gate.findMany()).toEqual([]);
+  });
+
+  it('denies foreign gate activation/deactivation while preserving local state changes', async () => {
+    const a = await administrationGate(societyA, randomUUID()), b = await administrationGate(societyB, randomUUID());
+    for (const method of ['activate', 'deactivate'] as const) {
+      await expect(gates[method](b.id, societyA)).rejects.toThrow('Gate does not belong');
+      await expect(gates[method](randomUUID(), societyA)).rejects.toThrow('Gate does not belong');
+      expect(await gates[method](a.id, societyA)).toMatchObject({ active: method === 'activate', societyId: societyA });
+      expect(await fixture.gate.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ active: true });
+    }
+  });
+
+  it('rolls back gate changes and creation when the transaction fails after the database write', async () => {
+    const a = await administrationGate(societyA, randomUUID());
+    const failedClient = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+        get(target, key) {
+          if (key === 'gate') return new Proxy(target.gate, { get(delegate, operation) {
+            if (operation === 'update') return async (args: Prisma.GateUpdateArgs) => {
+              await delegate.update(args); throw new Error('Simulated gate response failure');
+            };
+            if (operation === 'create') return async (args: Prisma.GateCreateArgs) => {
+              await delegate.create(args); throw new Error('Simulated gate response failure');
+            };
+            return Reflect.get(delegate, operation);
+          } });
+          const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }))),
+    } as never;
+    const rejected = new GatesController(failedClient, {} as never, {} as never);
+    await expect(rejected.deactivate(a.id, societyA)).rejects.toThrow('gate response failure');
+    expect(await fixture.gate.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ active: true });
+    await gates.deactivate(a.id, societyA);
+    await expect(rejected.activate(a.id, societyA)).rejects.toThrow('gate response failure');
+    expect(await fixture.gate.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ active: false });
+    const code = randomUUID().toUpperCase();
+    await expect(rejected.create({ name: 'Rollback', code }, societyA)).rejects.toThrow('gate response failure');
+    expect(await fixture.gate.count({ where: { societyId: societyA, code } })).toBe(0);
+    const [context] = await runtime.$queryRaw<Array<{ societyId: string | null }>>(Prisma.sql`SELECT current_setting(${TENANT_CONTEXT_SETTING},true) AS "societyId"`);
+    expect([societyA, societyB]).not.toContain(context.societyId);
+  });
 
   const access = new AccessService(runtime, new EntitlementService(runtime));
   async function accessDestination(scope = societyA) {

@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "90100003690fc85d618e373daffb0c85d30d82e53d4f47f7b2510975ab5776dc",
+  "sourceDigest": "9f69ca5f985cf09da5f614fa8c4876a548e3df02b82a9c04b342cd1c26e31c65",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 13,
     "utilitySqlSites": 66,
-    "runtimeTenantContextCalls": 213,
+    "runtimeTenantContextCalls": 217,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -335,6 +335,22 @@
     {
       "file": "services/api/src/gates/gate-audit.service.ts",
       "line": 19
+    },
+    {
+      "file": "services/api/src/gates/gates.controller.ts",
+      "line": 38
+    },
+    {
+      "file": "services/api/src/gates/gates.controller.ts",
+      "line": 54
+    },
+    {
+      "file": "services/api/src/gates/gates.controller.ts",
+      "line": 97
+    },
+    {
+      "file": "services/api/src/gates/gates.controller.ts",
+      "line": 108
     },
     {
       "file": "services/api/src/governance/community-circles.service.ts",
@@ -2073,13 +2089,13 @@
     {"receiver":"client.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":11,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"client.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":13,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":19,"method":"callback","operation":"findMany","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":38,"method":"list","operation":"findMany","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":53,"method":"create","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":56,"method":"create","operation":"create","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":94,"method":"activate","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":96,"method":"activate","operation":"update","kind":"ORM","tables":["Gate"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":103,"method":"deactivate","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":105,"method":"deactivate","operation":"update","kind":"ORM","tables":["Gate"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":39,"method":"callback","operation":"findMany","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":55,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":58,"method":"callback","operation":"create","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":98,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":100,"method":"callback","operation":"update","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":109,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":111,"method":"callback","operation":"update","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":21,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember","CommunityCirclePost"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":34,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember","CommunityCirclePost","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":48,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -3952,14 +3968,14 @@
     {"file":"services/api/src/facilities/facilities.controller.ts","line":148,"method":"listWorkOrderEvents","route":"@Get('work-orders/:id/events')","boundaryEvidence":["@Controller('facilities')","@UseGuards(BearerGuard,TenantGuard,PermissionsGuard)","@RequiresPermissions(AppPermission.FACILITIES_READ)"],"scopeSignals":["societyId"]},
     {"file":"services/api/src/facilities/facilities.controller.ts","line":150,"method":"createWorkOrder","route":"@Post('work-orders')","boundaryEvidence":["@Controller('facilities')","@UseGuards(BearerGuard,TenantGuard,PermissionsGuard)","@RequiresPermissions(AppPermission.FACILITIES_MANAGE)"],"scopeSignals":["societyId","userId"]},
     {"file":"services/api/src/facilities/facilities.controller.ts","line":152,"method":"setWorkOrderStatus","route":"@Post('work-orders/:id/status')","boundaryEvidence":["@Controller('facilities')","@UseGuards(BearerGuard,TenantGuard,PermissionsGuard)","@RequiresPermissions(AppPermission.FACILITIES_MANAGE)"],"scopeSignals":["societyId","userId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":34,"method":"list","route":"@Get()","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_READ)"],"scopeSignals":["societyId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":41,"method":"auditHistory","route":"@Get('audit')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.AUDIT_READ)"],"scopeSignals":["societyId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":48,"method":"create","route":"@Post()","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":59,"method":"listAssignments","route":"@Get(':gateId/assignments')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":66,"method":"assignGuard","route":"@Post(':gateId/assignments')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId","userId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":79,"method":"deactivateAssignment","route":"@Post(':gateId/assignments/:assignmentId/deactivate')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":90,"method":"activate","route":"@Post(':gateId/activate')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId"]},
-    {"file":"services/api/src/gates/gates.controller.ts","line":99,"method":"deactivate","route":"@Post(':gateId/deactivate')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":34,"method":"list","route":"@Get()","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_READ)"],"scopeSignals":["societyId","withTenantContext"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":42,"method":"auditHistory","route":"@Get('audit')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.AUDIT_READ)"],"scopeSignals":["societyId"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":49,"method":"create","route":"@Post()","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId","withTenantContext"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":62,"method":"listAssignments","route":"@Get(':gateId/assignments')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":69,"method":"assignGuard","route":"@Post(':gateId/assignments')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId","userId"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":82,"method":"deactivateAssignment","route":"@Post(':gateId/assignments/:assignmentId/deactivate')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":93,"method":"activate","route":"@Post(':gateId/activate')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId","withTenantContext"]},
+    {"file":"services/api/src/gates/gates.controller.ts","line":104,"method":"deactivate","route":"@Post(':gateId/deactivate')","boundaryEvidence":["@Controller('gates')","@UseGuards(BearerGuard, TenantGuard)","@UseGuards(PermissionsGuard)","@RequiresPermissions(AppPermission.GATE_MANAGE)"],"scopeSignals":["societyId","withTenantContext"]},
     {"file":"services/api/src/governance/community-circles.controller.ts","line":48,"method":"list","route":"@Get()","boundaryEvidence":["@Controller('community-circles')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.NOTICES)","@RequiresPermissions(AppPermission.NOTICE_READ)"],"scopeSignals":["societyId","userId"]},
     {"file":"services/api/src/governance/community-circles.controller.ts","line":54,"method":"manage","route":"@Get('manage')","boundaryEvidence":["@Controller('community-circles')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.NOTICES)","@RequiresPermissions(AppPermission.NOTICE_MANAGE)"],"scopeSignals":["societyId"]},
     {"file":"services/api/src/governance/community-circles.controller.ts","line":60,"method":"create","route":"@Post()","boundaryEvidence":["@Controller('community-circles')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.NOTICES)","@RequiresPermissions(AppPermission.NOTICE_MANAGE)"],"scopeSignals":["societyId","userId"]},

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
+import { GatesController } from '../gates/gates.controller';
 import { GateAuditService } from '../gates/gate-audit.service';
 import { AccessService } from '../access/access.service';
 import { GateArrivalService } from '../access/gate-arrival.service';
@@ -146,6 +147,26 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     expect(recovered).toMatchObject({ replayed: true, request: { id: first.request.id } });
     await expect(service.verify(societyId, gate.id, first.credential)).rejects.toThrow('not found');
     expect(await service.verify(societyId, gate.id, recovered.credential)).toMatchObject({ status: 'APPROVED' });
+  });
+
+  databaseTest('retains gate creation, duplicate handling and tenant-bound activation on real migrated tables', async db => {
+    const scoped = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+        return run(tx);
+      }),
+    } as never;
+    const gates = new GatesController(scoped, {} as never, {} as never);
+    const code = randomUUID();
+    const a = await gates.create({ name: ' Local ', code: ` ${code} ` }, societyId);
+    const b = await gates.create({ name: 'Foreign', code }, otherSocietyId);
+    expect(a).toMatchObject({ societyId, name: 'Local', code: code.toUpperCase(), active: true });
+    await expect(gates.create({ name: 'Duplicate', code }, societyId)).rejects.toThrow('Gate code already exists');
+    expect((await gates.list(societyId)).map(row => row.id)).toEqual([a.id]);
+    await expect(gates.deactivate(b.id, societyId)).rejects.toThrow('Gate does not belong');
+    expect(await gates.deactivate(a.id, societyId)).toMatchObject({ active: false });
+    expect(await gates.activate(a.id, societyId)).toMatchObject({ active: true });
+    expect(await db.gate.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ active: true });
   });
 
   it('deserializes advisory locks while retaining transaction ownership and release', async () => {
