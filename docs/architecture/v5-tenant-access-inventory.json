@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "0750ad12f7703ae5a287ebdf22e855427471922bf9baf48c6d9e23735d3092a9",
+  "sourceDigest": "21f46b3bd3725331108e50629e2c447bcdd87326ae6f7d9765e613df1c4fa5a2",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 13,
     "utilitySqlSites": 66,
-    "runtimeTenantContextCalls": 190,
+    "runtimeTenantContextCalls": 201,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -279,6 +279,14 @@
     {
       "file": "services/api/src/gates/gate-assignment.service.ts",
       "line": 83
+    },
+    {
+      "file": "services/api/src/gates/gate-audit.service.ts",
+      "line": 15
+    },
+    {
+      "file": "services/api/src/gates/gate-audit.service.ts",
+      "line": 19
     },
     {
       "file": "services/api/src/governance/community-circles.service.ts",
@@ -699,6 +707,42 @@
     {
       "file": "services/api/src/societies/societies.controller.ts",
       "line": 48
+    },
+    {
+      "file": "services/api/src/visitors/visitor-verification.service.ts",
+      "line": 20
+    },
+    {
+      "file": "services/api/src/visitors/visitor-verification.service.ts",
+      "line": 34
+    },
+    {
+      "file": "services/api/src/visitors/visitor-verification.service.ts",
+      "line": 53
+    },
+    {
+      "file": "services/api/src/visitors/visitor.service.ts",
+      "line": 27
+    },
+    {
+      "file": "services/api/src/visitors/visitor.service.ts",
+      "line": 35
+    },
+    {
+      "file": "services/api/src/visitors/visitor.service.ts",
+      "line": 44
+    },
+    {
+      "file": "services/api/src/visitors/visitor.service.ts",
+      "line": 49
+    },
+    {
+      "file": "services/api/src/visitors/visitor.service.ts",
+      "line": 62
+    },
+    {
+      "file": "services/api/src/visitors/visitor.service.ts",
+      "line": 73
     },
     {
       "file": "services/api/src/workforce/workforce-leave.service.ts",
@@ -1982,9 +2026,9 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-assignment.service.ts","line":71,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GateGuardAssignment"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-assignment.service.ts","line":85,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GateGuardAssignment"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-assignment.service.ts","line":97,"method":"assertGate","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":10,"method":"record","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":12,"method":"record","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":16,"method":"list","operation":"findMany","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"client.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":11,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"client.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":13,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gate-audit.service.ts","line":19,"method":"callback","operation":"findMany","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":38,"method":"list","operation":"findMany","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":53,"method":"create","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":56,"method":"create","operation":"create","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -3441,33 +3485,33 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/vendors/vendors.service.ts","line":130,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["ProcurementRequestEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/vendors/vendors.service.ts","line":139,"method":"findRequest","operation":"$queryRaw","kind":"RAW_SQL","tables":["ProcurementRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/vendors/vendors.service.ts","line":147,"method":"assertActiveVendor","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyVendor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":12,"method":"assertGate","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":21,"method":"verify","operation":"findFirst","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":33,"method":"checkIn","operation":"findFirst","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":41,"method":"callback","operation":"updateMany","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":43,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":45,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":46,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":53,"method":"checkOut","operation":"findFirst","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":58,"method":"callback","operation":"updateMany","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":60,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":62,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":63,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.unitOccupancy","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":14,"method":"assertHostUnit","operation":"findFirst","kind":"ORM","tables":["UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":12,"method":"assertGate","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":22,"method":"callback","operation":"findFirst","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":36,"method":"callback","operation":"findFirst","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":42,"method":"callback","operation":"updateMany","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":44,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":46,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":47,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":55,"method":"callback","operation":"findFirst","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":59,"method":"callback","operation":"updateMany","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":61,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":63,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor-verification.service.ts","line":64,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.unitOccupancy","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":14,"method":"assertHostUnit","operation":"findFirst","kind":"ORM","tables":["UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":22,"method":"issuePass","operation":"create","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":28,"method":"createRequest","operation":"create","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":35,"method":"callback","operation":"create","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":42,"method":"listForHost","operation":"findMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":47,"method":"approve","operation":"findFirst","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":51,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":54,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["Visitor"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":60,"method":"deny","operation":"findFirst","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":63,"method":"deny","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":65,"method":"deny","operation":"findUniqueOrThrow","kind":"ORM","tables":["Visitor"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":69,"method":"cancel","operation":"findFirst","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":73,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":75,"method":"callback","operation":"updateMany","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":76,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["Visitor"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":29,"method":"callback","operation":"create","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":37,"method":"callback","operation":"create","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":44,"method":"callback","operation":"findMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":50,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":53,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":56,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":63,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":66,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":68,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":74,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":77,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":79,"method":"callback","operation":"updateMany","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":80,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":31,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment","WorkforceLeave"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":53,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":78,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
