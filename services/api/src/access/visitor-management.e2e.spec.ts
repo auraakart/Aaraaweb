@@ -99,7 +99,7 @@ describe('Visitor Management end-to-end lifecycle', () => {
         }),
       },
       $executeRaw: vi.fn().mockResolvedValue(0),
-      $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
+      withTenantContext: vi.fn(async (_scope: string, callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
     };
     const entitlements = {
       isEnabled: vi.fn(async (_societyId: string, feature: ProductFeature) => feature === ProductFeature.VISITOR_MANAGEMENT),

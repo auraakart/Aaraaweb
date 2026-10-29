@@ -5,6 +5,9 @@ export default defineConfig({
     include: [
       'src/occupancy-authority.regression.spec.ts',
       'src/access/visitor-management.e2e.spec.ts',
+      'src/access/access.service.spec.ts',
+      'src/access/access-scope.regression.spec.ts',
+      'src/access/walk-in-visitor.e2e.spec.ts',
       'src/access/gate-arrival.service.spec.ts',
       'src/visitors/visitor.service.spec.ts',
       'src/visitors/visitor-verification.service.spec.ts',
@@ -122,10 +125,10 @@ export default defineConfig({
           lines: 85,
         },
         'src/access/access.service.ts': {
-          statements: 50,
-          branches: 40,
-          functions: 60,
-          lines: 55,
+          statements: 85,
+          branches: 75,
+          functions: 100,
+          lines: 90,
         },
         'src/auth/session.service.ts': {
           statements: 75,
