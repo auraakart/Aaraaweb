@@ -53,7 +53,8 @@ export class GateAssignmentService {
   async assign(societyId: string, gateId: string, userId: string, effectiveFrom?: Date, effectiveTo?: Date) {
     return this.prisma.withTenantContext(societyId, async tx => {
       await this.assertGate(tx, societyId, gateId);
-      if (effectiveFrom && effectiveTo && effectiveTo <= effectiveFrom) {
+      const startsAt = effectiveFrom ?? new Date();
+      if (effectiveTo && effectiveTo <= startsAt) {
         throw new BadRequestException('Gate assignment end must be after start');
       }
       const membership = await tx.societyMembership.findFirst({
@@ -67,7 +68,6 @@ export class GateAssignmentService {
     });
     if (!membership) throw new BadRequestException('User is not an active security guard or supervisor in this society');
 
-    const startsAt = effectiveFrom ?? new Date();
     const rows = await tx.$queryRaw<GateAssignmentRow[]>(Prisma.sql`
       INSERT INTO "GateGuardAssignment" ("societyId", "gateId", "userId", "effectiveFrom", "effectiveTo")
       VALUES (${societyId}::uuid, ${gateId}::uuid, ${userId}::uuid, ${startsAt}, ${effectiveTo ?? null})

@@ -37,6 +37,8 @@ withDatabase('V5 gate assignment tenant transactions on PostgreSQL', () => {
       await expect(service.assign(societyA, gateB, guardA)).rejects.toBeInstanceOf(NotFoundException);
       await expect(service.list(societyA, gateB)).rejects.toBeInstanceOf(NotFoundException);
       await expect(service.assign(societyA, gateA, guardB)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.assign(societyA, gateA, guardA, undefined, new Date(0)))
+        .rejects.toBeInstanceOf(BadRequestException);
       const assignment = await service.assign(societyA, gateA, guardA, startsAt, endsAt);
       expect(assignment).toMatchObject({ societyId: societyA, gateId: gateA, userId: guardA, active: true });
       await expect(service.assertAssigned(societyA, gateA, guardA, now)).resolves.toHaveProperty('id', assignment.id);

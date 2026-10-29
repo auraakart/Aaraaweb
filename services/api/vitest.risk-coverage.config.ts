@@ -9,6 +9,7 @@ export default defineConfig({
       'src/access/access-scope.regression.spec.ts',
       'src/gates/gates-context.regression.spec.ts',
       'src/gates/gates.authorization.spec.ts',
+      'src/gates/gate-assignment.service.spec.ts',
       'src/access/walk-in-visitor.e2e.spec.ts',
       'src/access/gate-arrival.service.spec.ts',
       'src/visitors/visitor.service.spec.ts',
@@ -68,6 +69,7 @@ export default defineConfig({
         'src/visitors/visitor-verification.service.ts',
         'src/gates/gate-audit.service.ts',
         'src/gates/gates.controller.ts',
+        'src/gates/gate-assignment.service.ts',
         'src/auth/session.service.ts',
         'src/auth/auth-state.store.ts',
         'src/auth/auth.service.ts',
@@ -93,6 +95,7 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/gates/gate-assignment.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },
         'src/gates/gates.controller.ts': { statements: 85, branches: 55, functions: 65, lines: 85 },
         'src/visitors/visitor.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },
         'src/visitors/visitor-verification.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },

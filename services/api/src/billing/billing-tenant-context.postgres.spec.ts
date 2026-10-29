@@ -1,4 +1,4 @@
-import { AccessSubjectType, Prisma } from '@prisma/client';
+import { AccessSubjectType, MembershipRole, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -8,6 +8,7 @@ import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service'
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
+import { GateAssignmentService } from '../gates/gate-assignment.service';
 import { GatesController } from '../gates/gates.controller';
 import { GateAuditService } from '../gates/gate-audit.service';
 import { AccessService } from '../access/access.service';
@@ -60,7 +61,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['User', 'Society', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
@@ -90,6 +91,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     // schema. Copy migrated labels and align the isolated ORM enum columns,
     // retaining every migrated default, check and index.
     const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
+      { table: 'SocietyMembership', column: 'role', type: 'MembershipRole' },
       { table: 'Society', column: 'status', type: 'SocietyStatus', defaultValue: 'ACTIVE' },
       { table: 'Visitor', column: 'status', type: 'VisitorStatus', defaultValue: 'PENDING' },
       { table: 'VisitorPass', column: 'status', type: 'VisitorPassStatus', defaultValue: 'ACTIVE' },
@@ -251,6 +253,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const arrivals = new GateArrivalService(runtime, new EntitlementService(runtime));
   const arrivalUnits = new Set<string>(), arrivalGates = new Set<string>(), arrivalUsers = new Set<string>();
   const arrivalFeatures = new Map<string, Prisma.JsonValue>();
+  const assignmentMemberships = new Set<string>();
   afterEach(async () => {
     if (!arrivalUnits.size && !arrivalGates.size && !arrivalUsers.size) return;
     // Only this test's UUID-isolated copied rows. No public immutable evidence.
@@ -265,6 +268,9 @@ database('Billing transactions under a non-owner RLS role', () => {
     await fixture.unitOccupancy.deleteMany({ where: { unitId: { in: ids } } });
     await fixture.unitOwnership.deleteMany({ where: { unitId: { in: ids } } });
     await fixture.unit.deleteMany({ where: { id: { in: ids } } });
+    if (arrivalGates.size) await fixture.$executeRaw(Prisma.sql`DELETE FROM "GateGuardAssignment" WHERE "gateId" IN (${Prisma.join([...arrivalGates].map(id => Prisma.sql`${id}::uuid`))})`);
+    await fixture.societyMembership.deleteMany({ where: { id: { in: [...assignmentMemberships] } } });
+    assignmentMemberships.clear();
     await fixture.gate.deleteMany({ where: { id: { in: [...arrivalGates] } } });
     await fixture.user.deleteMany({ where: { id: { in: [...arrivalUsers] } } });
     for (const [id, featureOverrides] of arrivalFeatures) await fixture.society.update({ where: { id }, data: { featureOverrides: featureOverrides as Prisma.InputJsonValue } });
@@ -287,6 +293,113 @@ database('Billing transactions under a non-owner RLS role', () => {
     return fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId, relation: 'TENANT',
       effectiveFrom: new Date(Date.now() - 2 * 86_400_000), ...data } });
   }
+
+  const assignments = new GateAssignmentService(runtime);
+  async function securityMembership(scope: string, userId: string, role: MembershipRole = MembershipRole.SECURITY_GUARD, active = true) {
+    const member = await fixture.societyMembership.create({ data: { societyId: scope, userId, role, active } });
+    assignmentMemberships.add(member.id);
+    return member;
+  }
+
+  it('preserves both-society guard/supervisor assignment upserts and inactive history under RLS', async () => {
+    for (const [scope, userId, role] of [[societyA, owner, MembershipRole.SECURITY_GUARD], [societyB, tenant, MembershipRole.SECURITY_SUPERVISOR]] as const) {
+      const gate = await administrationGate(scope, randomUUID());
+      await securityMembership(scope, userId, role);
+      const from = new Date(Date.now() - 60_000), until = new Date(Date.now() + 60_000);
+      const first = await assignments.assign(scope, gate.id, userId, from, until);
+      const changed = await assignments.assign(scope, gate.id, userId, from);
+      expect(changed).toMatchObject({ id: first.id, active: true, effectiveTo: null });
+      expect(await assignments.assertAssigned(scope, gate.id, userId)).toMatchObject({ id: first.id });
+      expect(await assignments.list(scope, gate.id)).toEqual([expect.objectContaining({ id: first.id, userId })]);
+      expect(await assignments.deactivate(scope, gate.id, first.id)).toMatchObject({ active: false });
+      await expect(assignments.assertAssigned(scope, gate.id, userId)).rejects.toThrow('not assigned');
+      await expect(assignments.deactivate(scope, gate.id, first.id)).rejects.toThrow('not found');
+      const replacement = await assignments.assign(scope, gate.id, userId);
+      expect(replacement.id).not.toBe(first.id);
+      const history = await assignments.list(scope, gate.id) as Array<{ id: string; active: boolean }>;
+      expect(history.map(row => row.active)).toEqual([true, false]);
+      expect(history.map(row => row.id)).toEqual([replacement.id, first.id]);
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "GateGuardAssignment"`)).toEqual([]);
+  });
+
+  it('enforces exact assignment windows and inactive parent gates under a restricted role', async () => {
+    const gate = await administrationGate(societyA, randomUUID());
+    await securityMembership(societyA, owner);
+    const from = new Date(Date.now() - 60_000), until = new Date(Date.now() + 60_000);
+    const row = await assignments.assign(societyA, gate.id, owner, from, until);
+    expect(await assignments.assertAssigned(societyA, gate.id, owner, from)).toMatchObject({ id: row.id });
+    await expect(assignments.assertAssigned(societyA, gate.id, owner, new Date(from.getTime() - 1))).rejects.toThrow('not assigned');
+    expect(await assignments.assertAssigned(societyA, gate.id, owner, new Date(until.getTime() - 1))).toMatchObject({ id: row.id });
+    await expect(assignments.assertAssigned(societyA, gate.id, owner, until)).rejects.toThrow('not assigned');
+    await gates.deactivate(gate.id, societyA);
+    await expect(assignments.assertAssigned(societyA, gate.id, owner, from)).rejects.toThrow('not assigned');
+    await gates.activate(gate.id, societyA);
+    expect(await assignments.assertAssigned(societyA, gate.id, owner, from)).toMatchObject({ id: row.id });
+    for (const [start, end] of [[until, from], [from, from], [undefined, new Date(0)]] as const) {
+      await expect(assignments.assign(societyA, gate.id, owner, start, end)).rejects.toThrow('end must be after start');
+    }
+    expect(await assignments.assertAssigned(societyA, gate.id, owner, from)).toMatchObject({ id: row.id });
+  });
+
+  it('requires an active same-society security membership instead of owner/accountant or foreign roles', async () => {
+    const gate = await administrationGate(societyA, randomUUID());
+    await securityMembership(societyA, owner, MembershipRole.OWNER);
+    await securityMembership(societyA, owner, MembershipRole.ACCOUNTANT);
+    await securityMembership(societyB, owner);
+    await securityMembership(societyA, owner, MembershipRole.SECURITY_GUARD, false);
+    await expect(assignments.assign(societyA, gate.id, owner)).rejects.toThrow('not an active security');
+    await securityMembership(societyA, owner, MembershipRole.SECURITY_SUPERVISOR);
+    expect(await assignments.assign(societyA, gate.id, owner)).toMatchObject({ societyId: societyA, userId: owner });
+  });
+
+  it('denies foreign gate/assignment substitution and malformed parent joins under RLS', async () => {
+    const a = await administrationGate(societyA, randomUUID()), b = await administrationGate(societyB, randomUUID());
+    await securityMembership(societyA, owner);
+    const row = await assignments.assign(societyA, a.id, owner);
+    await expect(assignments.list(societyB, a.id)).rejects.toThrow('Gate not found');
+    await expect(assignments.assign(societyB, a.id, owner)).rejects.toThrow('Gate not found');
+    await expect(assignments.deactivate(societyB, b.id, row.id)).rejects.toThrow('not found');
+    await expect(assignments.assertAssigned(societyB, a.id, owner)).rejects.toThrow('not assigned');
+    // Copied tables omit public FKs. Keep explicit same-society parent joins
+    // effective even against a deliberately malformed legacy association.
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "GateGuardAssignment" ("societyId","gateId","userId")
+      VALUES (${societyB}::uuid,${a.id}::uuid,${tenant}::uuid)`);
+    await expect(assignments.assertAssigned(societyB, a.id, tenant)).rejects.toThrow('not assigned');
+    expect(await assignments.assertAssigned(societyA, a.id, owner)).toMatchObject({ id: row.id });
+  });
+
+  it('serializes concurrent active assignment retries using the migrated partial unique index', async () => {
+    const gate = await administrationGate(societyA, randomUUID());
+    await securityMembership(societyA, owner);
+    const from = new Date(Date.now() - 60_000), until = new Date(Date.now() + 60_000);
+    const rows = await Promise.all([1, 2].map(() => assignments.assign(societyA, gate.id, owner, from, until)));
+    expect(rows[0].id).toBe(rows[1].id);
+    const saved = await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "GateGuardAssignment" WHERE "gateId"=${gate.id}::uuid AND "active"=true`);
+    expect(saved).toHaveLength(1);
+  });
+
+  it('rolls back assignment upserts/deactivation after response failure without losing history', async () => {
+    const gate = await administrationGate(societyA, randomUUID());
+    await securityMembership(societyA, owner);
+    const failed = new GateAssignmentService({
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+        get(target, key) {
+          if (key === '$queryRaw') return async (sql: Prisma.Sql) => {
+            await target.$queryRaw(sql); throw new Error('Simulated assignment response failure');
+          };
+          const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }))),
+    } as never);
+    await expect(failed.assign(societyA, gate.id, owner)).rejects.toThrow('assignment response failure');
+    expect(await assignments.list(societyA, gate.id)).toEqual([]);
+    const row = await assignments.assign(societyA, gate.id, owner);
+    await expect(failed.assign(societyA, gate.id, owner, new Date(Date.now() + 60_000))).rejects.toThrow('assignment response failure');
+    expect(await assignments.assertAssigned(societyA, gate.id, owner)).toMatchObject({ id: row.id });
+    await expect(failed.deactivate(societyA, gate.id, row.id)).rejects.toThrow('assignment response failure');
+    expect(await assignments.assertAssigned(societyA, gate.id, owner)).toMatchObject({ id: row.id });
+  });
 
   const gates = new GatesController(runtime, new GateAuditService(runtime), {} as never);
   async function administrationGate(scope: string, code: string, name = 'Gate', active?: boolean) {
