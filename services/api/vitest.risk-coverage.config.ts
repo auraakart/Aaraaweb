@@ -5,6 +5,8 @@ export default defineConfig({
     include: [
       'src/occupancy-authority.regression.spec.ts',
       'src/access/visitor-management.e2e.spec.ts',
+      'src/access/gate-arrival.service.spec.ts',
+      'src/entitlements/entitlement.service.spec.ts',
       'src/accounting/payment-availability.service.spec.ts',
       'src/accounting/payment-reconciliation-scope.regression.spec.ts',
       'src/accounting/payment-reconciliation.idempotency-binding.spec.ts',
@@ -53,6 +55,7 @@ export default defineConfig({
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
         'src/access/access.service.ts',
+        'src/access/gate-arrival.service.ts',
         'src/auth/session.service.ts',
         'src/auth/auth-state.store.ts',
         'src/auth/auth.service.ts',
@@ -78,6 +81,7 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/access/gate-arrival.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },
         'src/accounting/accounting-export.runner.ts': { statements: 90, branches: 80, functions: 90, lines: 90 },
         'src/accounting/accounting-export.service.ts': { statements: 90, branches: 80, functions: 90, lines: 90 },
         'src/accounting/accounting-connector-delivery.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },

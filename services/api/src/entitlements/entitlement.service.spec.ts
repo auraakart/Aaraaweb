@@ -75,4 +75,14 @@ describe('EntitlementService', () => {
     expect(result?.enabledFeatures).not.toContain(ProductFeature.NOTICES);
     expect(tx.society.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'society-a', status: 'ACTIVE' } }));
   });
+  it('checks feature eligibility through a supplied tenant client without a root fallback', async () => {
+    const root = vi.fn(async () => { throw new Error('Unscoped society lookup'); });
+    const svc = new EntitlementService({ society: { findFirst: root } } as never);
+    const tx = { society: { findFirst: vi.fn().mockResolvedValue({ productTier: ProductTier.STARTER,
+      featureOverrides: { [ProductFeature.DELIVERY_MANAGEMENT]: true } }) } };
+    await expect(svc.isEnabled('society-a', ProductFeature.DELIVERY_MANAGEMENT, tx as never)).resolves.toBe(true);
+    tx.society.findFirst.mockResolvedValueOnce(null);
+    await expect(svc.isEnabled('society-a', ProductFeature.DELIVERY_MANAGEMENT, tx as never)).resolves.toBe(false);
+    expect(root).not.toHaveBeenCalled();
+  });
 });

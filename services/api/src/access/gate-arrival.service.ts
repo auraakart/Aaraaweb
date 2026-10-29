@@ -31,41 +31,50 @@ export class GateArrivalService {
     if (subjectType !== AccessSubjectType.DELIVERY && subjectType !== AccessSubjectType.CAB && !schoolTransport) {
       throw new BadRequestException('Gate arrival type must be DELIVERY, CAB, or configured school transport');
     }
-    if (!(await this.entitlements.isEnabled(societyId, ProductFeature.DELIVERY_MANAGEMENT))) {
-      throw new BadRequestException('Delivery management is not enabled for this society');
-    }
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      if (!(await this.entitlements.isEnabled(societyId, ProductFeature.DELIVERY_MANAGEMENT, tx))) {
+        throw new BadRequestException('Delivery management is not enabled for this society');
+      }
 
-    const gate = await this.prisma.gate.findFirst({ where: { id: gateId, societyId, active: true } });
-    if (!gate) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
+      const gate = await tx.gate.findFirst({ where: { id: gateId, societyId, active: true } });
+      if (!gate) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
 
-    const now = new Date();
-    const destination = await this.prisma.unit.findFirst({
-      where: { id: unitId, societyId },
-      select: {
-        id: true,
-        occupancies: {
-          where: { active: true, gateApprovalEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-          orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
-          take: 1,
-          select: { userId: true },
+      const now = new Date();
+      const destination = await tx.unit.findFirst({
+        where: { id: unitId, societyId },
+        select: {
+          id: true,
+          occupancies: {
+            where: {
+              societyId,
+              active: true,
+              gateApprovalEnabled: true,
+              effectiveFrom: { lte: now },
+              AND: [
+                { OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+                { OR: [{ gateApprovalExpiresAt: null }, { gateApprovalExpiresAt: { gt: now } }] },
+              ],
+            },
+            orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
+            take: 1,
+            select: { userId: true },
+          },
         },
-      },
-    });
-    const hostUserId = destination?.occupancies[0]?.userId;
-    if (!destination || !hostUserId) throw new BadRequestException('Destination unit does not have an active resident');
+      });
+      const hostUserId = destination?.occupancies[0]?.userId;
+      if (!destination || !hostUserId) throw new BadRequestException('Destination unit does not have an active resident');
 
-    const approvalWindowMinutes = schoolTransport ? 20 : subjectType === AccessSubjectType.CAB ? 15 : 30;
-    const metadata = {
-      source: 'GATE_QUICK_ARRIVAL',
-      gateId,
-      createdByGuardId: actorUserId,
-      provider: normalizedProvider || null,
-      vehicleNumber: vehicleNumber?.trim().toUpperCase() || null,
-      approvalWindowMinutes,
-      ...(schoolTransport ? { transportMode: SCHOOL_TRANSPORT_PROVIDER } : {}),
-    };
+      const approvalWindowMinutes = schoolTransport ? 20 : subjectType === AccessSubjectType.CAB ? 15 : 30;
+      const metadata = {
+        source: 'GATE_QUICK_ARRIVAL',
+        gateId,
+        createdByGuardId: actorUserId,
+        provider: normalizedProvider || null,
+        vehicleNumber: vehicleNumber?.trim().toUpperCase() || null,
+        approvalWindowMinutes,
+        ...(schoolTransport ? { transportMode: SCHOOL_TRANSPORT_PROVIDER } : {}),
+      };
 
-    return this.prisma.$transaction(async (tx) => {
       const request = await tx.accessRequest.create({
         data: {
           societyId,

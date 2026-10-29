@@ -1,7 +1,9 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { AccessSubjectType, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { GateArrivalService } from '../access/gate-arrival.service';
+import { EntitlementService } from '../entitlements/entitlement.service';
 import { PrismaService } from './prisma.service';
 import { ParcelsService } from '../parcels/parcels.service';
 import { ParcelReminderService } from '../parcels/parcel-reminder.service';
@@ -70,6 +72,26 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
       }
     }, 20_000);
   }
+
+  databaseTest('routes quick arrivals to an unexpired current occupant and writes immutable audit evidence on real migrated tables', async db => {
+    await db.society.update({ where: { id: societyId }, data: { featureOverrides: { DELIVERY_MANAGEMENT: true } } });
+    const gate = await db.gate.create({ data: { societyId, name: 'Quick arrival fixture', code: randomUUID() } });
+    const expiredUser = await db.user.create({ data: { phone: `expired-arrival-${randomUUID()}` } });
+    await db.unitOccupancy.create({ data: { societyId, unitId, userId: expiredUser.id, relation: 'OWNER',
+      primaryGateContact: true, escalationOrder: 0, gateApprovalExpiresAt: new Date(Date.now() - 86_400_000) } });
+    const scoped = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+        return run(tx);
+      }),
+    };
+    const request = await new GateArrivalService(scoped as never, new EntitlementService(db))
+      .create(societyId, userId, gate.id, unitId, AccessSubjectType.DELIVERY, 'Courier');
+    expect(request).toMatchObject({ societyId, unitId, requestedById: userId, status: 'PENDING' });
+    expect(await db.auditEvent.findMany({ where: { accessRequestId: request.id } })).toEqual([
+      expect.objectContaining({ societyId, actorUserId: userId, gateId: gate.id, event: 'ACCESS_CREATED' }),
+    ]);
+  });
 
   it('deserializes advisory locks while retaining transaction ownership and release', async () => {
     const key = `interval-lock:${randomUUID()}`;
