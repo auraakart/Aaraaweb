@@ -27,8 +27,12 @@ export class EntitlementService {
     return { productTier, enabledFeatures };
   }
 
-  async isEnabled(societyId: string, feature: ProductFeature): Promise<boolean> {
-    const current = await this.current(societyId);
+  async isEnabled(
+    societyId: string,
+    feature: ProductFeature,
+    client: Pick<Prisma.TransactionClient, 'society'> = this.prisma,
+  ): Promise<boolean> {
+    const current = await this.current(societyId, client);
     return !!current?.enabledFeatures.includes(feature);
   }
 

@@ -14,9 +14,9 @@ function setup(enabled = true, hasApprover = true) {
       create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'access-1', ...data })),
     },
     auditEvent: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
-    $transaction: vi.fn(),
+    withTenantContext: vi.fn(),
   };
-  prisma.$transaction = vi.fn(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+  prisma.withTenantContext = vi.fn(async (_scope: string, callback: (tx: typeof prisma) => unknown) => callback(prisma));
   const entitlements = { isEnabled: vi.fn().mockResolvedValue(enabled) };
   return {
     service: new GateArrivalService(
@@ -47,7 +47,7 @@ describe('GateArrivalService', () => {
       'KA01AB1234',
     );
 
-    expect(entitlements.isEnabled).toHaveBeenCalledWith('society-1', ProductFeature.DELIVERY_MANAGEMENT);
+    expect(entitlements.isEnabled).toHaveBeenCalledWith('society-1', ProductFeature.DELIVERY_MANAGEMENT, prisma);
     expect(result.status).toBe(AccessRequestStatus.PENDING);
     expect(prisma.accessRequest.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
@@ -102,10 +102,56 @@ describe('GateArrivalService', () => {
           where: expect.objectContaining({
             active: true,
             gateApprovalEnabled: true,
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: expect.any(Date) } }],
+            societyId: 'society-1',
+            AND: [
+              { OR: [{ effectiveTo: null }, { effectiveTo: { gt: expect.any(Date) } }] },
+              { OR: [{ gateApprovalExpiresAt: null }, { gateApprovalExpiresAt: { gt: expect.any(Date) } }] },
+            ],
           }),
         }),
       }),
     }));
+  });
+  it('uses one tenant client for validation, approver selection, request and audit', async () => {
+    const { prisma: tx } = setup();
+    const root = vi.fn(async () => { throw new Error('Unscoped database access'); });
+    const persistence = {
+      gate: { findFirst: root }, unit: { findFirst: root }, accessRequest: { create: root }, auditEvent: { create: root },
+      $transaction: root,
+      withTenantContext: vi.fn(async (_scope: string, run: (client: typeof tx) => Promise<unknown>) => run(tx)),
+    };
+    const service = new GateArrivalService(persistence as never, { isEnabled: async () => true } as never);
+    await service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.DELIVERY, '  Partner  ');
+    expect(persistence.withTenantContext).toHaveBeenCalledOnce();
+    expect(persistence.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
+    expect(root).not.toHaveBeenCalled();
+    expect(tx.accessRequest.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      requestedById: 'resident-1', subjectName: 'Partner', subjectPhone: null, purpose: 'Delivery',
+      metadata: expect.objectContaining({ provider: null, vehicleNumber: null, approvalWindowMinutes: 30 }),
+    }) });
+  });
+
+  it('rejects missing or inactive gates before selecting an approver or writing', async () => {
+    const { service, prisma } = setup();
+    prisma.gate.findFirst.mockResolvedValueOnce(null);
+    await expect(service.create('society-1', 'guard-1', 'gate-foreign', 'unit-1', AccessSubjectType.CAB, 'Driver')).rejects.toThrow(/Gate does not belong/);
+    expect(prisma.unit.findFirst).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('preserves normalized school-transport metadata and explicit notes', async () => {
+    const { service } = setup();
+    const request = await service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.OTHER,
+      '  Bus  ', ' school_transport ', ' 9999999999 ', ' ka01ab1234 ', '  Pickup at side gate  ');
+    expect(request).toMatchObject({ subjectName: 'Bus', subjectPhone: '9999999999', purpose: 'Pickup at side gate',
+      metadata: { transportMode: 'SCHOOL_TRANSPORT', provider: 'school_transport', vehicleNumber: 'KA01AB1234', approvalWindowMinutes: 20 } });
+  });
+
+  it('does not fall back to a root transaction when tenant context fails', async () => {
+    const { service, prisma } = setup();
+    prisma.withTenantContext.mockRejectedValueOnce(new Error('Tenant context unavailable'));
+    await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.CAB, 'Driver')).rejects.toThrow(/context/);
+    expect(prisma.gate.findFirst).not.toHaveBeenCalled();
+    expect(prisma.accessRequest.create).not.toHaveBeenCalled();
   });
 });

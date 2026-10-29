@@ -1,10 +1,12 @@
-import { Prisma } from '@prisma/client';
+import { AccessSubjectType, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service';
+import { EntitlementService } from '../entitlements/entitlement.service';
+import { GateArrivalService } from '../access/gate-arrival.service';
 import { PaymentOrderService } from './payment-order.service';
 import { ResidentStatementService } from './resident-statement.service';
 import { BillingService, type PaymentWebhookEvent } from './billing.service';
@@ -58,7 +60,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'AuditEvent', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'AuditEvent', 'Gate', 'AccessRequest', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -75,11 +77,24 @@ database('Billing transactions under a non-owner RLS role', () => {
     executeDdl(`CREATE ROLE "${role}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS PASSWORD '${password}'`);
     roleCreated = true;
     // A domain preserves the migrated public enum while resolving the existing
-    // webhook SQL cast inside this isolated schema. No enum values are copied.
-    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType']
+    // webhook SQL cast inside this isolated schema. The ORM-filter enum below
+    // additionally needs matching local column and parameter types.
+    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType', 'AccessSubjectType', 'AccessRequestStatus', 'UnitRelation']
       .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
+    // Prisma binds enum filters to the configured schema. Clone this enum from
+    // migrated labels and align only the isolated Society.status column.
+    const labels = await fixture.$queryRaw<Array<{ label: string }>>(Prisma.sql`
+      SELECT e.enumlabel AS label FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid
+      JOIN pg_namespace n ON n.oid=t.typnamespace
+      WHERE n.nspname='public' AND t.typname='SocietyStatus' ORDER BY e.enumsortorder`);
+    definitions.push(`CREATE TYPE "SocietyStatus" AS ENUM (${labels.map(({ label }) => "'" + label.replaceAll("'", "''") + "'").join(',')})`);
     for (const table of tables) {
       definitions.push(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`);
+      if (table === 'Society') {
+        definitions.push(`ALTER TABLE "Society" ALTER COLUMN "status" DROP DEFAULT`);
+        definitions.push(`ALTER TABLE "Society" ALTER COLUMN "status" TYPE "SocietyStatus" USING "status"::text::"SocietyStatus"`);
+        definitions.push(`ALTER TABLE "Society" ALTER COLUMN "status" SET DEFAULT 'ACTIVE'::"SocietyStatus"`);
+      }
       if (table === 'User') continue; // Global identity is not a society record.
       const field = table === 'Society' ? 'id' : 'societyId';
       const predicate = `"${field}" = NULLIF(current_setting('${TENANT_CONTEXT_SETTING}', true), '')::uuid`;
@@ -216,6 +231,125 @@ database('Billing transactions under a non-owner RLS role', () => {
       SELECT "id","providerOrderId" FROM "Payment" WHERE "id"=${created.id}::uuid`);
     return order;
   }
+
+  const arrivals = new GateArrivalService(runtime, new EntitlementService(runtime));
+  const arrivalUnits = new Set<string>(), arrivalGates = new Set<string>(), arrivalUsers = new Set<string>();
+  const arrivalFeatures = new Map<string, Prisma.JsonValue>();
+  afterEach(async () => {
+    if (!arrivalUnits.size && !arrivalGates.size && !arrivalUsers.size) return;
+    // Only this test's UUID-isolated copied rows. No public immutable evidence.
+    const ids = [...arrivalUnits];
+    const requests = await fixture.accessRequest.findMany({ where: { unitId: { in: ids } }, select: { id: true } });
+    await fixture.auditEvent.deleteMany({ where: { accessRequestId: { in: requests.map(row => row.id) } } });
+    await fixture.accessRequest.deleteMany({ where: { unitId: { in: ids } } });
+    await fixture.unitOccupancy.deleteMany({ where: { unitId: { in: ids } } });
+    await fixture.unitOwnership.deleteMany({ where: { unitId: { in: ids } } });
+    await fixture.unit.deleteMany({ where: { id: { in: ids } } });
+    await fixture.gate.deleteMany({ where: { id: { in: [...arrivalGates] } } });
+    await fixture.user.deleteMany({ where: { id: { in: [...arrivalUsers] } } });
+    for (const [id, featureOverrides] of arrivalFeatures) await fixture.society.update({ where: { id }, data: { featureOverrides: featureOverrides as Prisma.InputJsonValue } });
+    arrivalUnits.clear(); arrivalGates.clear(); arrivalUsers.clear(); arrivalFeatures.clear();
+  });
+  async function arrivalDestination(scope = societyA) {
+    const gateId = randomUUID(), unitId = randomUUID();
+    arrivalUnits.add(unitId); arrivalGates.add(gateId);
+    if (!arrivalFeatures.has(scope)) {
+      const society = await fixture.society.findUniqueOrThrow({ where: { id: scope }, select: { featureOverrides: true } });
+      arrivalFeatures.set(scope, society.featureOverrides);
+    }
+    await fixture.society.update({ where: { id: scope }, data: { featureOverrides: { DELIVERY_MANAGEMENT: true } } });
+    await fixture.gate.create({ data: { id: gateId, societyId: scope, name: 'Arrival fixture', code: gateId } });
+    await fixture.unit.create({ data: { id: unitId, societyId: scope, buildingId: scope === societyA ? buildingA : buildingB, number: unitId } });
+    return { gateId, unitId };
+  }
+  async function arrivalOccupancy(scope: string, unitId: string, userId: string, data: Partial<Pick<Prisma.UnitOccupancyUncheckedCreateInput, 'primaryGateContact' | 'escalationOrder' | 'gateApprovalExpiresAt' | 'effectiveTo' | 'effectiveFrom' | 'gateApprovalEnabled' | 'active'>> = {}) {
+    // Explicit fixture fields below avoid writing operator data or broad updates.
+    return fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId, relation: 'TENANT',
+      effectiveFrom: new Date(Date.now() - 2 * 86_400_000), ...data } });
+  }
+
+  it('routes delivery, cab and school arrivals to current occupants rather than non-resident owners', async () => {
+    for (const [scope, subjectType, provider, minutes] of [
+      [societyA, AccessSubjectType.DELIVERY, 'Courier', 30],
+      [societyB, AccessSubjectType.CAB, 'Cab', 15],
+      [societyA, AccessSubjectType.OTHER, 'SCHOOL_TRANSPORT', 20],
+    ] as const) {
+      const { gateId, unitId } = await arrivalDestination(scope);
+      await fixture.unitOwnership.create({ data: { societyId: scope, unitId, userId: owner, effectiveFrom: new Date(Date.now() - 86_400_000) } });
+      await arrivalOccupancy(scope, unitId, tenant);
+      const request = await arrivals.create(scope, owner, gateId, unitId, subjectType, '  Arrival  ', provider);
+      expect(request).toMatchObject({ societyId: scope, unitId, requestedById: tenant, status: 'PENDING',
+        subjectName: 'Arrival', metadata: expect.objectContaining({ approvalWindowMinutes: minutes, source: 'GATE_QUICK_ARRIVAL', gateId }) });
+      const audit = await fixture.auditEvent.findMany({ where: { accessRequestId: request.id } });
+      expect(audit).toEqual([expect.objectContaining({ societyId: scope, actorUserId: owner, gateId, event: 'ACCESS_CREATED' })]);
+    }
+    expect(await runtime.accessRequest.findMany()).toEqual([]);
+  });
+
+  it('skips expired delegates and foreign occupancy links while preserving current primary contact ordering', async () => {
+    const { gateId, unitId } = await arrivalDestination();
+    await arrivalOccupancy(societyA, unitId, owner, { primaryGateContact: true, escalationOrder: 0, gateApprovalExpiresAt: new Date(Date.now() - 86_400_000) });
+    // Copied fixture intentionally admits an invalid legacy parent link; both
+    // explicit society predicate and RLS must exclude it from routing.
+    const foreignActor = randomUUID(); arrivalUsers.add(foreignActor);
+    // Match the fixture's initial user seed: copied columns retain public enum
+    // defaults, while Prisma create would bind a nonexistent local UserStatus.
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "User" ("id","phone","updatedAt")
+      VALUES (${foreignActor}::uuid,${`arrival-${foreignActor}`},CURRENT_TIMESTAMP)`);
+    // Keep the migrated one-active-primary-per-unit index intact. The foreign
+    // non-primary still outranks the eligible tenant by escalation order.
+    await arrivalOccupancy(societyB, unitId, foreignActor, { primaryGateContact: false, escalationOrder: 1 });
+    await arrivalOccupancy(societyA, unitId, tenant, { primaryGateContact: false, escalationOrder: 50 });
+    expect(await arrivals.create(societyA, owner, gateId, unitId, AccessSubjectType.DELIVERY, 'Courier')).toMatchObject({ requestedById: tenant });
+    await fixture.unitOccupancy.updateMany({ where: { societyId: societyA, unitId, userId: owner },
+      data: { gateApprovalExpiresAt: null, escalationOrder: 100 } });
+    expect(await arrivals.create(societyA, owner, gateId, unitId, AccessSubjectType.CAB, 'Driver')).toMatchObject({ requestedById: owner });
+  });
+
+  it('fails closed for moved-out, future, disabled and expired-only occupants without falling back to ownership', async () => {
+    for (const data of [
+      { effectiveTo: new Date(Date.now() - 86_400_000) }, { effectiveFrom: new Date(Date.now() + 86_400_000) },
+      { gateApprovalEnabled: false }, { gateApprovalExpiresAt: new Date(Date.now() - 86_400_000) }, { active: false },
+    ]) {
+      const { gateId, unitId } = await arrivalDestination();
+      await fixture.unitOwnership.create({ data: { societyId: societyA, unitId, userId: owner } });
+      await arrivalOccupancy(societyA, unitId, tenant, data);
+      await expect(arrivals.create(societyA, owner, gateId, unitId, AccessSubjectType.CAB, 'Driver')).rejects.toThrow(/active resident/);
+      expect(await fixture.accessRequest.count({ where: { unitId } })).toBe(0);
+    }
+  });
+
+  it('enforces real feature restrictions inside tenant context before writing gate arrivals', async () => {
+    const { gateId, unitId } = await arrivalDestination();
+    await arrivalOccupancy(societyA, unitId, tenant);
+    await fixture.society.update({ where: { id: societyA }, data: { featureOverrides: { DELIVERY_MANAGEMENT: false } } });
+    await expect(arrivals.create(societyA, owner, gateId, unitId, AccessSubjectType.DELIVERY, 'Courier')).rejects.toThrow(/not enabled/);
+    expect(await fixture.accessRequest.count({ where: { unitId } })).toBe(0);
+    await fixture.society.update({ where: { id: societyA }, data: { featureOverrides: { DELIVERY_MANAGEMENT: true } } });
+  });
+
+  it('denies foreign gates/units and rolls back request creation if audit persistence fails', async () => {
+    const a = await arrivalDestination(), b = await arrivalDestination(societyB);
+    await arrivalOccupancy(societyA, a.unitId, tenant);
+    await expect(arrivals.create(societyA, owner, b.gateId, a.unitId, AccessSubjectType.CAB, 'Driver')).rejects.toThrow(/Gate does not belong/);
+    await expect(arrivals.create(societyA, owner, a.gateId, b.unitId, AccessSubjectType.CAB, 'Driver')).rejects.toThrow(/active resident/);
+    await fixture.gate.update({ where: { id: a.gateId }, data: { active: false } });
+    await expect(arrivals.create(societyA, owner, a.gateId, a.unitId, AccessSubjectType.CAB, 'Driver')).rejects.toThrow(/Gate does not belong/);
+    await fixture.gate.update({ where: { id: a.gateId }, data: { active: true } });
+    const rollbackClient = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+        get(target, key) {
+          if (key === 'auditEvent') return { create: async () => { throw new Error('Simulated audit persistence failure'); } };
+          const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }))),
+    };
+    await expect(new GateArrivalService(rollbackClient as never, new EntitlementService(runtime))
+      .create(societyA, owner, a.gateId, a.unitId, AccessSubjectType.DELIVERY, 'Courier')).rejects.toThrow(/audit persistence/);
+    expect(await fixture.accessRequest.count({ where: { unitId: a.unitId } })).toBe(0);
+    const [context] = await runtime.$queryRaw<Array<{ scope: string | null }>>(Prisma.sql`SELECT current_setting('app.aaraagate_society_id',true) AS scope`);
+    expect([societyA, societyB]).not.toContain(context.scope);
+  });
 
   async function connectorJob(scope = societyA) {
     const id = randomUUID(), exportJobId = randomUUID(), artifactId = randomUUID(), key = randomUUID();

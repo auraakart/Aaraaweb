@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "8338021c303dc61b44bbfbc12e17d1df654df3b258f216b0d6aa336a2f72b87d",
+  "sourceDigest": "0750ad12f7703ae5a287ebdf22e855427471922bf9baf48c6d9e23735d3092a9",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,10 +28,14 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 13,
     "utilitySqlSites": 66,
-    "runtimeTenantContextCalls": 189,
+    "runtimeTenantContextCalls": 190,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
+    {
+      "file": "services/api/src/access/gate-arrival.service.ts",
+      "line": 34
+    },
     {
       "file": "services/api/src/accounting/accounting-connector-delivery.runner.ts",
       "line": 41
@@ -1169,10 +1173,10 @@
     {"receiver":"tx.gateMutationReceipt","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/access.service.ts","line":396,"method":"callback","operation":"create","kind":"ORM","tables":["GateMutationReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/access.service.ts","line":397,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.accessRequest","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/access.service.ts","line":398,"method":"callback","operation":"findFirst","kind":"ORM","tables":["AccessRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":38,"method":"create","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.unit","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":42,"method":"create","operation":"findFirst","kind":"ORM","tables":["Unit"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.accessRequest","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":69,"method":"callback","operation":"create","kind":"ORM","tables":["AccessRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":82,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":39,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.unit","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":43,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Unit"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.accessRequest","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":78,"method":"callback","operation":"create","kind":"ORM","tables":["AccessRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/access/gate-arrival.service.ts","line":91,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.runner.ts","line":31,"method":"seedCompletedExports","operation":"$queryRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"UNRESOLVED_SQL_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.runner.ts","line":34,"method":"claim","operation":"$queryRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"UNRESOLVED_SQL_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/accounting/accounting-connector-delivery.runner.ts","line":41,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccountingConnectorDelivery","AccountingExportArtifact","AccountingExportJob"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
