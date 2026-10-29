@@ -34,11 +34,11 @@ function setup(overrides: Overrides = {}, enabled = true) {
       create: vi.fn().mockResolvedValue({ id: 'receipt-1' }),
     },
     $executeRaw: vi.fn().mockResolvedValue(0),
-    $transaction: vi.fn(),
+    withTenantContext: vi.fn(),
     ...overrides,
   };
-  const suppliedTransaction = overrides.$transaction as typeof prisma.$transaction | undefined;
-  prisma.$transaction = suppliedTransaction ?? vi.fn(async (callback: (client: typeof prisma) => unknown) => callback(prisma));
+  const suppliedTransaction = overrides.withTenantContext as typeof prisma.withTenantContext | undefined;
+  prisma.withTenantContext = suppliedTransaction ?? vi.fn(async (_scope: string, callback: (client: typeof prisma) => unknown) => callback(prisma));
   const entitlements = { isEnabled: vi.fn().mockResolvedValue(enabled) };
   return {
     svc: new AccessService(
@@ -54,7 +54,7 @@ describe('AccessService', () => {
   it('creates and audits a tenant-scoped pending request', async () => {
     const { svc, prisma, entitlements } = setup();
     await svc.create('society-1', 'user-1', 'unit-1', AccessSubjectType.VISITOR, 'Rahul');
-    expect(entitlements.isEnabled).toHaveBeenCalledWith('society-1', ProductFeature.VISITOR_MANAGEMENT);
+    expect(entitlements.isEnabled).toHaveBeenCalledWith('society-1', ProductFeature.VISITOR_MANAGEMENT, prisma);
     expect(prisma.accessRequest.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ societyId: 'society-1', unitId: 'unit-1', requestedById: 'user-1', status: AccessRequestStatus.PENDING }),
     }));
@@ -84,7 +84,7 @@ describe('AccessService', () => {
       '9999999999',
       'Dinner',
     );
-    expect(entitlements.isEnabled).toHaveBeenCalledWith('society-1', ProductFeature.VISITOR_MANAGEMENT);
+    expect(entitlements.isEnabled).toHaveBeenCalledWith('society-1', ProductFeature.VISITOR_MANAGEMENT, prisma);
     expect(result.credential).toEqual(expect.any(String));
     expect(result.credential.length).toBeGreaterThan(20);
     expect(prisma.accessRequest.create).toHaveBeenCalledWith(expect.objectContaining({
@@ -239,7 +239,7 @@ describe('AccessService', () => {
     const { svc, prisma } = setup();
     const result = await svc.approve('society-1', 'user-1', 'access-1', new Date(Date.now() - 1000), new Date(Date.now() + 60_000));
     expect(result.credential).toBeTruthy();
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
     expect(prisma.accessRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ status: AccessRequestStatus.PENDING }),
       data: expect.objectContaining({ status: AccessRequestStatus.APPROVED, credentialHash: expect.any(String) }),
@@ -309,25 +309,11 @@ describe('AccessService', () => {
     expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ societyId: 'society-1', credentialHash: expect.any(String) }) }));
   });
 
-  it('keeps the gate-mutation pre-check tenant scoped', async () => {
-    const findFirst = vi.fn()
-      .mockResolvedValueOnce({
-        id: 'access-1',
-        societyId: 'society-1',
-        subjectType: AccessSubjectType.VISITOR,
-        status: AccessRequestStatus.APPROVED,
-      })
-      .mockResolvedValueOnce(null);
-    const { svc, prisma } = setup({
-      accessRequest: {
-        findFirst,
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-        findUniqueOrThrow: vi.fn(),
-      },
-    });
-
+  it('keeps the gate-mutation lookup tenant scoped and rejects a missing request before writes', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const { svc, prisma } = setup({ accessRequest: { findFirst, updateMany: vi.fn() } });
     await expect(svc.checkInRequest('society-1', 'gate-1', 'access-1', 'guard-1', 'tenant-key')).rejects.toBeInstanceOf(NotFoundException);
-    expect(findFirst.mock.calls[1]?.[0]).toEqual({ where: { id: 'access-1', societyId: 'society-1' } });
+    expect(findFirst).toHaveBeenCalledWith({ where: { id: 'access-1', societyId: 'society-1' } });
     expect(prisma.accessRequest.updateMany).not.toHaveBeenCalled();
   });
 
@@ -380,13 +366,11 @@ describe('AccessService', () => {
     };
     const findFirst = vi.fn()
       .mockResolvedValueOnce(approved)
-      .mockResolvedValueOnce(approved)
       .mockResolvedValueOnce({ ...approved, status: AccessRequestStatus.CHECKED_IN });
     const findUnique = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(receipt);
     const { svc } = setup({
-      accessRequest: { findFirst, updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
+      accessRequest: { findFirst, updateMany: vi.fn().mockResolvedValue({ count: 0 }), findUniqueOrThrow: vi.fn() },
       gateMutationReceipt: { findUnique, create: vi.fn() },
-      $transaction: vi.fn().mockRejectedValue(new BadRequestException('Access request is not ready for check-in')),
     });
 
     await expect(svc.checkIn('society-1', 'gate-1', 'credential', 'guard-1', 'concurrent-key')).resolves.toEqual(

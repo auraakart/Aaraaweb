@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
 import { GateAuditService } from '../gates/gate-audit.service';
+import { AccessService } from '../access/access.service';
 import { GateArrivalService } from '../access/gate-arrival.service';
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { PrismaService } from './prisma.service';
@@ -118,6 +119,33 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     expect(events.every(row => row.visitorPassId === issued.pass.id && row.actorUserId === userId)).toBe(true);
     expect(await db.visitor.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ status: 'CHECKED_OUT' });
     expect((await visitors.listForHost(societyId, userId))[0].passes).toEqual([expect.objectContaining({ id: issued.pass.id, status: 'USED', checkedOutAt: expect.any(Date) })]);
+  });
+
+  databaseTest('retains current access walk-in approvals, invite recovery and idempotent gate receipts on migrated tables', async db => {
+    const gate = await db.gate.create({ data: { societyId, name: 'Access fixture', code: randomUUID() } });
+    const scoped = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+        return run(tx);
+      }),
+    } as never;
+    const service = new AccessService(scoped, new EntitlementService(db));
+    const from = new Date(Date.now() - 1000), until = new Date(Date.now() + 60_000);
+    const request = await service.createWalkInVisitor(societyId, userId, gate.id, unitId, 'Walk in');
+    const approved = await service.approve(societyId, userId, request.id, from, until);
+    const entryKey = randomUUID();
+    await service.checkInRequest(societyId, gate.id, request.id, userId, entryKey);
+    expect(await service.checkIn(societyId, gate.id, approved.credential, userId, entryKey)).toMatchObject({ status: 'CHECKED_IN' });
+    await service.checkOut(societyId, gate.id, approved.credential, userId, randomUUID());
+    expect(await db.gateMutationReceipt.count({ where: { accessRequestId: request.id } })).toBe(2);
+    expect((await db.auditEvent.findMany({ where: { accessRequestId: request.id } })).map(row => row.event).sort())
+      .toEqual(['ACCESS_APPROVED', 'ACCESS_CHECKED_IN', 'ACCESS_CHECKED_OUT', 'ACCESS_CREATED']);
+    const key = randomUUID();
+    const first = await service.inviteVisitor(societyId, userId, unitId, 'Invite', from, until, key);
+    const recovered = await service.inviteVisitor(societyId, userId, unitId, 'Invite', from, until, key);
+    expect(recovered).toMatchObject({ replayed: true, request: { id: first.request.id } });
+    await expect(service.verify(societyId, gate.id, first.credential)).rejects.toThrow('not found');
+    expect(await service.verify(societyId, gate.id, recovered.credential)).toMatchObject({ status: 'APPROVED' });
   });
 
   it('deserializes advisory locks while retaining transaction ownership and release', async () => {

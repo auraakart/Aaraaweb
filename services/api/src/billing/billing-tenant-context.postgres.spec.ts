@@ -9,6 +9,7 @@ import { EntitlementService } from '../entitlements/entitlement.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
 import { GateAuditService } from '../gates/gate-audit.service';
+import { AccessService } from '../access/access.service';
 import { GateArrivalService } from '../access/gate-arrival.service';
 import { PaymentOrderService } from './payment-order.service';
 import { ResidentStatementService } from './resident-statement.service';
@@ -63,7 +64,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -82,13 +83,20 @@ database('Billing transactions under a non-owner RLS role', () => {
     // A domain preserves the migrated public enum while resolving the existing
     // webhook SQL cast inside this isolated schema. The ORM-filter enum below
     // additionally needs matching local column and parameter types.
-    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType', 'AccessSubjectType', 'AccessRequestStatus', 'UnitRelation']
+    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType', 'UnitRelation']
       .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
     // Prisma binds both written enum values and filters to its configured
-    // schema. Copy migrated labels and align the isolated status columns,
+    // schema. Copy migrated labels and align the isolated ORM enum columns,
     // retaining every migrated default, check and index.
-    const statusTypes = new Map([['Society', 'SocietyStatus'], ['Visitor', 'VisitorStatus'], ['VisitorPass', 'VisitorPassStatus']]);
-    for (const type of statusTypes.values()) {
+    const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
+      { table: 'Society', column: 'status', type: 'SocietyStatus', defaultValue: 'ACTIVE' },
+      { table: 'Visitor', column: 'status', type: 'VisitorStatus', defaultValue: 'PENDING' },
+      { table: 'VisitorPass', column: 'status', type: 'VisitorPassStatus', defaultValue: 'ACTIVE' },
+      { table: 'AccessRequest', column: 'subjectType', type: 'AccessSubjectType' },
+      { table: 'AccessRequest', column: 'status', type: 'AccessRequestStatus', defaultValue: 'PENDING' },
+      { table: 'GateMutationReceipt', column: 'action', type: 'GateMutationAction' },
+    ];
+    for (const type of new Set(enumColumns.map(column => column.type))) {
       const labels = await fixture.$queryRaw<Array<{ label: string }>>(Prisma.sql`
         SELECT e.enumlabel AS label FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid
         JOIN pg_namespace n ON n.oid=t.typnamespace
@@ -97,12 +105,10 @@ database('Billing transactions under a non-owner RLS role', () => {
     }
     for (const table of tables) {
       definitions.push(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`);
-      const type = statusTypes.get(table);
-      if (type) {
-        const defaultValue = table === 'Visitor' ? 'PENDING' : 'ACTIVE';
-        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "status" DROP DEFAULT`);
-        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "status" TYPE "${type}" USING "status"::text::"${type}"`);
-        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "status" SET DEFAULT '${defaultValue}'::"${type}"`);
+      for (const { column, type, defaultValue } of enumColumns.filter(entry => entry.table === table)) {
+        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "${column}" DROP DEFAULT`);
+        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE "${type}" USING "${column}"::text::"${type}"`);
+        if (defaultValue) definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "${column}" SET DEFAULT '${defaultValue}'::"${type}"`);
       }
       if (table === 'User') continue; // Global identity is not a society record.
       const field = table === 'Society' ? 'id' : 'societyId';
@@ -253,6 +259,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     const visitors = await fixture.visitor.findMany({ where: { unitId: { in: ids } }, select: { id: true } });
     await fixture.visitorPass.deleteMany({ where: { visitorId: { in: visitors.map(row => row.id) } } });
     await fixture.visitor.deleteMany({ where: { unitId: { in: ids } } });
+    await fixture.gateMutationReceipt.deleteMany({ where: { accessRequestId: { in: requests.map(row => row.id) } } });
     await fixture.accessRequest.deleteMany({ where: { unitId: { in: ids } } });
     await fixture.unitOccupancy.deleteMany({ where: { unitId: { in: ids } } });
     await fixture.unitOwnership.deleteMany({ where: { unitId: { in: ids } } });
@@ -279,6 +286,140 @@ database('Billing transactions under a non-owner RLS role', () => {
     return fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId, relation: 'TENANT',
       effectiveFrom: new Date(Date.now() - 2 * 86_400_000), ...data } });
   }
+
+  const access = new AccessService(runtime, new EntitlementService(runtime));
+  async function accessDestination(scope = societyA) {
+    const destination = await arrivalDestination(scope);
+    await arrivalOccupancy(scope, destination.unitId, tenant);
+    return destination;
+  }
+  const accessWindow = () => [new Date(Date.now() - 1000), new Date(Date.now() + 600_000)] as const;
+
+  it('isolates access invitation recovery, verification and id/credential entry/exit in either society', async () => {
+    for (const scope of [societyA, societyB]) {
+      const { gateId, unitId } = await accessDestination(scope);
+      const [from, until] = accessWindow();
+      const first = await access.inviteVisitor(scope, tenant, unitId, ' Visitor ', from, until, 'shared-invite-key', '999', 'Visit');
+      const replay = await access.inviteVisitor(scope, tenant, unitId, ' Visitor ', from, until, 'shared-invite-key', '999', 'Visit');
+      expect(replay).toMatchObject({ replayed: true, request: { id: first.request.id } });
+      expect(replay.credential).not.toBe(first.credential);
+      await expect(access.verify(scope, gateId, first.credential)).rejects.toThrow('not found');
+      await expect(access.inviteVisitor(scope, tenant, unitId, 'Different', from, until, 'shared-invite-key', '999', 'Visit')).rejects.toThrow('different visitor invite');
+      expect(await access.verify(scope, gateId, replay.credential, owner)).toMatchObject({ id: first.request.id });
+      expect(await access.checkIn(scope, gateId, replay.credential, owner, 'shared-enter-key')).toMatchObject({ status: 'CHECKED_IN' });
+      expect(await access.checkInRequest(scope, gateId, first.request.id, owner, 'shared-enter-key')).toMatchObject({ status: 'CHECKED_IN' });
+      await fixture.accessRequest.update({ where: { id: first.request.id }, data: { validUntil: new Date(0) } });
+      expect(await access.checkOutRequest(scope, gateId, first.request.id, owner, 'shared-exit-key')).toMatchObject({ status: 'CHECKED_OUT' });
+      expect(await access.checkOut(scope, gateId, replay.credential, owner, 'shared-exit-key')).toMatchObject({ status: 'CHECKED_OUT' });
+      await expect(access.checkOutRequest(scope, gateId, first.request.id, owner, 'shared-enter-key')).rejects.toThrow('different gate operation');
+      const receipts = await runtime.withTenantContext(scope, tx => tx.gateMutationReceipt.findMany({ where: { accessRequestId: first.request.id } }));
+      expect(receipts).toHaveLength(2);
+      expect(receipts.every(row => row.societyId === scope && row.gateId === gateId && row.actorUserId === owner)).toBe(true);
+      expect((await access.listMine(scope, tenant)).map(row => row.id)).toEqual([first.request.id]);
+      expect(await access.listMine(scope, owner)).toEqual([]);
+    }
+    expect(await runtime.accessRequest.findMany()).toEqual([]);
+    expect(await runtime.gateMutationReceipt.findMany()).toEqual([]);
+  });
+
+  it('retains current-occupant authority, notification-only visibility and originating-gate restrictions', async () => {
+    const { gateId, unitId } = await accessDestination();
+    const otherGate = await arrivalDestination();
+    const request = await access.createWalkInVisitor(societyA, owner, gateId, unitId, 'Walk in');
+    await expect(access.approve(societyA, owner, request.id, ...accessWindow())).rejects.toThrow('not found');
+    await fixture.unitOccupancy.updateMany({ where: { societyId: societyA, unitId, userId: tenant }, data: { gateApprovalEnabled: false } });
+    expect((await access.listMine(societyA, tenant)).map(row => row.id)).toEqual([request.id]);
+    await expect(access.deny(societyA, tenant, request.id)).rejects.toThrow('not found');
+    await fixture.unitOccupancy.updateMany({ where: { societyId: societyA, unitId, userId: tenant }, data: { gateApprovalEnabled: true, gateApprovalExpiresAt: new Date(0) } });
+    await expect(access.approve(societyA, tenant, request.id, ...accessWindow())).rejects.toThrow('not found');
+    await fixture.unitOccupancy.updateMany({ where: { societyId: societyA, unitId, userId: tenant }, data: { gateApprovalExpiresAt: null } });
+    const approved = await access.approve(societyA, tenant, request.id, ...accessWindow());
+    await expect(access.gateRequestStatus(societyA, otherGate.gateId, request.id)).rejects.toThrow('different gate');
+    await expect(access.checkInRequest(societyA, otherGate.gateId, request.id, owner, randomUUID())).rejects.toThrow('different gate');
+    expect(await access.checkInRequest(societyA, gateId, request.id, owner, randomUUID())).toMatchObject({ status: 'CHECKED_IN' });
+    await expect(access.checkOut(societyA, otherGate.gateId, approved.credential, owner, randomUUID())).rejects.toThrow('different gate');
+    expect(await access.checkOut(societyA, gateId, approved.credential, owner, randomUUID())).toMatchObject({ status: 'CHECKED_OUT' });
+    const denied = await access.createWalkInVisitor(societyA, owner, gateId, unitId, 'Deny');
+    expect(await access.deny(societyA, tenant, denied.id)).toMatchObject({ status: 'DENIED' });
+    const privateRequest = await access.create(societyA, tenant, unitId, AccessSubjectType.VISITOR, 'Private', undefined, undefined,
+      { source: 'GATE_WALK_IN', gateId: otherGate.gateId, createdByGuardId: owner });
+    expect(privateRequest.metadata).toEqual({});
+    expect(await access.cancel(societyA, tenant, privateRequest.id)).toMatchObject({ status: 'CANCELLED', credentialHash: null });
+  });
+
+  it('denies foreign access ids, gates, credentials, units and malformed occupancy parents', async () => {
+    const a = await accessDestination(), b = await accessDestination(societyB);
+    const invite = await access.inviteVisitor(societyB, tenant, b.unitId, 'Remote', ...accessWindow(), randomUUID());
+    await expect(access.create(societyA, owner, a.unitId, AccessSubjectType.VISITOR, 'Nonresident')).rejects.toThrow('authenticated resident');
+    await expect(access.create(societyA, tenant, b.unitId, AccessSubjectType.VISITOR, 'Foreign')).rejects.toThrow('authenticated resident');
+    await expect(access.verify(societyA, a.gateId, invite.credential, owner)).rejects.toThrow('not found');
+    await expect(access.gateRequestStatus(societyA, a.gateId, invite.request.id)).rejects.toThrow('not found');
+    await expect(access.checkInRequest(societyA, a.gateId, invite.request.id, owner, randomUUID())).rejects.toThrow('not found');
+    await expect(access.checkIn(societyA, b.gateId, invite.credential, owner, randomUUID())).rejects.toThrow('Gate does not belong');
+    for (const method of ['approve', 'deny', 'cancel'] as const) await expect(access[method](societyA, tenant, invite.request.id, ...accessWindow())).rejects.toThrow('not found');
+    const malformed = await arrivalDestination();
+    await arrivalOccupancy(societyB, malformed.unitId, tenant);
+    expect((await access.listGateUnits(societyA)).map(row => row.id)).not.toContain(malformed.unitId);
+    await expect(access.createWalkInVisitor(societyA, owner, malformed.gateId, malformed.unitId, 'Foreign linked')).rejects.toThrow('active resident');
+  });
+
+  it('serializes same-key invites and recovers concurrent gate retries without duplicate audits or receipts', async () => {
+    const { gateId, unitId } = await accessDestination();
+    const [from, until] = accessWindow(), inviteKey = randomUUID();
+    const invites = await Promise.all([1, 2].map(() => access.inviteVisitor(societyA, tenant, unitId, 'Concurrent', from, until, inviteKey)));
+    expect(invites[0].request.id).toBe(invites[1].request.id);
+    expect(invites.map(row => row.replayed).sort()).toEqual([false, true]);
+    const current = invites.find(row => row.replayed)!;
+    const key = randomUUID();
+    const entered = await Promise.all([1, 2].map(() => access.checkIn(societyA, gateId, current.credential, owner, key)));
+    expect(entered.every(row => row.status === 'CHECKED_IN')).toBe(true);
+    expect(await fixture.gateMutationReceipt.count({ where: { accessRequestId: current.request.id } })).toBe(1);
+    expect((await fixture.auditEvent.findMany({ where: { accessRequestId: current.request.id } })).map(row => row.event).sort())
+      .toEqual(['ACCESS_APPROVED', 'ACCESS_CHECKED_IN', 'ACCESS_CREATED']);
+    await expect(access.checkOutRequest(societyA, gateId, current.request.id, owner, key)).rejects.toThrow('different gate operation');
+  });
+
+  it('rolls back access state, receipts and audit when PostgreSQL aborts mutation persistence', async () => {
+    const { gateId, unitId } = await accessDestination();
+    const invite = await access.inviteVisitor(societyA, tenant, unitId, 'Rollback', ...accessWindow(), randomUUID());
+    const failedClient = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+        get(target, key) {
+          if (key === 'auditEvent') return { create: async () => {
+            // A real SQL error aborts this transaction. Recovery must occur
+            // after rollback in a fresh, explicitly scoped transaction.
+            await target.$executeRaw(Prisma.sql`SELECT 1 / 0`);
+          } };
+          const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }))),
+    } as never;
+    const rejected = new AccessService(failedClient, new EntitlementService(runtime));
+    await expect(rejected.checkIn(societyA, gateId, invite.credential, owner, randomUUID())).rejects.toThrow(/division by zero/);
+    expect(await fixture.accessRequest.findUniqueOrThrow({ where: { id: invite.request.id } })).toMatchObject({ status: 'APPROVED', enteredAt: null });
+    expect(await fixture.gateMutationReceipt.count({ where: { accessRequestId: invite.request.id } })).toBe(0);
+    expect(await fixture.auditEvent.count({ where: { accessRequestId: invite.request.id } })).toBe(2);
+    const pending = await access.create(societyA, tenant, unitId, AccessSubjectType.VISITOR, 'Pending');
+    await expect(rejected.approve(societyA, tenant, pending.id, ...accessWindow())).rejects.toThrow(/division by zero/);
+    expect(await fixture.accessRequest.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ status: 'PENDING', credentialHash: null });
+    const [context] = await runtime.$queryRaw<Array<{ societyId: string | null }>>(Prisma.sql`SELECT current_setting(${TENANT_CONTEXT_SETTING},true) AS "societyId"`);
+    expect([societyA, societyB]).not.toContain(context.societyId);
+  });
+
+  it('rechecks access feature and validity at entry while allowing recorded exits after expiry or feature disablement', async () => {
+    const { gateId, unitId } = await accessDestination();
+    const invite = await access.inviteVisitor(societyA, tenant, unitId, 'Expiry', ...accessWindow(), randomUUID());
+    await fixture.society.update({ where: { id: societyA }, data: { featureOverrides: { VISITOR_MANAGEMENT: false } } });
+    await expect(access.checkIn(societyA, gateId, invite.credential, owner, randomUUID())).rejects.toThrow('not enabled');
+    await fixture.society.update({ where: { id: societyA }, data: { featureOverrides: { VISITOR_MANAGEMENT: true } } });
+    await fixture.accessRequest.update({ where: { id: invite.request.id }, data: { validUntil: new Date(0) } });
+    await expect(access.checkInRequest(societyA, gateId, invite.request.id, owner, randomUUID())).rejects.toThrow('validity window');
+    await fixture.accessRequest.update({ where: { id: invite.request.id }, data: { validUntil: new Date(Date.now() + 60_000) } });
+    await access.checkIn(societyA, gateId, invite.credential, owner, randomUUID());
+    await fixture.society.update({ where: { id: societyA }, data: { featureOverrides: { VISITOR_MANAGEMENT: false } } });
+    await fixture.accessRequest.update({ where: { id: invite.request.id }, data: { validUntil: new Date(0) } });
+    expect(await access.checkOut(societyA, gateId, invite.credential, owner, randomUUID())).toMatchObject({ status: 'CHECKED_OUT' });
+  });
 
   const visitors = new VisitorService(runtime);
   const gateAudit = new GateAuditService(runtime);

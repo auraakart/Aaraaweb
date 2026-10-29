@@ -62,7 +62,9 @@ describe('V2.1B post-move-out authority regressions', () => {
       metadata: { source: 'GATE_WALK_IN', gateId: 'gate-1' },
     };
     const tx = {
+      unitOccupancy: { findFirst: occupancyLookup },
       accessRequest: {
+        findFirst: vi.fn().mockResolvedValue(request),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         findUniqueOrThrow: vi.fn().mockResolvedValue({ ...request, status: AccessRequestStatus.APPROVED }),
       },
@@ -71,7 +73,7 @@ describe('V2.1B post-move-out authority regressions', () => {
     const prisma = {
       unitOccupancy: { findFirst: occupancyLookup },
       accessRequest: { findFirst: vi.fn().mockResolvedValue(request) },
-      $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
+      withTenantContext: vi.fn(async (_scope: string, callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
     };
     const entitlements = { isEnabled: vi.fn().mockResolvedValue(true) };
     const service = new AccessService(
@@ -113,11 +115,12 @@ describe('V2.1B post-move-out authority regressions', () => {
   it('does not grant routine gate approval authority from non-resident ownership alone', async () => {
     const occupancyLookup = vi.fn().mockResolvedValue(null);
     const ownershipLookup = vi.fn().mockResolvedValue({ id: 'ownership-1' });
-    const transaction = vi.fn();
+    const mutation = vi.fn();
     const prisma = {
       unitOccupancy: { findFirst: occupancyLookup },
       unitOwnership: { findFirst: ownershipLookup },
       accessRequest: {
+        updateMany: mutation,
         findFirst: vi.fn().mockResolvedValue({
           id: 'access-1',
           societyId: 'society-1',
@@ -128,7 +131,8 @@ describe('V2.1B post-move-out authority regressions', () => {
           metadata: { source: 'GATE_WALK_IN', gateId: 'gate-1' },
         }),
       },
-      $transaction: transaction,
+      withTenantContext: vi.fn(async (_scope: string, run: (tx: unknown) => Promise<unknown>) => run(prisma)),
+
     };
     const entitlements = { isEnabled: vi.fn().mockResolvedValue(true) };
     const service = new AccessService(
@@ -156,12 +160,13 @@ describe('V2.1B post-move-out authority regressions', () => {
       }),
     }));
     expect(ownershipLookup).not.toHaveBeenCalled();
-    expect(transaction).not.toHaveBeenCalled();
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it('does not allow an ended occupant to approve a gate-originated request', async () => {
     const occupancyLookup = vi.fn().mockResolvedValue(null);
     const prisma = {
+      withTenantContext: vi.fn(async (_scope: string, run: (tx: unknown) => Promise<unknown>) => run(prisma)),
       unitOccupancy: { findFirst: occupancyLookup },
       accessRequest: {
         findFirst: vi.fn().mockResolvedValue({
