@@ -80,4 +80,11 @@ describe('Gate assignment tenant boundary', () => {
     tx.$queryRaw.mockResolvedValue([]);
     await expect(service.deactivate(societyId, gateId, assignmentId)).rejects.toBeInstanceOf(NotFoundException);
   });
+  it('rejects a past end date when the assignment start defaults to now', async () => {
+    const { service, tx } = fixture();
+    await expect(service.assign(societyId, gateId, userId, undefined, new Date(0)))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+  });
+
 });
