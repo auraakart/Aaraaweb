@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service';
 import { EntitlementService } from '../entitlements/entitlement.service';
+import { VisitorService } from '../visitors/visitor.service';
+import { VisitorVerificationService } from '../visitors/visitor-verification.service';
+import { GateAuditService } from '../gates/gate-audit.service';
 import { GateArrivalService } from '../access/gate-arrival.service';
 import { PaymentOrderService } from './payment-order.service';
 import { ResidentStatementService } from './resident-statement.service';
@@ -60,7 +63,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'AuditEvent', 'Gate', 'AccessRequest', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -81,19 +84,25 @@ database('Billing transactions under a non-owner RLS role', () => {
     // additionally needs matching local column and parameter types.
     const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType', 'AccessSubjectType', 'AccessRequestStatus', 'UnitRelation']
       .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
-    // Prisma binds enum filters to the configured schema. Clone this enum from
-    // migrated labels and align only the isolated Society.status column.
-    const labels = await fixture.$queryRaw<Array<{ label: string }>>(Prisma.sql`
-      SELECT e.enumlabel AS label FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid
-      JOIN pg_namespace n ON n.oid=t.typnamespace
-      WHERE n.nspname='public' AND t.typname='SocietyStatus' ORDER BY e.enumsortorder`);
-    definitions.push(`CREATE TYPE "SocietyStatus" AS ENUM (${labels.map(({ label }) => "'" + label.replaceAll("'", "''") + "'").join(',')})`);
+    // Prisma binds both written enum values and filters to its configured
+    // schema. Copy migrated labels and align the isolated status columns,
+    // retaining every migrated default, check and index.
+    const statusTypes = new Map([['Society', 'SocietyStatus'], ['Visitor', 'VisitorStatus'], ['VisitorPass', 'VisitorPassStatus']]);
+    for (const type of statusTypes.values()) {
+      const labels = await fixture.$queryRaw<Array<{ label: string }>>(Prisma.sql`
+        SELECT e.enumlabel AS label FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid
+        JOIN pg_namespace n ON n.oid=t.typnamespace
+        WHERE n.nspname='public' AND t.typname=${type} ORDER BY e.enumsortorder`);
+      definitions.push(`CREATE TYPE "${type}" AS ENUM (${labels.map(({ label }) => "'" + label.replaceAll("'", "''") + "'").join(',')})`);
+    }
     for (const table of tables) {
       definitions.push(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`);
-      if (table === 'Society') {
-        definitions.push(`ALTER TABLE "Society" ALTER COLUMN "status" DROP DEFAULT`);
-        definitions.push(`ALTER TABLE "Society" ALTER COLUMN "status" TYPE "SocietyStatus" USING "status"::text::"SocietyStatus"`);
-        definitions.push(`ALTER TABLE "Society" ALTER COLUMN "status" SET DEFAULT 'ACTIVE'::"SocietyStatus"`);
+      const type = statusTypes.get(table);
+      if (type) {
+        const defaultValue = table === 'Visitor' ? 'PENDING' : 'ACTIVE';
+        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "status" DROP DEFAULT`);
+        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "status" TYPE "${type}" USING "status"::text::"${type}"`);
+        definitions.push(`ALTER TABLE "${table}" ALTER COLUMN "status" SET DEFAULT '${defaultValue}'::"${type}"`);
       }
       if (table === 'User') continue; // Global identity is not a society record.
       const field = table === 'Society' ? 'id' : 'societyId';
@@ -240,7 +249,10 @@ database('Billing transactions under a non-owner RLS role', () => {
     // Only this test's UUID-isolated copied rows. No public immutable evidence.
     const ids = [...arrivalUnits];
     const requests = await fixture.accessRequest.findMany({ where: { unitId: { in: ids } }, select: { id: true } });
-    await fixture.auditEvent.deleteMany({ where: { accessRequestId: { in: requests.map(row => row.id) } } });
+    await fixture.auditEvent.deleteMany({ where: { OR: [{ accessRequestId: { in: requests.map(row => row.id) } }, { gateId: { in: [...arrivalGates] } }] } });
+    const visitors = await fixture.visitor.findMany({ where: { unitId: { in: ids } }, select: { id: true } });
+    await fixture.visitorPass.deleteMany({ where: { visitorId: { in: visitors.map(row => row.id) } } });
+    await fixture.visitor.deleteMany({ where: { unitId: { in: ids } } });
     await fixture.accessRequest.deleteMany({ where: { unitId: { in: ids } } });
     await fixture.unitOccupancy.deleteMany({ where: { unitId: { in: ids } } });
     await fixture.unitOwnership.deleteMany({ where: { unitId: { in: ids } } });
@@ -267,6 +279,130 @@ database('Billing transactions under a non-owner RLS role', () => {
     return fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId, relation: 'TENANT',
       effectiveFrom: new Date(Date.now() - 2 * 86_400_000), ...data } });
   }
+
+  const visitors = new VisitorService(runtime);
+  const gateAudit = new GateAuditService(runtime);
+  const verification = new VisitorVerificationService(runtime, gateAudit);
+  const visitorWindow = () => [new Date(Date.now() - 60_000), new Date(Date.now() + 3_600_000)] as const;
+  function failingVisitorClient(model: 'auditEvent' | 'visitorPass') {
+    return {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+        get(target, key) {
+          if (key === model) return new Proxy(target[model], { get(delegate, operation) {
+            if (operation === 'create') return async () => { throw new Error('Simulated visitor persistence failure'); };
+            return Reflect.get(delegate, operation);
+          } });
+          const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }))),
+    } as never;
+  }
+
+  it('runs visitor issuance, verification, entry, exit and audit reads in either restricted society', async () => {
+    for (const scope of [societyA, societyB]) {
+      const { gateId, unitId } = await arrivalDestination(scope);
+      await arrivalOccupancy(scope, unitId, tenant);
+      const issued = await visitors.createPass(scope, tenant, unitId, ' Visitor ', ' 999 ', ...visitorWindow());
+      expect(issued.visitor).toMatchObject({ societyId: scope, hostUserId: tenant, name: 'Visitor', phone: '999', status: 'APPROVED' });
+      expect(await verification.verify(scope, gateId, issued.credential, owner)).toMatchObject({ id: issued.pass.id });
+      expect(await verification.checkIn(scope, gateId, issued.credential, owner)).toMatchObject({ status: 'USED', visitor: { status: 'CHECKED_IN' } });
+      // An already-entered visitor may leave after pass expiry.
+      await fixture.visitorPass.update({ where: { id: issued.pass.id }, data: { validUntil: new Date(0) } });
+      expect(await verification.checkOut(scope, gateId, issued.credential, owner)).toMatchObject({ checkedOutAt: expect.any(Date), visitor: { status: 'CHECKED_OUT' } });
+      await expect(verification.checkOut(scope, gateId, issued.credential, owner)).rejects.toThrow('not found');
+      const audits = await gateAudit.list(scope, gateId);
+      expect(audits.map(row => row.event).sort()).toEqual(['VISITOR_CHECKED_IN', 'VISITOR_CHECKED_OUT', 'VISITOR_VERIFIED']);
+      expect(audits.every(row => row.societyId === scope && row.visitorPassId === issued.pass.id && row.actorUserId === owner)).toBe(true);
+      expect(await gateAudit.list(scope === societyA ? societyB : societyA, gateId)).toEqual([]);
+    }
+    expect(await runtime.visitor.findMany()).toEqual([]);
+    expect(await runtime.visitorPass.findMany()).toEqual([]);
+  });
+
+  it('keeps visitor host decisions, lists, credentials and cancellation tenant-private', async () => {
+    const a = await arrivalDestination(), b = await arrivalDestination(societyB);
+    await arrivalOccupancy(societyA, a.unitId, tenant);
+    await arrivalOccupancy(societyB, b.unitId, tenant);
+    const pending = await visitors.createRequest(societyA, tenant, a.unitId, 'Pending', undefined, ' Visit ');
+    const remote = await visitors.createPass(societyB, tenant, b.unitId, 'Remote', '999', ...visitorWindow());
+    for (const method of ['approve', 'deny', 'cancel'] as const) {
+      await expect(visitors[method](societyB, tenant, pending.id, ...visitorWindow())).rejects.toThrow('not found');
+      await expect(visitors[method](societyA, owner, pending.id, ...visitorWindow())).rejects.toThrow('not found');
+    }
+    await expect(verification.verify(societyA, a.gateId, remote.credential, owner)).rejects.toThrow('not found');
+    await expect(verification.checkIn(societyA, b.gateId, remote.credential, owner)).rejects.toThrow('Gate does not belong');
+    const approved = await visitors.approve(societyA, tenant, pending.id, ...visitorWindow());
+    expect((await visitors.listForHost(societyA, tenant)).map(row => row.id)).toEqual([pending.id]);
+    expect(await visitors.listForHost(societyA, owner)).toEqual([]);
+    expect(await visitors.cancel(societyA, tenant, pending.id)).toMatchObject({ status: 'CANCELLED' });
+    await expect(verification.verify(societyA, a.gateId, approved.credential, owner)).rejects.toThrow('revoked');
+    expect(await verification.verify(societyB, b.gateId, remote.credential)).toMatchObject({ status: 'ACTIVE' });
+    const denied = await visitors.createRequest(societyA, tenant, a.unitId, 'Deny');
+    expect(await visitors.deny(societyA, tenant, denied.id)).toMatchObject({ status: 'DENIED' });
+    await expect(visitors.approve(societyA, tenant, denied.id, ...visitorWindow())).rejects.toThrow('denied');
+  });
+
+  it('rejects nonresident owners, foreign units and ineffective visitor host occupancies', async () => {
+    const foreign = await arrivalDestination(societyB);
+    await expect(visitors.createRequest(societyA, tenant, foreign.unitId, 'Foreign')).rejects.toThrow('active resident');
+    const { unitId } = await arrivalDestination();
+    await fixture.unitOwnership.create({ data: { societyId: societyA, unitId, userId: owner } });
+    await expect(visitors.createPass(societyA, owner, unitId, 'Owner', '999', ...visitorWindow())).rejects.toThrow('active resident');
+    for (const data of [{ active: false }, { effectiveTo: new Date(Date.now() - 86_400_000) }, { effectiveFrom: new Date(Date.now() + 86_400_000) }]) {
+      const destination = await arrivalDestination();
+      await arrivalOccupancy(societyA, destination.unitId, tenant, data);
+      await expect(visitors.createRequest(societyA, tenant, destination.unitId, 'Inactive')).rejects.toThrow('active resident');
+    }
+  });
+
+  it('rolls back pass issuance and both entry/exit transitions when persistence fails', async () => {
+    const { gateId, unitId } = await arrivalDestination();
+    await arrivalOccupancy(societyA, unitId, tenant);
+    const pending = await visitors.createRequest(societyA, tenant, unitId, 'Pending');
+    await expect(new VisitorService(failingVisitorClient('visitorPass')).approve(societyA, tenant, pending.id, ...visitorWindow())).rejects.toThrow('persistence failure');
+    expect(await fixture.visitor.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ status: 'PENDING' });
+    expect(await fixture.visitorPass.count({ where: { visitorId: pending.id } })).toBe(0);
+    const issued = await visitors.approve(societyA, tenant, pending.id, ...visitorWindow());
+    const failedClient = failingVisitorClient('auditEvent');
+    const rejected = new VisitorVerificationService(failedClient, new GateAuditService(failedClient));
+    await expect(rejected.verify(societyA, gateId, issued.credential, owner)).rejects.toThrow('persistence failure');
+    await expect(rejected.checkIn(societyA, gateId, issued.credential, owner)).rejects.toThrow('persistence failure');
+    expect(await fixture.visitorPass.findUniqueOrThrow({ where: { id: issued.pass.id } })).toMatchObject({ status: 'ACTIVE', checkedInAt: null });
+    expect(await fixture.visitor.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ status: 'APPROVED' });
+    await verification.checkIn(societyA, gateId, issued.credential, owner);
+    await expect(rejected.checkOut(societyA, gateId, issued.credential, owner)).rejects.toThrow('persistence failure');
+    expect(await fixture.visitorPass.findUniqueOrThrow({ where: { id: issued.pass.id } })).toMatchObject({ checkedOutAt: null });
+    expect(await fixture.visitor.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ status: 'CHECKED_IN' });
+    expect((await gateAudit.list(societyA, gateId)).map(row => row.event)).toEqual(['VISITOR_CHECKED_IN']);
+  });
+
+  it('issues and consumes a visitor pass once under concurrent restricted-role transitions', async () => {
+    const { gateId, unitId } = await arrivalDestination();
+    await arrivalOccupancy(societyA, unitId, tenant);
+    const pending = await visitors.createRequest(societyA, tenant, unitId, 'Concurrent');
+    const approvals = await Promise.allSettled([1, 2].map(() => visitors.approve(societyA, tenant, pending.id, ...visitorWindow())));
+    expect(approvals.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const approved = approvals.find(result => result.status === 'fulfilled');
+    if (!approved || approved.status !== 'fulfilled') throw new Error('Expected one pass');
+    expect(await fixture.visitorPass.count({ where: { visitorId: pending.id } })).toBe(1);
+    const entries = await Promise.allSettled([1, 2].map(() => verification.checkIn(societyA, gateId, approved.value.credential, owner)));
+    expect(entries.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect((await gateAudit.list(societyA, gateId)).map(row => row.event)).toEqual(['VISITOR_CHECKED_IN']);
+  });
+
+  it('rejects foreign visitor parents and foreign nested passes even for malformed legacy links', async () => {
+    const a = await arrivalDestination(), b = await arrivalDestination(societyB);
+    await arrivalOccupancy(societyA, a.unitId, tenant);
+    await arrivalOccupancy(societyB, b.unitId, tenant);
+    const local = await visitors.createPass(societyA, tenant, a.unitId, 'Local', '999', ...visitorWindow());
+    const remote = await visitors.createPass(societyB, tenant, b.unitId, 'Foreign', '999', ...visitorWindow());
+    // Copied tables intentionally omit public FKs; explicit society/parent
+    // filters and RLS must still deny these malformed legacy associations.
+    await fixture.visitorPass.update({ where: { id: remote.pass.id }, data: { visitorId: local.visitor.id } });
+    expect((await visitors.listForHost(societyA, tenant))[0].passes.map(row => row.id)).toEqual([local.pass.id]);
+    await expect(verification.verify(societyB, b.gateId, remote.credential, owner)).rejects.toThrow('not found');
+    await expect(verification.checkIn(societyB, b.gateId, remote.credential, owner)).rejects.toThrow('not found');
+  });
 
   it('routes delivery, cab and school arrivals to current occupants rather than non-resident owners', async () => {
     for (const [scope, subjectType, provider, minutes] of [

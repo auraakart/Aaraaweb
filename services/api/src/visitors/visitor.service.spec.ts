@@ -28,7 +28,7 @@ function service(overrides: Overrides = {}) {
     unitOccupancy,
     visitor,
     visitorPass,
-    $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient)),
+    withTenantContext: vi.fn(async (_societyId: string, callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient)),
   };
   return {
     svc: new VisitorService(prisma as unknown as ConstructorParameters<typeof VisitorService>[0]),
@@ -61,7 +61,7 @@ describe('VisitorService', () => {
     expect(result.visitor.status).toBe('APPROVED');
     expect(result.pass.status).toBe('ACTIVE');
     expect(typeof result.credential).toBe('string');
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
     expect(prisma.visitor.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.visitorPass.create).toHaveBeenCalledTimes(1);
   });
@@ -91,10 +91,61 @@ describe('VisitorService', () => {
     });
     const result = await svc.cancel('society-1', 'host-1', 'visitor-1');
     expect(result.status).toBe('CANCELLED');
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
     expect(prisma.visitorPass.updateMany).toHaveBeenCalledWith({
       where: { societyId: 'society-1', visitorId: 'visitor-1', status: 'ACTIVE' },
       data: { status: 'REVOKED' },
     });
   });
+  it('issues a trimmed preapproved pass without exposing the credential hash as the credential', async () => {
+    const { svc, prisma } = service();
+    const result = await svc.createPass('society-1', 'host-1', 'unit-1', ' Visitor ', ' 999 ', new Date(0), new Date(Date.now() + 60_000));
+    expect(result.visitor).toMatchObject({ name: 'Visitor', phone: '999', status: 'APPROVED' });
+    expect(result.pass.credentialHash).not.toBe(result.credential);
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
+    await svc.listForHost('society-1', 'host-1');
+    expect(prisma.visitor.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { societyId: 'society-1', hostUserId: 'host-1' },
+      include: { passes: { where: { societyId: 'society-1' }, orderBy: { createdAt: 'desc' }, take: 1 } },
+    }));
+  });
+
+  it('normalizes omitted and blank request metadata', async () => {
+    const { svc } = service();
+    for (const metadata of [undefined, '   ']) {
+      expect(await svc.createRequest('society-1', 'host-1', 'unit-1', ' Visitor ', metadata, metadata))
+        .toMatchObject({ name: 'Visitor', phone: null, purpose: null });
+    }
+  });
+
+  it.each(['createPass', 'approve'] as const)('rejects invalid %s validity before writing', async method => {
+    const { svc, prisma } = service();
+    await expect(method === 'createPass'
+      ? svc.createPass('society-1', 'host-1', 'unit-1', 'Visitor', '999', new Date(1), new Date(0))
+      : svc.approve('society-1', 'host-1', 'visitor-1', new Date(1), new Date(0))).rejects.toThrow('validity window');
+    expect(prisma.visitorPass.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['approve', 'deny', 'cancel'] as const)('denies missing or concurrently changed %s requests', async method => {
+    for (const missing of [true, false]) {
+      const { svc, prisma } = service({ visitor: missing ? { findFirst: vi.fn().mockResolvedValue(null) } : { updateMany: vi.fn().mockResolvedValue({ count: 0 }) } });
+      await expect(svc[method]('society-1', 'host-1', 'visitor-1', new Date(0), new Date(Date.now() + 60_000)))
+        .rejects.toThrow(missing ? 'not found' : 'changed before');
+      expect(prisma.visitorPass.create).not.toHaveBeenCalled();
+      expect(prisma.visitorPass.updateMany).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each(['approve', 'deny', 'cancel'] as const)('preserves %s state guards', async method => {
+    const { svc } = service({ visitor: { findFirst: vi.fn().mockResolvedValue({ id: 'visitor-1', status: 'CHECKED_IN' }) } });
+    await expect(svc[method]('society-1', 'host-1', 'visitor-1', new Date(0), new Date(Date.now() + 60_000)))
+      .rejects.toThrow('checked_in');
+  });
+
+  it('denies a pending request in one context', async () => {
+    const { svc, prisma } = service();
+    await svc.deny('society-1', 'host-1', 'visitor-1');
+    expect(prisma.visitor.updateMany).toHaveBeenCalledWith({ where: { id: 'visitor-1', societyId: 'society-1', hostUserId: 'host-1', status: 'PENDING' }, data: { status: 'DENIED' } });
+  });
+
 });

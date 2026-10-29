@@ -2,6 +2,9 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AccessSubjectType, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { VisitorService } from '../visitors/visitor.service';
+import { VisitorVerificationService } from '../visitors/visitor-verification.service';
+import { GateAuditService } from '../gates/gate-audit.service';
 import { GateArrivalService } from '../access/gate-arrival.service';
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { PrismaService } from './prisma.service';
@@ -91,6 +94,30 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     expect(await db.auditEvent.findMany({ where: { accessRequestId: request.id } })).toEqual([
       expect.objectContaining({ societyId, actorUserId: userId, gateId: gate.id, event: 'ACCESS_CREATED' }),
     ]);
+  });
+
+  databaseTest('retains visitor approval, single-use credential transitions and audit joins on real migrated tables', async db => {
+    const gate = await db.gate.create({ data: { societyId, name: 'Visitor fixture', code: randomUUID() } });
+    const scoped = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+        return run(tx);
+      }),
+    } as never;
+    const visitors = new VisitorService(scoped);
+    const audit = new GateAuditService(scoped);
+    const verification = new VisitorVerificationService(scoped, audit);
+    const pending = await visitors.createRequest(societyId, userId, unitId, 'Migrated visitor');
+    const issued = await visitors.approve(societyId, userId, pending.id, new Date(Date.now() - 60_000), new Date(Date.now() + 3_600_000));
+    await verification.verify(societyId, gate.id, issued.credential, userId);
+    await verification.checkIn(societyId, gate.id, issued.credential, userId);
+    await expect(verification.checkIn(societyId, gate.id, issued.credential, userId)).rejects.toThrow('used');
+    await verification.checkOut(societyId, gate.id, issued.credential, userId);
+    const events = await audit.list(societyId, gate.id);
+    expect(events.map(row => row.event).sort()).toEqual(['VISITOR_CHECKED_IN', 'VISITOR_CHECKED_OUT', 'VISITOR_VERIFIED']);
+    expect(events.every(row => row.visitorPassId === issued.pass.id && row.actorUserId === userId)).toBe(true);
+    expect(await db.visitor.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ status: 'CHECKED_OUT' });
+    expect((await visitors.listForHost(societyId, userId))[0].passes).toEqual([expect.objectContaining({ id: issued.pass.id, status: 'USED', checkedOutAt: expect.any(Date) })]);
   });
 
   it('deserializes advisory locks while retaining transaction ownership and release', async () => {
