@@ -1,3 +1,5 @@
+import { HouseholdService } from '../households/household.service';
+import { ParkingAdminController } from '../households/parking-admin.controller';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AccessSubjectType, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -201,6 +203,24 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await expect(db.$executeRaw(Prisma.sql`UPDATE "ParkingEvent" SET "note"='forbidden' WHERE "id"=${events[0].id}::uuid`)).rejects.toThrow('append-only');
     await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_event_probe`);
     await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_event_probe`);
+  });
+
+  databaseTest('preserves admin parking labels and eligibility on migrated household relations', async db => {
+    const scoped = { withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+      return run(tx);
+    }) } as never;
+    const service = new HouseholdService(scoped), admin = new ParkingAdminController(scoped, service);
+    const home = await db.household.create({ data: { societyId, unitId, accessPreferences: { delivery: 'door' } } });
+    const vehicle = await db.householdVehicle.create({ data: { societyId, householdId: home.id, plateNumber: randomUUID(), vehicleType: 'CAR' } });
+    await service.updateVehicleParkingSlot(societyId, home.id, vehicle.id, ' A1 ');
+    expect(await admin.list(societyId)).toEqual([expect.objectContaining({ householdId: home.id, parkingSlot: 'A1', unit: expect.objectContaining({ id: unitId }) })]);
+    await expect(service.updateVehicleParkingSlot(otherSocietyId, home.id, vehicle.id, 'foreign')).rejects.toThrow('Household not found');
+    await service.updateVehicleParkingSlot(societyId, home.id, vehicle.id);
+    expect((await db.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toEqual({ delivery: 'door', parkingSlots: {} });
+    await db.householdVehicle.update({ where: { id: vehicle.id }, data: { active: false } });
+    await expect(service.updateVehicleParkingSlot(societyId, home.id, vehicle.id, 'A2')).rejects.toThrow('Active household vehicle not found');
+    expect(await admin.list(societyId)).toEqual([]);
   });
 
   databaseTest('preserves parking allocation scope guards, release lifecycle and immutable events on migrated tables', async db => {
