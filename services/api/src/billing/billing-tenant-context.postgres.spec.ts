@@ -8,6 +8,7 @@ import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service'
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
+import { ParkingPermitService } from '../parking/parking-permit.service';
 import { GateAssignmentService } from '../gates/gate-assignment.service';
 import { GatesController } from '../gates/gates.controller';
 import { GateAuditService } from '../gates/gate-audit.service';
@@ -66,7 +67,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -254,10 +255,19 @@ database('Billing transactions under a non-owner RLS role', () => {
   const arrivalUnits = new Set<string>(), arrivalGates = new Set<string>(), arrivalUsers = new Set<string>();
   const arrivalFeatures = new Map<string, Prisma.JsonValue>();
   const assignmentMemberships = new Set<string>();
+  const parkingSlots = new Set<string>(), parkingPolicies = new Set<string>();
   afterEach(async () => {
     if (!arrivalUnits.size && !arrivalGates.size && !arrivalUsers.size) return;
     // Only this test's UUID-isolated copied rows. No public immutable evidence.
     const ids = [...arrivalUnits];
+    if (parkingSlots.size) {
+      const slotIds = Prisma.join([...parkingSlots].map(id => Prisma.sql`${id}::uuid`));
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingEvent" WHERE "slotId" IN (${slotIds})`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingPermit" WHERE "slotId" IN (${slotIds})`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingSlot" WHERE "id" IN (${slotIds})`);
+    }
+    if (parkingPolicies.size) await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingPolicy" WHERE "societyId" IN (${Prisma.join([...parkingPolicies].map(id => Prisma.sql`${id}::uuid`))})`);
+    parkingSlots.clear(); parkingPolicies.clear();
     const requests = await fixture.accessRequest.findMany({ where: { unitId: { in: ids } }, select: { id: true } });
     await fixture.auditEvent.deleteMany({ where: { OR: [{ accessRequestId: { in: requests.map(row => row.id) } }, { gateId: { in: [...arrivalGates] } }] } });
     const visitors = await fixture.visitor.findMany({ where: { unitId: { in: ids } }, select: { id: true } });
@@ -293,6 +303,121 @@ database('Billing transactions under a non-owner RLS role', () => {
     return fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId, relation: 'TENANT',
       effectiveFrom: new Date(Date.now() - 2 * 86_400_000), ...data } });
   }
+
+  const permits = new ParkingPermitService(runtime);
+  async function permitVisit(scope = societyA) {
+    const { unitId } = await arrivalDestination(scope);
+    await arrivalOccupancy(scope, unitId, tenant);
+    return { unitId, ...await new VisitorService(runtime).createPass(scope, tenant, unitId, 'Parking visitor', '999',
+      new Date(Date.now() - 3_600_000), new Date(Date.now() + 7_200_000)) };
+  }
+  async function permitSlot(scope = societyA, slotType = 'VISITOR', active = true) {
+    const [slot] = await fixture.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      INSERT INTO "ParkingSlot" ("societyId","code","slotType","active")
+      VALUES (${scope}::uuid,${randomUUID()},${slotType},${active}) RETURNING "id"`);
+    parkingSlots.add(slot.id);
+    return slot.id;
+  }
+  function permitInput(slotId: string, visit: Awaited<ReturnType<typeof permitVisit>>) {
+    return { slotId, visitorId: visit.visitor.id, visitorPassId: visit.pass.id, plateNumber: ' tn 01 ab 1234 ',
+      startsAt: new Date(Date.now() + 600_000).toISOString(), endsAt: new Date(Date.now() + 1_200_000).toISOString(), note: ' Visit ' };
+  }
+
+  it('isolates visitor parking eligibility/listing and transactional create/complete/cancel evidence in both societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const visit = await permitVisit(scope), slotId = await permitSlot(scope);
+      const input = permitInput(slotId, visit);
+      const created = await permits.create(scope, owner, input);
+      expect(await permits.list(scope)).toEqual([expect.objectContaining({ id: created.id, plateNumber: 'TN 01 AB 1234', note: 'Visit', visitorId: visit.visitor.id })]);
+      const eligible = await permits.eligibleVisitors(scope) as Array<{ visitorId: string }>;
+      expect(eligible.map(row => row.visitorId)).toContain(visit.visitor.id);
+      const foreign = scope === societyA ? societyB : societyA;
+      expect((await permits.list(foreign) as Array<{ id: string }>).some(row => row.id === created.id)).toBe(false);
+      expect((await permits.eligibleVisitors(foreign) as Array<{ visitorId: string }>).some(row => row.visitorId === visit.visitor.id)).toBe(false);
+      await expect(permits.cancel(foreign, owner, created.id)).rejects.toThrow('not found');
+      await permits.complete(scope, owner, created.id, ' Finished ');
+      await expect(permits.cancel(scope, owner, created.id)).rejects.toThrow('not found');
+      const second = await permits.create(scope, owner, input);
+      await permits.cancel(scope, owner, second.id, ' Cancelled ');
+      await expect(permits.complete(scope, owner, second.id)).rejects.toThrow('not found');
+      const events = await fixture.$queryRaw<Array<{ action: string; actorUserId: string; societyId: string }>>(Prisma.sql`
+        SELECT "action","actorUserId","societyId" FROM "ParkingEvent" WHERE "slotId"=${slotId}::uuid ORDER BY "action"`);
+      expect(events.map(row => row.action)).toEqual(['PERMIT_CANCELLED', 'PERMIT_COMPLETED', 'PERMIT_CREATED', 'PERMIT_CREATED']);
+      expect(events.every(row => row.actorUserId === owner && row.societyId === scope)).toBe(true);
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingPermit"`)).toEqual([]);
+  });
+
+  it('denies foreign slot, visitor and pass substitution before parking permit creation', async () => {
+    const a = await permitVisit(), b = await permitVisit(societyB);
+    const slotA = await permitSlot(), slotB = await permitSlot(societyB);
+    const input = permitInput(slotA, a);
+    for (const change of [{ slotId: slotB }, { visitorId: b.visitor.id }, { visitorPassId: b.pass.id }, { visitorId: b.visitor.id, visitorPassId: b.pass.id }]) {
+      await expect(permits.create(societyA, owner, { ...input, ...change })).rejects.toThrow('combination not found');
+    }
+    expect(await permits.list(societyA)).toEqual([]);
+  });
+
+  it('retains visitor/pass windows, allowed slot types and temporary-overflow policy during scoped creation', async () => {
+    const visit = await permitVisit(), slot = await permitSlot();
+    const input = permitInput(slot, visit);
+    for (const slotType of ['RESIDENT', 'STAFF']) await expect(permits.create(societyA, owner, { ...input, slotId: await permitSlot(societyA, slotType) })).rejects.toThrow('combination not found');
+    await expect(permits.create(societyA, owner, { ...input, slotId: await permitSlot(societyA, 'VISITOR', false) })).rejects.toThrow('combination not found');
+    await expect(permits.create(societyA, owner, { ...input, startsAt: new Date(visit.pass.validFrom.getTime() - 1).toISOString() })).rejects.toThrow('combination not found');
+    await expect(permits.create(societyA, owner, { ...input, endsAt: new Date(visit.pass.validUntil.getTime() + 1).toISOString() })).rejects.toThrow('combination not found');
+    await fixture.visitorPass.update({ where: { id: visit.pass.id }, data: { status: 'REVOKED' } });
+    await expect(permits.create(societyA, owner, input)).rejects.toThrow('combination not found');
+    await fixture.visitorPass.update({ where: { id: visit.pass.id }, data: { status: 'ACTIVE' } });
+    await fixture.visitor.update({ where: { id: visit.visitor.id }, data: { status: 'CANCELLED' } });
+    await expect(permits.create(societyA, owner, input)).rejects.toThrow('combination not found');
+    await fixture.visitor.update({ where: { id: visit.visitor.id }, data: { status: 'APPROVED' } });
+    parkingPolicies.add(societyA);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "ParkingPolicy" ("societyId","updatedByUserId","allowTemporaryOverflow") VALUES (${societyA}::uuid,${owner}::uuid,false)`);
+    const temporary = await permitSlot(societyA, 'TEMPORARY');
+    await expect(permits.create(societyA, owner, { ...input, slotId: temporary })).rejects.toThrow('combination not found');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "ParkingPolicy" SET "allowTemporaryOverflow"=true WHERE "societyId"=${societyA}::uuid`);
+    expect(await permits.create(societyA, owner, { ...input, slotId: temporary })).toHaveProperty('id');
+    expect(await permits.create(societyA, owner, { ...input, slotId: await permitSlot(societyA, 'ACCESSIBLE') })).toHaveProperty('id');
+  });
+
+  it('retains the migrated exclusion constraint, concurrent slot locking and adjacent permit windows under RLS', async () => {
+    const visit = await permitVisit(), slot = await permitSlot(), input = permitInput(slot, visit);
+    const results = await Promise.allSettled([1, 2].map(() => permits.create(societyA, owner, input)));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find(result => result.status === 'rejected');
+    expect(rejected?.status === 'rejected' && rejected.reason.message).toContain('overlapping active permit');
+    const saved = await fixture.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "ParkingPermit" WHERE "slotId"=${slot}::uuid`);
+    expect(saved).toHaveLength(1);
+    // Direct insertion must still fail at the copied migrated exclusion
+    // constraint; the application lock is not its replacement.
+    await expect(fixture.$executeRaw(Prisma.sql`INSERT INTO "ParkingPermit" ("societyId","slotId","visitorId","visitorPassId","plateNumber","startsAt","endsAt","createdByUserId")
+      SELECT "societyId","slotId","visitorId","visitorPassId","plateNumber","startsAt","endsAt","createdByUserId" FROM "ParkingPermit" WHERE "id"=${saved[0].id}::uuid`)).rejects.toThrow(/exclusion|conflicting key/i);
+    expect(await permits.create(societyA, owner, { ...input, startsAt: input.endsAt, endsAt: new Date(new Date(input.endsAt).getTime() + 600_000).toISOString() })).toHaveProperty('id');
+  });
+
+  it('rolls back parking permit state and event evidence when event persistence fails after writing', async () => {
+    const visit = await permitVisit(), slot = await permitSlot(), input = permitInput(slot, visit);
+    const failed = new ParkingPermitService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+      get(target, key) {
+        if (key === '$executeRaw') return async (sql: Prisma.Sql) => { await target.$executeRaw(sql); throw new Error('Simulated parking event response failure'); };
+        const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }))) } as never);
+    await expect(failed.create(societyA, owner, input)).rejects.toThrow('parking event response failure');
+    expect(await permits.list(societyA)).toEqual([]);
+    const created = await permits.create(societyA, owner, input);
+    for (const method of ['cancel', 'complete'] as const) await expect(failed[method](societyA, owner, created.id)).rejects.toThrow('parking event response failure');
+    expect(await permits.list(societyA)).toEqual([expect.objectContaining({ id: created.id, status: 'ACTIVE' })]);
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingEvent" WHERE "slotId"=${slot}::uuid`)).toHaveLength(1);
+  });
+
+  it('does not expose foreign building details through malformed visitor unit parents', async () => {
+    const visit = await permitVisit(), slot = await permitSlot();
+    await permits.create(societyA, owner, permitInput(slot, visit));
+    await fixture.unit.update({ where: { id: visit.unitId }, data: { buildingId: buildingB } });
+    expect(await permits.list(societyA)).toEqual([]);
+    expect(await permits.eligibleVisitors(societyA)).toEqual([]);
+  });
 
   const assignments = new GateAssignmentService(runtime);
   async function securityMembership(scope: string, userId: string, role: MembershipRole = MembershipRole.SECURITY_GUARD, active = true) {

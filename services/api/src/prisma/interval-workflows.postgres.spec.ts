@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AccessSubjectType, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ParkingPermitService } from '../parking/parking-permit.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
 import { GatesController } from '../gates/gates.controller';
@@ -167,6 +168,37 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     expect(await gates.deactivate(a.id, societyId)).toMatchObject({ active: false });
     expect(await gates.activate(a.id, societyId)).toMatchObject({ active: true });
     expect(await db.gate.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ active: true });
+  });
+
+  databaseTest('preserves visitor parking permit constraints, terminal states and append-only events on real migrated tables', async db => {
+    const scoped = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+        return run(tx);
+      }),
+    } as never;
+    const visitor = await new VisitorService(scoped).createPass(societyId, userId, unitId, 'Parking fixture', '999',
+      new Date(Date.now() - 60_000), new Date(Date.now() + 3_600_000));
+    const [slot] = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      INSERT INTO "ParkingSlot" ("societyId","code","slotType") VALUES (${societyId}::uuid,${randomUUID()},'VISITOR') RETURNING "id"`);
+    const service = new ParkingPermitService(scoped);
+    const input = { slotId: slot.id, visitorId: visitor.visitor.id, visitorPassId: visitor.pass.id, plateNumber: ' tn 01 1234 ',
+      startsAt: new Date(Date.now() + 600_000).toISOString(), endsAt: new Date(Date.now() + 1_200_000).toISOString() };
+    const first = await service.create(societyId, userId, input);
+    expect(await service.list(societyId)).toEqual([expect.objectContaining({ id: first.id, plateNumber: 'TN 01 1234' })]);
+    await expect(service.create(societyId, userId, input)).rejects.toThrow('overlapping active permit');
+    await expect(service.cancel(otherSocietyId, userId, first.id)).rejects.toThrow('not found');
+    await service.cancel(societyId, userId, first.id);
+    await expect(service.complete(societyId, userId, first.id)).rejects.toThrow('not found');
+    const second = await service.create(societyId, userId, input);
+    await service.complete(societyId, userId, second.id);
+    const events = await db.$queryRaw<Array<{ id: string; action: string }>>(Prisma.sql`
+      SELECT "id","action" FROM "ParkingEvent" WHERE "slotId"=${slot.id}::uuid ORDER BY "action"`);
+    expect(events.map(row => row.action)).toEqual(['PERMIT_CANCELLED', 'PERMIT_COMPLETED', 'PERMIT_CREATED', 'PERMIT_CREATED']);
+    await db.$executeRaw(Prisma.sql`SAVEPOINT parking_event_probe`);
+    await expect(db.$executeRaw(Prisma.sql`UPDATE "ParkingEvent" SET "note"='forbidden' WHERE "id"=${events[0].id}::uuid`)).rejects.toThrow('append-only');
+    await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_event_probe`);
+    await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_event_probe`);
   });
 
   it('deserializes advisory locks while retaining transaction ownership and release', async () => {

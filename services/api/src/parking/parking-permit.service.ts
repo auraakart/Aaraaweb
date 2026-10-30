@@ -17,7 +17,7 @@ export class ParkingPermitService {
   constructor(private readonly prisma: PrismaService) {}
 
   list(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT pp.*, ps."code" AS "slotCode", ps."slotType",
         v."name" AS "visitorName", v."phone" AS "visitorPhone", v."unitId",
         u."number" AS "unitNumber", b."name" AS "buildingName"
@@ -25,29 +25,29 @@ export class ParkingPermitService {
       JOIN "ParkingSlot" ps ON ps."id"=pp."slotId" AND ps."societyId"=pp."societyId"
       JOIN "Visitor" v ON v."id"=pp."visitorId" AND v."societyId"=pp."societyId"
       JOIN "Unit" u ON u."id"=v."unitId" AND u."societyId"=pp."societyId"
-      JOIN "Building" b ON b."id"=u."buildingId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
       WHERE pp."societyId"=${societyId}::uuid
       ORDER BY (pp."status"='ACTIVE') DESC, pp."startsAt" ASC, pp."createdAt" DESC
       LIMIT 500
-    `);
+    `));
   }
 
   eligibleVisitors(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT v."id" AS "visitorId", v."name" AS "visitorName", v."phone" AS "visitorPhone",
         v."unitId", u."number" AS "unitNumber", b."name" AS "buildingName",
         vp."id" AS "visitorPassId", vp."validFrom", vp."validUntil"
       FROM "VisitorPass" vp
       JOIN "Visitor" v ON v."id"=vp."visitorId" AND v."societyId"=vp."societyId"
       JOIN "Unit" u ON u."id"=v."unitId" AND u."societyId"=vp."societyId"
-      JOIN "Building" b ON b."id"=u."buildingId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
       WHERE vp."societyId"=${societyId}::uuid
         AND vp."status"='ACTIVE'
         AND v."status"='APPROVED'
         AND vp."validUntil" > CURRENT_TIMESTAMP
       ORDER BY vp."validFrom" ASC, v."name" ASC
       LIMIT 500
-    `);
+    `));
   }
 
   async create(societyId: string, actorUserId: string, input: CreatePermitInput) {
@@ -62,7 +62,7 @@ export class ParkingPermitService {
     if (note && note.length > 300) throw new BadRequestException('Parking permit note is too long');
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const context = await tx.$queryRaw<Array<{ slotId: string; visitorId: string }>>(Prisma.sql`
           SELECT ps."id" AS "slotId", v."id" AS "visitorId"
           FROM "ParkingSlot" ps
@@ -79,7 +79,7 @@ export class ParkingPermitService {
         `);
         if (!context[0]) throw new NotFoundException('Eligible visitor pass and parking slot combination not found');
         const overlap = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT "id" FROM "ParkingPermit" WHERE "slotId"=${input.slotId}::uuid AND "status"='ACTIVE'
+          SELECT "id" FROM "ParkingPermit" WHERE "slotId"=${input.slotId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
             AND tstzrange("startsAt","endsAt",'[)') && tstzrange(${startsAt},${endsAt},'[)') LIMIT 1
         `);
         if (overlap[0]) throw new ConflictException('Parking slot already has an overlapping active permit');
@@ -110,7 +110,7 @@ export class ParkingPermitService {
   private async close(societyId: string, actorUserId: string, permitId: string, status: 'CANCELLED'|'COMPLETED', action: 'PERMIT_CANCELLED'|'PERMIT_COMPLETED', noteInput?: string) {
     const note = noteInput?.trim() || null;
     if (note && note.length > 300) throw new BadRequestException('Parking permit note is too long');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = status === 'CANCELLED'
         ? await tx.$queryRaw<Array<{ id: string; slotId: string }>>(Prisma.sql`UPDATE "ParkingPermit" SET "status"='CANCELLED',"cancelledAt"=CURRENT_TIMESTAMP,"cancelledByUserId"=${actorUserId}::uuid,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${permitId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE' RETURNING "id","slotId"`)
         : await tx.$queryRaw<Array<{ id: string; slotId: string }>>(Prisma.sql`UPDATE "ParkingPermit" SET "status"='COMPLETED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${permitId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE' RETURNING "id","slotId"`);
