@@ -11,6 +11,7 @@ export default defineConfig({
       'src/gates/gates.authorization.spec.ts',
       'src/gates/gate-assignment.service.spec.ts',
       'src/parking/parking-permit.service.spec.ts',
+      'src/parking/parking.service.spec.ts',
       'src/access/walk-in-visitor.e2e.spec.ts',
       'src/access/gate-arrival.service.spec.ts',
       'src/visitors/visitor.service.spec.ts',
@@ -72,6 +73,7 @@ export default defineConfig({
         'src/gates/gates.controller.ts',
         'src/gates/gate-assignment.service.ts',
         'src/parking/parking-permit.service.ts',
+        'src/parking/parking.service.ts',
         'src/auth/session.service.ts',
         'src/auth/auth-state.store.ts',
         'src/auth/auth.service.ts',
@@ -97,6 +99,7 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/parking/parking.service.ts': { statements: 90, branches: 80, functions: 100, lines: 90 },
         'src/parking/parking-permit.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },
         'src/gates/gate-assignment.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },
         'src/gates/gates.controller.ts': { statements: 85, branches: 55, functions: 65, lines: 85 },

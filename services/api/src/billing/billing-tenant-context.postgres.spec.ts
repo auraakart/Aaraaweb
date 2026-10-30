@@ -9,6 +9,8 @@ import { EntitlementService } from '../entitlements/entitlement.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
 import { ParkingPermitService } from '../parking/parking-permit.service';
+import { ParkingService } from '../parking/parking.service';
+import { ConflictException } from '@nestjs/common';
 import { GateAssignmentService } from '../gates/gate-assignment.service';
 import { GatesController } from '../gates/gates.controller';
 import { GateAuditService } from '../gates/gate-audit.service';
@@ -67,7 +69,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'Household', 'HouseholdVehicle', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -93,6 +95,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     // retaining every migrated default, check and index.
     const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
       { table: 'SocietyMembership', column: 'role', type: 'MembershipRole' },
+      { table: 'HouseholdVehicle', column: 'vehicleType', type: 'VehicleType' },
       { table: 'Society', column: 'status', type: 'SocietyStatus', defaultValue: 'ACTIVE' },
       { table: 'Visitor', column: 'status', type: 'VisitorStatus', defaultValue: 'PENDING' },
       { table: 'VisitorPass', column: 'status', type: 'VisitorPassStatus', defaultValue: 'ACTIVE' },
@@ -256,6 +259,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const arrivalFeatures = new Map<string, Prisma.JsonValue>();
   const assignmentMemberships = new Set<string>();
   const parkingSlots = new Set<string>(), parkingPolicies = new Set<string>();
+  const parkingHouseholds = new Set<string>();
   afterEach(async () => {
     if (!arrivalUnits.size && !arrivalGates.size && !arrivalUsers.size) return;
     // Only this test's UUID-isolated copied rows. No public immutable evidence.
@@ -264,8 +268,16 @@ database('Billing transactions under a non-owner RLS role', () => {
       const slotIds = Prisma.join([...parkingSlots].map(id => Prisma.sql`${id}::uuid`));
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingEvent" WHERE "slotId" IN (${slotIds})`);
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingPermit" WHERE "slotId" IN (${slotIds})`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingAllocation" WHERE "slotId" IN (${slotIds})`);
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingSlot" WHERE "id" IN (${slotIds})`);
     }
+    if (parkingHouseholds.size) {
+      const households = Prisma.join([...parkingHouseholds].map(id => Prisma.sql`${id}::uuid`));
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingCredential" WHERE "vehicleId" IN (SELECT "id" FROM "HouseholdVehicle" WHERE "householdId" IN (${households}))`);
+      await fixture.householdVehicle.deleteMany({ where: { householdId: { in: [...parkingHouseholds] } } });
+      await fixture.household.deleteMany({ where: { id: { in: [...parkingHouseholds] } } });
+    }
+    parkingHouseholds.clear();
     if (parkingPolicies.size) await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingPolicy" WHERE "societyId" IN (${Prisma.join([...parkingPolicies].map(id => Prisma.sql`${id}::uuid`))})`);
     parkingSlots.clear(); parkingPolicies.clear();
     const requests = await fixture.accessRequest.findMany({ where: { unitId: { in: ids } }, select: { id: true } });
@@ -417,6 +429,138 @@ database('Billing transactions under a non-owner RLS role', () => {
     await fixture.unit.update({ where: { id: visit.unitId }, data: { buildingId: buildingB } });
     expect(await permits.list(societyA)).toEqual([]);
     expect(await permits.eligibleVisitors(societyA)).toEqual([]);
+  });
+
+  const parking = new ParkingService(runtime);
+  async function parkingHousehold(scope = societyA) {
+    const { unitId } = await arrivalDestination(scope);
+    const household = await fixture.household.create({ data: { societyId: scope, unitId } });
+    parkingHouseholds.add(household.id);
+    const vehicle = await parkingVehicle(scope, household.id);
+    return { householdId: household.id, vehicleId: vehicle.id };
+  }
+  function parkingVehicle(scope: string, householdId: string, active = true) {
+    return fixture.householdVehicle.create({ data: { societyId: scope, householdId, plateNumber: randomUUID(), vehicleType: 'CAR', active } });
+  }
+  async function residentSlot(scope = societyA, code: string = randomUUID()) {
+    const slot = await parking.createSlot(scope, owner, { code, buildingId: scope === societyA ? buildingA : buildingB });
+    parkingSlots.add(slot.id);
+    return slot.id;
+  }
+  async function allocationPolicy(scope: string, max: number, requireCredential = false) {
+    parkingPolicies.add(scope);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "ParkingPolicy" ("societyId","updatedByUserId","maxActiveResidentVehicles","requireCredential")
+      VALUES (${scope}::uuid,${owner}::uuid,${max},${requireCredential})`);
+  }
+
+  it('isolates parking slots, allocations, active-only release and actor history in both societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const household = await parkingHousehold(scope), slotId = await residentSlot(scope, ' same-code ');
+      const allocation = await parking.allocate(scope, owner, { slotId, ...household, note: ' Resident ' });
+      expect(await parking.list(scope)).toEqual([expect.objectContaining({ id: slotId, code: 'SAME-CODE', allocationId: allocation.id })]);
+      const foreign = scope === societyA ? societyB : societyA;
+      expect((await parking.list(foreign) as Array<{ id: string }>).some(row => row.id === slotId)).toBe(false);
+      expect((await parking.history(foreign) as Array<{ slotId: string }>).some(row => row.slotId === slotId)).toBe(false);
+      await expect(parking.release(foreign, owner, allocation.id)).rejects.toThrow('not found');
+      await parking.release(scope, owner, allocation.id, ' Done ');
+      await expect(parking.release(scope, owner, allocation.id)).rejects.toThrow('not found');
+      const events = await parking.history(scope) as Array<{ slotId: string; action: string; actorUserId: string }>;
+      expect(events.filter(row => row.slotId === slotId).map(row => row.action).sort()).toEqual(['ALLOCATED', 'RELEASED', 'SLOT_CREATED']);
+      expect(events.every(row => row.actorUserId === owner)).toBe(true);
+      expect(await parking.list(scope)).toEqual([expect.objectContaining({ id: slotId, allocationId: null })]);
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingAllocation"`)).toEqual([]);
+  });
+
+  it('denies foreign parking buildings, slots, households, vehicles and inactive parents', async () => {
+    const own = await parkingHousehold(), foreign = await parkingHousehold(societyB);
+    const slotId = await residentSlot(), foreignSlot = await residentSlot(societyB);
+    await expect(parking.createSlot(societyA, owner, { code: randomUUID(), buildingId: buildingB })).rejects.toThrow('Building not found');
+    for (const input of [
+      { slotId: foreignSlot, ...own }, { slotId, ...foreign },
+      { slotId, householdId: own.householdId, vehicleId: foreign.vehicleId },
+      { slotId, householdId: foreign.householdId, vehicleId: own.vehicleId },
+    ]) await expect(parking.allocate(societyA, owner, input)).rejects.toThrow('not found');
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { active: false } });
+    await expect(parking.allocate(societyA, owner, { slotId, ...own })).rejects.toThrow('not found');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "ParkingSlot" SET "active"=false WHERE "id"=${slotId}::uuid`);
+    await expect(parking.allocate(societyA, owner, { slotId, ...own })).rejects.toThrow('Inactive');
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingAllocation"`)).toEqual([]);
+  });
+
+  it('enforces society credential and household ceiling policy and permits reuse after release', async () => {
+    const own = await parkingHousehold(), slotId = await residentSlot(), nextSlot = await residentSlot();
+    await allocationPolicy(societyA, 1, true);
+    await expect(parking.allocate(societyA, owner, { slotId, ...own })).rejects.toThrow('credential is required');
+    const [credential] = await fixture.$queryRaw<Array<{ id: string }>>(Prisma.sql`INSERT INTO "ParkingCredential" ("societyId","vehicleId","credential","status","issuedByUserId")
+      VALUES (${societyB}::uuid,${own.vehicleId}::uuid,${randomUUID()},'ACTIVE',${owner}::uuid) RETURNING "id"`);
+    await expect(parking.allocate(societyA, owner, { slotId, ...own })).rejects.toThrow('credential is required');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "ParkingCredential" SET "societyId"=${societyA}::uuid,"status"='REVOKED' WHERE "id"=${credential.id}::uuid`);
+    await expect(parking.allocate(societyA, owner, { slotId, ...own })).rejects.toThrow('credential is required');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "ParkingCredential" SET "status"='ACTIVE' WHERE "id"=${credential.id}::uuid`);
+    const first = await parking.allocate(societyA, owner, { slotId, ...own });
+    await expect(parking.allocate(societyA, owner, { slotId: nextSlot, ...own })).rejects.toThrow('configured active parking allocation limit');
+    await parking.release(societyA, owner, first.id);
+    expect(await parking.allocate(societyA, owner, { slotId: nextSlot, ...own })).toHaveProperty('id');
+  });
+
+  it('maps real migrated slot-code and active slot/vehicle uniqueness errors to safe conflicts', async () => {
+    const own = await parkingHousehold(), slotId = await residentSlot(societyA, 'unique-code'), otherSlot = await residentSlot();
+    await expect(parking.createSlot(societyA, owner, { code: ' UNIQUE-CODE ' })).rejects.toBeInstanceOf(ConflictException);
+    await allocationPolicy(societyA, 12);
+    await parking.allocate(societyA, owner, { slotId, ...own });
+    const nextVehicle = await parkingVehicle(societyA, own.householdId);
+    await expect(parking.allocate(societyA, owner, { slotId, householdId: own.householdId, vehicleId: nextVehicle.id })).rejects.toBeInstanceOf(ConflictException);
+    await expect(parking.allocate(societyA, owner, { slotId: otherSlot, ...own })).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('serializes the household ceiling across concurrent allocations to different slots and vehicles', async () => {
+    const own = await parkingHousehold(), secondVehicle = await parkingVehicle(societyA, own.householdId);
+    const slotId = await residentSlot(), secondSlot = await residentSlot();
+    await allocationPolicy(societyA, 1);
+    let counts = 0;
+    let releaseCounts!: () => void;
+    const bothCounted = new Promise<void>(resolve => { releaseCounts = resolve; });
+    const concurrent = new ParkingService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+      get(target, key) {
+        if (key === '$queryRaw') return async (sql: Prisma.Sql) => {
+          const rows = await target.$queryRaw(sql);
+          if (sql.sql.includes('COUNT(*)') && sql.sql.includes('ParkingAllocation')) {
+            if (++counts === 2) releaseCounts();
+            // Expose the original count-before-insert race. A serialized first
+            // caller may continue alone; no second count is required to release it.
+            await Promise.race([bothCounted, new Promise(resolve => setTimeout(resolve, 200))]);
+          }
+          return rows;
+        };
+        const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }))) } as never);
+    const results = await Promise.allSettled([
+      concurrent.allocate(societyA, owner, { slotId, ...own }),
+      concurrent.allocate(societyA, owner, { slotId: secondSlot, householdId: own.householdId, vehicleId: secondVehicle.id }),
+    ]);
+    expect(results.filter(row => row.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find(row => row.status === 'rejected')).toMatchObject({ reason: expect.any(ConflictException) });
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingAllocation" WHERE "householdId"=${own.householdId}::uuid AND "endedAt" IS NULL`)).toHaveLength(1);
+  });
+
+  it('rolls back slot/allocation/release state and actual event writes on response failure', async () => {
+    const own = await parkingHousehold(), slotId = await residentSlot();
+    const failed = new ParkingService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+      get(target, key) {
+        if (key === '$executeRaw') return async (sql: Prisma.Sql) => { await target.$executeRaw(sql); throw new Error('Parking response failure'); };
+        const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }))) } as never);
+    await expect(failed.createSlot(societyA, owner, { code: 'failed-slot' })).rejects.toThrow('Parking response failure');
+    expect(await parking.list(societyA)).toHaveLength(1);
+    await expect(failed.allocate(societyA, owner, { slotId, ...own })).rejects.toThrow('Parking response failure');
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingAllocation" WHERE "slotId"=${slotId}::uuid`)).toEqual([]);
+    const allocation = await parking.allocate(societyA, owner, { slotId, ...own });
+    await expect(failed.release(societyA, owner, allocation.id)).rejects.toThrow('Parking response failure');
+    expect(await parking.list(societyA)).toEqual([expect.objectContaining({ allocationId: allocation.id })]);
+    expect(await parking.history(societyA)).toHaveLength(2);
   });
 
   const assignments = new GateAssignmentService(runtime);
