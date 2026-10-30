@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "dbdfa53185c5ecabd57d986f7d96258d4bc2c20b5f5a4498358e70fd6ad487f6",
+  "sourceDigest": "79b250177e09df85225dda1bad972ddc20692d89eed5df6ad317025da88286d7",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 13,
     "utilitySqlSites": 66,
-    "runtimeTenantContextCalls": 217,
+    "runtimeTenantContextCalls": 221,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -659,6 +659,22 @@
     {
       "file": "services/api/src/helpdesk/helpdesk-photos.service.ts",
       "line": 105
+    },
+    {
+      "file": "services/api/src/parking/parking-permit.service.ts",
+      "line": 20
+    },
+    {
+      "file": "services/api/src/parking/parking-permit.service.ts",
+      "line": 36
+    },
+    {
+      "file": "services/api/src/parking/parking-permit.service.ts",
+      "line": 65
+    },
+    {
+      "file": "services/api/src/parking/parking-permit.service.ts",
+      "line": 113
     },
     {
       "file": "services/api/src/privacy/privacy-consent.service.ts",
@@ -2682,10 +2698,10 @@
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-operations.service.ts","line":86,"method":"violations","operation":"$queryRaw","kind":"RAW_SQL","tables":["HouseholdVehicle","ParkingSlot","ParkingViolation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-operations.service.ts","line":100,"method":"reportViolation","operation":"$queryRaw","kind":"RAW_SQL","tables":["HouseholdVehicle","ParkingPermit","ParkingSlot","ParkingViolation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-operations.service.ts","line":114,"method":"resolveViolation","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingViolation"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":20,"method":"list","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","ParkingPermit","ParkingSlot","Unit","Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":36,"method":"eligibleVisitors","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","Visitor","VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":20,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","ParkingPermit","ParkingSlot","Unit","Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":36,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","Visitor","VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":66,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingPolicy","ParkingSlot","Visitor","VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":81,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingPermit"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":81,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingPermit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":86,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingPermit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":91,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["ParkingEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-permit.service.ts","line":115,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingPermit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
