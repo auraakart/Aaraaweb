@@ -201,6 +201,71 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_event_probe`);
   });
 
+  for (const state of ['CHECKED_IN', 'CHECKED_OUT', 'INACTIVE_SLOT'] as const) {
+    for (const action of ['complete', 'cancel'] as const) {
+      databaseTest(`allows parking permit ${action} after ${state} without admitting new permits`, async db => {
+        const scoped = {
+          withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+            await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+            return run(tx);
+          }),
+        } as never;
+        const gate = await db.gate.create({ data: { societyId, name: 'Parking lifecycle', code: randomUUID() } });
+        const visitor = await new VisitorService(scoped).createPass(societyId, userId, unitId, 'Parking lifecycle', '999',
+          new Date(Date.now() - 60_000), new Date(Date.now() + 3_600_000));
+        const [slot] = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          INSERT INTO "ParkingSlot" ("societyId","code","slotType") VALUES (${societyId}::uuid,${randomUUID()},'VISITOR') RETURNING "id"`);
+        const service = new ParkingPermitService(scoped);
+        const input = { slotId: slot.id, visitorId: visitor.visitor.id, visitorPassId: visitor.pass.id, plateNumber: 'TN01AA1234',
+          startsAt: new Date(Date.now() + 600_000).toISOString(), endsAt: new Date(Date.now() + 1_200_000).toISOString() };
+        const permit = await service.create(societyId, userId, input);
+        if (state === 'INACTIVE_SLOT') {
+          await db.$executeRaw(Prisma.sql`UPDATE "ParkingSlot" SET "active"=false WHERE "id"=${slot.id}::uuid`);
+        } else {
+          const verification = new VisitorVerificationService(scoped, new GateAuditService(scoped));
+          await verification.checkIn(societyId, gate.id, visitor.credential, userId);
+          if (state === 'CHECKED_OUT') await verification.checkOut(societyId, gate.id, visitor.credential, userId);
+          expect(await db.visitorPass.findUniqueOrThrow({ where: { id: visitor.pass.id } })).toMatchObject({ status: 'USED' });
+        }
+        await expect(service.create(societyId, userId, input)).rejects.toThrow('Eligible visitor pass');
+        await expect(service[action](otherSocietyId, userId, permit.id)).rejects.toThrow('not found');
+        const rejectedStatement = async (statement: Prisma.Sql) => {
+          await db.$executeRaw(Prisma.sql`SAVEPOINT parking_lifecycle_probe`);
+          await expect(db.$executeRaw(statement)).rejects.toThrow('Parking permit');
+          await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_lifecycle_probe`);
+          await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_lifecycle_probe`);
+        };
+        // Direct SQL must retain creation eligibility and must not use the
+        // terminal-state exception to substitute scope, parents or windows.
+        await rejectedStatement(Prisma.sql`
+          INSERT INTO "ParkingPermit" ("societyId","slotId","visitorId","visitorPassId","plateNumber","startsAt","endsAt","createdByUserId")
+          SELECT "societyId","slotId","visitorId","visitorPassId","plateNumber","startsAt","endsAt","createdByUserId"
+          FROM "ParkingPermit" WHERE "id"=${permit.id}::uuid`);
+        for (const changed of [
+          Prisma.sql`"societyId"=${otherSocietyId}::uuid`,
+          Prisma.sql`"slotId"=${randomUUID()}::uuid`,
+          Prisma.sql`"visitorId"=${randomUUID()}::uuid`,
+          Prisma.sql`"visitorPassId"=${randomUUID()}::uuid`,
+          Prisma.sql`"startsAt"="startsAt"+INTERVAL '1 minute'`,
+          Prisma.sql`"endsAt"="endsAt"-INTERVAL '1 minute'`,
+        ]) {
+          await rejectedStatement(Prisma.sql`UPDATE "ParkingPermit" SET "status"='COMPLETED',"completedAt"=CURRENT_TIMESTAMP,${changed}
+            WHERE "id"=${permit.id}::uuid`);
+        }
+        await service[action](societyId, userId, permit.id, 'Lifecycle closed');
+        await expect(service[action](societyId, userId, permit.id)).rejects.toThrow('not found');
+        const [stored] = await db.$queryRaw<Array<{ status: string; slotId: string; visitorPassId: string }>>(Prisma.sql`
+          SELECT "status","slotId","visitorPassId" FROM "ParkingPermit" WHERE "id"=${permit.id}::uuid`);
+        expect(stored).toEqual({ status: action === 'complete' ? 'COMPLETED' : 'CANCELLED', slotId: slot.id, visitorPassId: visitor.pass.id });
+        await rejectedStatement(Prisma.sql`UPDATE "ParkingPermit" SET "status"='ACTIVE',"completedAt"=NULL,"cancelledAt"=NULL,"cancelledByUserId"=NULL
+          WHERE "id"=${permit.id}::uuid`);
+        const events = await db.$queryRaw<Array<{ action: string }>>(Prisma.sql`
+          SELECT "action" FROM "ParkingEvent" WHERE "permitId"=${permit.id}::uuid ORDER BY "occurredAt","action"`);
+        expect(events.map(row => row.action).sort()).toEqual(['PERMIT_CREATED', action === 'complete' ? 'PERMIT_COMPLETED' : 'PERMIT_CANCELLED'].sort());
+      });
+    }
+  }
+
   it('deserializes advisory locks while retaining transaction ownership and release', async () => {
     const key = `interval-lock:${randomUUID()}`;
     await prisma.$transaction(async tx => {
