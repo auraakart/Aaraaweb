@@ -1,3 +1,5 @@
+import { HouseholdService } from '../households/household.service';
+import { ParkingAdminController } from '../households/parking-admin.controller';
 import { AccessSubjectType, MembershipRole, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -565,6 +567,61 @@ database('Billing transactions under a non-owner RLS role', () => {
     await expect(failed.release(societyA, owner, allocation.id)).rejects.toThrow('Parking response failure');
     expect(await parking.list(societyA)).toEqual([expect.objectContaining({ allocationId: allocation.id })]);
     expect(await parking.history(societyA)).toHaveLength(2);
+  });
+
+  const householdParking = new HouseholdService(runtime);
+  const parkingAdmin = new ParkingAdminController(runtime, householdParking);
+
+  it('isolates admin parking lists and label updates in both societies, preserving preference keys', async () => {
+    for (const scope of [societyA, societyB]) {
+      const own = await parkingHousehold(scope), foreign = scope === societyA ? societyB : societyA;
+      await fixture.household.update({ where: { id: own.householdId }, data: { accessPreferences: { delivery: 'door', householdChangeRequests: [{ id: 'retained' }] } } });
+      expect(await householdParking.updateVehicleParkingSlot(scope, own.householdId, own.vehicleId, ' B2 ')).toEqual({ vehicleId: own.vehicleId, parkingSlot: 'B2' });
+      expect(await parkingAdmin.list(scope)).toEqual([expect.objectContaining({ householdId: own.householdId, parkingSlot: 'B2', vehicle: expect.objectContaining({ id: own.vehicleId }) })]);
+      await expect(householdParking.updateVehicleParkingSlot(foreign, own.householdId, own.vehicleId, 'foreign')).rejects.toThrow('Household not found');
+      await householdParking.updateVehicleParkingSlot(scope, own.householdId, own.vehicleId, ' ');
+      expect((await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } })).accessPreferences).toEqual({ delivery: 'door', householdChangeRequests: [{ id: 'retained' }], parkingSlots: {} });
+    }
+  });
+
+  it('denies wrong-household and inactive vehicles and hides malformed foreign parents', async () => {
+    const own = await parkingHousehold(), other = await parkingHousehold(societyB);
+    await expect(householdParking.updateVehicleParkingSlot(societyA, own.householdId, other.vehicleId, 'B2')).rejects.toThrow('Active household vehicle not found');
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { active: false } });
+    await expect(householdParking.updateVehicleParkingSlot(societyA, own.householdId, own.vehicleId, 'B2')).rejects.toThrow('Active household vehicle not found');
+    expect(await parkingAdmin.list(societyA)).toEqual([]);
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { active: true } });
+    const home = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    await fixture.unit.update({ where: { id: home.unitId }, data: { buildingId: buildingB } });
+    expect(await parkingAdmin.list(societyA)).toEqual([]);
+  });
+
+  it('serializes competing labels on one household without losing either vehicle mapping', async () => {
+    const own = await parkingHousehold(), second = await parkingVehicle(societyA, own.householdId);
+    let reads = 0;
+    let releaseReads!: () => void;
+    const bothRead = new Promise<void>(resolve => { releaseReads = resolve; });
+    const concurrent = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+      get(target, key) {
+        if (key === 'household') return new Proxy(target.household, { get(model, method) {
+          if (method === 'findFirst') return async (args: Parameters<typeof model.findFirst>[0]) => {
+            const row = await model.findFirst(args);
+            if (++reads === 2) releaseReads();
+            // Without the row lock both readers hold stale JSON before writing.
+            // A locked first reader proceeds alone after a bounded release.
+            await Promise.race([bothRead, new Promise(resolve => setTimeout(resolve, 200))]);
+            return row;
+          };
+          const value = Reflect.get(model, method); return typeof value === 'function' ? value.bind(model) : value;
+        } });
+        const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }))) } as never);
+    await Promise.all([
+      concurrent.updateVehicleParkingSlot(societyA, own.householdId, own.vehicleId, 'A1'),
+      concurrent.updateVehicleParkingSlot(societyA, own.householdId, second.id, 'A2'),
+    ]);
+    expect((await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } })).accessPreferences).toEqual({ parkingSlots: { [own.vehicleId]: 'A1', [second.id]: 'A2' } });
   });
 
   const parkingOperations = new ParkingOperationsService(runtime);

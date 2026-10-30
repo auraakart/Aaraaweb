@@ -14,6 +14,7 @@ export default defineConfig({
       'src/parking/parking.service.spec.ts',
       'src/parking/parking-operations.service.spec.ts',
       'src/parking/parking-operations-context.regression.spec.ts',
+      'src/households/parking-admin-context.regression.spec.ts',
       'src/access/walk-in-visitor.e2e.spec.ts',
       'src/access/gate-arrival.service.spec.ts',
       'src/visitors/visitor.service.spec.ts',

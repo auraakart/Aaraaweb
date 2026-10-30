@@ -34,6 +34,7 @@ function service(overrides: Overrides = {}) {
   };
   Object.assign(prisma, {
     $transaction: vi.fn(async (operation: (tx: typeof prisma) => unknown) => operation(prisma)),
+    withTenantContext: vi.fn(async (_scope: string, operation: (tx: typeof prisma) => unknown) => operation(prisma)),
   });
   return {
     svc: new HouseholdService(prisma as unknown as ConstructorParameters<typeof HouseholdService>[0]),

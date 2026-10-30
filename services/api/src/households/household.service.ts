@@ -231,12 +231,17 @@ export class HouseholdService {
   }
 
   async updateVehicleParkingSlot(societyId: string, householdId: string, vehicleId: string, parkingSlot?: string) {
-    const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId } });
-    if (!household) throw new NotFoundException('Household not found');
-    const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
-    if (!vehicle) throw new NotFoundException('Active household vehicle not found');
-    await this.setVehicleParkingSlot(household, vehicle.id, parkingSlot);
-    return { vehicleId: vehicle.id, parkingSlot: parkingSlot?.trim() || null };
+    return this.prisma.withTenantContext(societyId, async tx => {
+      // Share the preference-writer lock before reading this JSON document.
+      // Concurrent labels must preserve each other and workflow-managed keys.
+      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id"=${householdId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`;
+      const household = await tx.household.findFirst({ where: { id: householdId, societyId } });
+      if (!household) throw new NotFoundException('Household not found');
+      const vehicle = await tx.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
+      if (!vehicle) throw new NotFoundException('Active household vehicle not found');
+      await this.setVehicleParkingSlot(household, vehicle.id, parkingSlot, tx);
+      return { vehicleId: vehicle.id, parkingSlot: parkingSlot?.trim() || null };
+    });
   }
 
   async deactivateVehicle(societyId: string, userId: string, householdId: string, vehicleId: string) {
@@ -309,14 +314,14 @@ export class HouseholdService {
     return expiry;
   }
 
-  private async setVehicleParkingSlot(household: { id: string; accessPreferences: Prisma.JsonValue | null }, vehicleId: string, parkingSlot?: string) {
+  private async setVehicleParkingSlot(household: { id: string; accessPreferences: Prisma.JsonValue | null }, vehicleId: string, parkingSlot?: string, client: Prisma.TransactionClient = this.prisma) {
     const preferences = this.jsonObject(household.accessPreferences);
     const parkingSlots = this.stringMap(preferences.parkingSlots);
     const normalizedSlot = parkingSlot?.trim();
     if (normalizedSlot) parkingSlots[vehicleId] = normalizedSlot;
     else delete parkingSlots[vehicleId];
     preferences.parkingSlots = parkingSlots;
-    await this.prisma.household.update({
+    await client.household.update({
       where: { id: household.id },
       data: { accessPreferences: preferences as Prisma.InputJsonValue },
     });

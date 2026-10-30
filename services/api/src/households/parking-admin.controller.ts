@@ -24,20 +24,20 @@ export class ParkingAdminController {
   @Get('admin')
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
   async list(@CurrentTenant() societyId: string) {
-    const households = await this.prisma.household.findMany({
-      where: { societyId },
+    const households = await this.prisma.withTenantContext(societyId, tx => tx.household.findMany({
+      where: { societyId, unit: { societyId, building: { societyId } } },
       select: {
         id: true,
         accessPreferences: true,
         unit: { select: { id: true, number: true, building: { select: { id: true, name: true, code: true } } } },
         vehicles: {
-          where: { active: true },
+          where: { societyId, active: true },
           orderBy: { createdAt: 'desc' },
           select: { id: true, plateNumber: true, vehicleType: true, make: true, model: true, color: true, createdAt: true },
         },
       },
       orderBy: { unit: { number: 'asc' } },
-    });
+    }));
     return households.flatMap((household) => {
       const slots = this.stringMap(this.jsonObject(household.accessPreferences).parkingSlots);
       return household.vehicles.map((vehicle) => ({
