@@ -220,6 +220,9 @@ describe('V2.1B post-move-out authority regressions', () => {
       },
       unitOccupancy: { findFirst: occupancyLookup },
     };
+    Object.assign(prisma, {
+      withTenantContext: vi.fn(async (_scope: string, run: (tx: typeof prisma) => Promise<unknown>) => run(prisma)),
+    });
     const service = new HouseholdService(prisma as unknown as PrismaService);
 
     await expect(service.updatePreferences(

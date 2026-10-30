@@ -8,40 +8,46 @@ export class HouseholdService {
 
   async listMine(societyId: string, userId: string) {
     const now = new Date();
-    const links = await this.prisma.unitOccupancy.findMany({
-      where: { societyId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-      select: { unitId: true },
-    });
-    if (!links.length) return [];
-    return this.prisma.household.findMany({
-      where: { societyId, unitId: { in: links.map((link) => link.unitId) } },
-      include: {
-        unit: {
-          include: {
-            building: true,
-            occupancies: {
-              where: { active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-              select: {
-                id: true, relation: true, primaryGateContact: true, gateApprovalEnabled: true,
-                gateApprovalExpiresAt: true, gateNotificationEnabled: true, escalationOrder: true,
-                user: { select: { id: true, name: true, phone: true, status: true } },
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const links = await tx.unitOccupancy.findMany({
+        where: { societyId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { unitId: true },
+      });
+      if (!links.length) return [];
+      return tx.household.findMany({
+        where: { societyId, unitId: { in: links.map((link) => link.unitId) }, unit: { societyId, building: { societyId } } },
+        include: {
+          unit: {
+            include: {
+              building: true,
+              occupancies: {
+                where: { societyId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+                select: {
+                  id: true, relation: true, primaryGateContact: true, gateApprovalEnabled: true,
+                  gateApprovalExpiresAt: true, gateNotificationEnabled: true, escalationOrder: true,
+                  user: { select: { id: true, name: true, phone: true, status: true } },
+                },
+                orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
               },
-              orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
             },
           },
+          vehicles: { where: { societyId, active: true }, orderBy: { createdAt: 'desc' } },
+          emergencyContacts: { where: { societyId, active: true }, orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }] },
         },
-        vehicles: { where: { active: true }, orderBy: { createdAt: 'desc' } },
-        emergencyContacts: { where: { active: true }, orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }] },
-      },
-      orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'asc' },
+      });
     });
   }
 
   async create(societyId: string, userId: string, unitId: string, displayName?: string) {
-    await this.assertResidentUnit(societyId, userId, unitId);
-    const existing = await this.prisma.household.findUnique({ where: { unitId } });
-    if (existing) throw new BadRequestException('A household already exists for this unit');
-    return this.prisma.household.create({ data: { societyId, unitId, displayName: displayName?.trim() || null } });
+    return this.prisma.withTenantContext(societyId, async tx => {
+      // Serialize duplicate creation for the same unit before checking existence.
+      await tx.$executeRaw`SELECT 1 FROM "Unit" WHERE "id"=${unitId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`;
+      await this.assertResidentUnit(societyId, userId, unitId, tx);
+      const existing = await tx.household.findUnique({ where: { unitId, societyId } });
+      if (existing) throw new BadRequestException('A household already exists for this unit');
+      return tx.household.create({ data: { societyId, unitId, displayName: displayName?.trim() || null } });
+    });
   }
 
   async addFamilyMember(societyId: string, ownerUserId: string, householdId: string, input: {
@@ -172,11 +178,11 @@ export class HouseholdService {
   }
 
   async updatePreferences(societyId: string, userId: string, householdId: string, preferences: Record<string, unknown>) {
-    const household = await this.assertOwnHousehold(societyId, userId, householdId);
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const household = await this.assertOwnHousehold(societyId, userId, householdId, tx);
       // Preference updates and approval/parking writes share this JSON column.
       // Serialize them so an older client cannot erase a concurrent server write.
-      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${household.id}::uuid FOR UPDATE`;
+      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${household.id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`;
       const current = await tx.household.findFirst({
         where: { id: household.id, societyId },
         select: { id: true, accessPreferences: true },
@@ -341,19 +347,19 @@ export class HouseholdService {
     return Object.fromEntries(Object.entries(value as Prisma.JsonObject).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   }
 
-  private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
+  private async assertResidentUnit(societyId: string, userId: string, unitId: string, client: Prisma.TransactionClient = this.prisma) {
     const now = new Date();
-    const link = await this.prisma.unitOccupancy.findFirst({
-      where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+    const link = await client.unitOccupancy.findFirst({
+      where: { societyId, userId, unitId, unit: { societyId, building: { societyId } }, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
     });
     if (!link) throw new BadRequestException('Unit does not belong to the authenticated resident');
     return link;
   }
 
-  private async assertOwnHousehold(societyId: string, userId: string, householdId: string) {
-    const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId } });
+  private async assertOwnHousehold(societyId: string, userId: string, householdId: string, client: Prisma.TransactionClient = this.prisma) {
+    const household = await client.household.findFirst({ where: { id: householdId, societyId } });
     if (!household) throw new NotFoundException('Household not found');
-    await this.assertResidentUnit(societyId, userId, household.unitId);
+    await this.assertResidentUnit(societyId, userId, household.unitId, client);
     return household;
   }
 

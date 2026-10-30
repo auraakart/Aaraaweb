@@ -72,7 +72,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdVehicle', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdVehicle', 'EmergencyContact', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -280,6 +280,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (parkingHouseholds.size) {
       const households = Prisma.join([...parkingHouseholds].map(id => Prisma.sql`${id}::uuid`));
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingCredential" WHERE "vehicleId" IN (SELECT "id" FROM "HouseholdVehicle" WHERE "householdId" IN (${households}))`);
+      await fixture.emergencyContact.deleteMany({ where: { householdId: { in: [...parkingHouseholds] } } });
       await fixture.householdVehicle.deleteMany({ where: { householdId: { in: [...parkingHouseholds] } } });
       await fixture.household.deleteMany({ where: { id: { in: [...parkingHouseholds] } } });
     }
@@ -571,6 +572,124 @@ database('Billing transactions under a non-owner RLS role', () => {
 
   const householdParking = new HouseholdService(runtime);
   const parkingAdmin = new ParkingAdminController(runtime, householdParking);
+
+  it('creates, lists and updates resident households within each selected society', async () => {
+    for (const scope of [societyA, societyB]) {
+      const { unitId } = await arrivalDestination(scope);
+      await arrivalOccupancy(scope, unitId, tenant, { gateApprovalEnabled: false, gateApprovalExpiresAt: new Date(0) });
+      const home = await householdParking.create(scope, tenant, unitId, ' Home ');
+      parkingHouseholds.add(home.id);
+      expect(home.displayName).toBe('Home');
+      const vehicle = await parkingVehicle(scope, home.id);
+      const contact = await fixture.emergencyContact.create({ data: { societyId: scope, householdId: home.id, name: 'Family', phone: '999' } });
+      await fixture.household.update({ where: { id: home.id }, data: { accessPreferences: { householdChangeRequests: [{ id: 'pending' }] } } });
+      await householdParking.updateVehicleParkingSlot(scope, home.id, vehicle.id, 'A1');
+      await householdParking.updatePreferences(scope, tenant, home.id, { delivery: 'gate', parkingSlots: {}, householdChangeRequests: [] });
+      const homes = await householdParking.listMine(scope, tenant);
+      expect(homes).toEqual([expect.objectContaining({ id: home.id, accessPreferences: { delivery: 'gate', householdChangeRequests: [{ id: 'pending' }], parkingSlots: { [vehicle.id]: 'A1' } },
+        vehicles: [expect.objectContaining({ id: vehicle.id })], emergencyContacts: [expect.objectContaining({ id: contact.id })],
+        unit: expect.objectContaining({ id: unitId, occupancies: [expect.objectContaining({ user: expect.objectContaining({ id: tenant }) })] }) })]);
+      await expect(householdParking.updatePreferences(scope === societyA ? societyB : societyA, tenant, home.id, {})).rejects.toThrow('Household not found');
+      expect(await householdParking.listMine(scope, owner)).toEqual([]);
+    }
+  });
+
+  it('retains current-resident eligibility across inactive, future and ended occupancies, including nonresident owners', async () => {
+    const { unitId } = await arrivalDestination();
+    const link = await arrivalOccupancy(societyA, unitId, tenant);
+    const home = await householdParking.create(societyA, tenant, unitId);
+    parkingHouseholds.add(home.id);
+    for (const data of [
+      { active: false, effectiveFrom: new Date(0), effectiveTo: null },
+      { active: true, effectiveFrom: new Date(Date.now() + 3_600_000), effectiveTo: null },
+      { active: true, effectiveFrom: new Date(0), effectiveTo: new Date(Date.now() - 1) },
+    ]) {
+      await fixture.unitOccupancy.update({ where: { id: link.id }, data });
+      expect(await householdParking.listMine(societyA, tenant)).toEqual([]);
+      await expect(householdParking.create(societyA, tenant, unitId)).rejects.toThrow('authenticated resident');
+      await expect(householdParking.updatePreferences(societyA, tenant, home.id, {})).rejects.toThrow('authenticated resident');
+    }
+    await fixture.unitOwnership.create({ data: { societyId: societyA, unitId, userId: owner, verified: true } });
+    expect(await householdParking.listMine(societyA, owner)).toEqual([]);
+    await expect(householdParking.updatePreferences(societyA, owner, home.id, {})).rejects.toThrow('authenticated resident');
+    await expect(householdParking.create(societyB, tenant, unitId)).rejects.toThrow('authenticated resident');
+  });
+
+  it('excludes foreign child rows and malformed unit/building parents from household paths', async () => {
+    const { unitId } = await arrivalDestination();
+    await arrivalOccupancy(societyA, unitId, tenant);
+    const home = await householdParking.create(societyA, tenant, unitId);
+    parkingHouseholds.add(home.id);
+    await parkingVehicle(societyB, home.id);
+    await fixture.emergencyContact.create({ data: { societyId: societyB, householdId: home.id, name: 'Foreign', phone: 'secret' } });
+    await arrivalOccupancy(societyB, unitId, owner);
+    expect(await householdParking.listMine(societyA, tenant)).toEqual([expect.objectContaining({ vehicles: [], emergencyContacts: [],
+      unit: expect.objectContaining({ occupancies: [expect.objectContaining({ user: expect.objectContaining({ id: tenant }) })] }) })]);
+    await fixture.unit.update({ where: { id: unitId }, data: { buildingId: buildingB } });
+    expect(await householdParking.listMine(societyA, tenant)).toEqual([]);
+    await expect(householdParking.updatePreferences(societyA, tenant, home.id, {})).rejects.toThrow('authenticated resident');
+    await expect(householdParking.create(societyA, tenant, unitId)).rejects.toThrow('authenticated resident');
+    await fixture.unit.update({ where: { id: unitId }, data: { buildingId: buildingA } });
+    const foreign = await arrivalDestination(societyB);
+    await fixture.household.update({ where: { id: home.id }, data: { unitId: foreign.unitId } });
+    expect(await householdParking.listMine(societyA, tenant)).toEqual([]);
+    await expect(householdParking.updatePreferences(societyA, tenant, home.id, {})).rejects.toThrow('authenticated resident');
+  });
+
+  it('serializes duplicate household creation with the existing safe duplicate message', async () => {
+    const { unitId } = await arrivalDestination();
+    await arrivalOccupancy(societyA, unitId, tenant);
+    let reads = 0;
+    let releaseReads!: () => void;
+    const bothRead = new Promise<void>(resolve => { releaseReads = resolve; });
+    const concurrent = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+      get(target, key) {
+        if (key === 'household') return new Proxy(target.household, { get(model, method) {
+          if (method === 'findUnique') return async (args: Prisma.HouseholdFindUniqueArgs) => {
+            const row = await model.findUnique(args);
+            if (++reads === 2) releaseReads();
+            await Promise.race([bothRead, new Promise(resolve => setTimeout(resolve, 200))]);
+            return row;
+          };
+          const value = Reflect.get(model, method); return typeof value === 'function' ? value.bind(model) : value;
+        } });
+        const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }))) } as never);
+    const results = await Promise.allSettled([concurrent.create(societyA, tenant, unitId), concurrent.create(societyA, tenant, unitId)]);
+    // Track before assertions so an unexpected concurrency regression cleans up.
+    const rows = await fixture.household.findMany({ where: { unitId } });
+    for (const row of rows) parkingHouseholds.add(row.id);
+    expect(rows).toHaveLength(1);
+    expect(results.filter(row => row.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find(row => row.status === 'rejected')).toMatchObject({ reason: { message: 'A household already exists for this unit' } });
+  });
+
+  it('preserves workflow keys when resident preferences and a parking label compete', async () => {
+    const own = await parkingHousehold();
+    const home = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    await arrivalOccupancy(societyA, home.unitId, tenant);
+    await fixture.household.update({ where: { id: home.id }, data: { accessPreferences: { householdChangeRequests: [{ id: 'pending' }] } } });
+    await Promise.all([
+      householdParking.updatePreferences(societyA, tenant, home.id, { delivery: 'gate', parkingSlots: { forged: 'X' }, householdChangeRequests: [] }),
+      householdParking.updateVehicleParkingSlot(societyA, home.id, own.vehicleId, 'A1'),
+    ]);
+    expect((await fixture.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toEqual({ delivery: 'gate', parkingSlots: { [own.vehicleId]: 'A1' }, householdChangeRequests: [{ id: 'pending' }] });
+  });
+
+  it('rolls back an actual preference write when the tenant operation fails afterwards', async () => {
+    const own = await parkingHousehold();
+    const home = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    await arrivalOccupancy(societyA, home.unitId, tenant);
+    const failing = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, async tx => {
+      await run(tx);
+      throw new Error('After write');
+    }) } as never);
+    await expect(failing.updatePreferences(societyA, tenant, home.id, { delivery: 'gate' })).rejects.toThrow('After write');
+    expect((await fixture.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toEqual(home.accessPreferences);
+  });
+
+
 
   it('isolates admin parking lists and label updates in both societies, preserving preference keys', async () => {
     for (const scope of [societyA, societyB]) {

@@ -47,7 +47,7 @@ describe('HouseholdService', () => {
     const { svc, prisma } = service();
     await svc.listMine('society-1', 'user-1');
     expect(prisma.household.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { societyId: 'society-1', unitId: { in: ['unit-1'] } } }),
+      expect.objectContaining({ where: { societyId: 'society-1', unitId: { in: ['unit-1'] }, unit: { societyId: 'society-1', building: { societyId: 'society-1' } } } }),
     );
     expect(prisma.household.findMany).toHaveBeenCalledWith(expect.objectContaining({
       include: expect.objectContaining({

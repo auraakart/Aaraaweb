@@ -205,6 +205,30 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_event_probe`);
   });
 
+  databaseTest('retains resident household creation, nested reads and protected preferences on migrated tables', async db => {
+    const scoped = { withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+      return run(tx);
+    }) } as never;
+    const service = new HouseholdService(scoped);
+    const home = await service.create(societyId, userId, unitId, ' Home ');
+    expect(home.displayName).toBe('Home');
+    await expect(service.create(societyId, userId, unitId)).rejects.toThrow('A household already exists for this unit');
+    const vehicle = await db.householdVehicle.create({ data: { societyId, householdId: home.id, plateNumber: randomUUID(), vehicleType: 'CAR' } });
+    const contact = await db.emergencyContact.create({ data: { societyId, householdId: home.id, name: 'Family', phone: '999' } });
+    await service.updateVehicleParkingSlot(societyId, home.id, vehicle.id, 'A1');
+    await service.updatePreferences(societyId, userId, home.id, { delivery: 'gate', parkingSlots: {}, householdChangeRequests: ['forged'] });
+    expect(await service.listMine(societyId, userId)).toEqual([expect.objectContaining({ id: home.id,
+      accessPreferences: { delivery: 'gate', parkingSlots: { [vehicle.id]: 'A1' } },
+      vehicles: [expect.objectContaining({ id: vehicle.id })], emergencyContacts: [expect.objectContaining({ id: contact.id })],
+      unit: expect.objectContaining({ id: unitId, occupancies: [expect.objectContaining({ user: expect.objectContaining({ id: userId }) })] }) })]);
+    await expect(service.updatePreferences(otherSocietyId, userId, home.id, {})).rejects.toThrow('Household not found');
+    await expect(service.create(otherSocietyId, userId, unitId)).rejects.toThrow('authenticated resident');
+    await db.unitOccupancy.updateMany({ where: { societyId, unitId, userId }, data: { effectiveTo: new Date(Date.now() - 1) } });
+    expect(await service.listMine(societyId, userId)).toEqual([]);
+    await expect(service.updatePreferences(societyId, userId, home.id, {})).rejects.toThrow('authenticated resident');
+  });
+
   databaseTest('preserves admin parking labels and eligibility on migrated household relations', async db => {
     const scoped = { withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
