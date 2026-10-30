@@ -27,7 +27,7 @@ export class ParkingService {
   constructor(private readonly prisma: PrismaService) {}
 
   list(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT ps.*,
         b."name" AS "buildingName",
         pa."id" AS "allocationId",
@@ -47,7 +47,7 @@ export class ParkingService {
       LEFT JOIN "HouseholdVehicle" hv ON hv."id"=pa."vehicleId" AND hv."societyId"=pa."societyId"
       WHERE ps."societyId"=${societyId}::uuid
       ORDER BY ps."active" DESC, ps."code" ASC
-    `);
+    `));
   }
 
   async createSlot(societyId: string, actorUserId: string, input: CreateSlotInput) {
@@ -59,7 +59,12 @@ export class ParkingService {
     if (locationNote && locationNote.length > 300) throw new BadRequestException('Parking location note is too long');
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
+        if (input.buildingId) {
+          const buildings = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            SELECT "id" FROM "Building" WHERE "id"=${input.buildingId}::uuid AND "societyId"=${societyId}::uuid`);
+          if (!buildings[0]) throw new NotFoundException('Building not found in this society');
+        }
         const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           INSERT INTO "ParkingSlot" ("societyId","buildingId","code","label","slotType","evReady","locationNote")
           VALUES (
@@ -97,7 +102,7 @@ export class ParkingService {
     if (note && note.length > 300) throw new BadRequestException('Allocation note is too long');
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const slots = await tx.$queryRaw<Array<{ id: string; active: boolean }>>(Prisma.sql`
           SELECT "id","active" FROM "ParkingSlot"
           WHERE "id"=${input.slotId}::uuid AND "societyId"=${societyId}::uuid
@@ -115,6 +120,7 @@ export class ParkingService {
             AND hv."societyId"=${societyId}::uuid
             AND hv."active"=true
           LIMIT 1
+          FOR UPDATE OF h
         `);
         if (!vehicles[0]) throw new NotFoundException('Active household vehicle not found');
 
@@ -169,7 +175,7 @@ export class ParkingService {
     const note = noteInput?.trim() || null;
     if (note && note.length > 300) throw new BadRequestException('Release note is too long');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; slotId: string }>>(Prisma.sql`
         UPDATE "ParkingAllocation"
         SET "endedAt"=CURRENT_TIMESTAMP,"endedByUserId"=${actorUserId}::uuid,"updatedAt"=CURRENT_TIMESTAMP
@@ -187,7 +193,7 @@ export class ParkingService {
   }
 
   history(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT pe.*, actor."name" AS "actorName", ps."code" AS "slotCode"
       FROM "ParkingEvent" pe
       JOIN "User" actor ON actor."id"=pe."actorUserId"
@@ -195,10 +201,12 @@ export class ParkingService {
       WHERE pe."societyId"=${societyId}::uuid
       ORDER BY pe."occurredAt" DESC
       LIMIT 500
-    `);
+    `));
   }
 
   private isUniqueViolation(error: unknown) {
-    return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
+    if (typeof error !== 'object' || error === null || !('code' in error)) return false;
+    const failure = error as { code?: string; meta?: { code?: string } };
+    return failure.code === '23505' || (failure.code === 'P2010' && failure.meta?.code === '23505');
   }
 }

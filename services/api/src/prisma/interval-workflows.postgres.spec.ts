@@ -3,6 +3,7 @@ import { AccessSubjectType, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ParkingPermitService } from '../parking/parking-permit.service';
+import { ParkingService } from '../parking/parking.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
 import { GatesController } from '../gates/gates.controller';
@@ -199,6 +200,42 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await expect(db.$executeRaw(Prisma.sql`UPDATE "ParkingEvent" SET "note"='forbidden' WHERE "id"=${events[0].id}::uuid`)).rejects.toThrow('append-only');
     await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_event_probe`);
     await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_event_probe`);
+  });
+
+  databaseTest('preserves parking allocation scope guards, release lifecycle and immutable events on migrated tables', async db => {
+    const scoped = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+        return run(tx);
+      }),
+    } as never;
+    const parking = new ParkingService(scoped);
+    const unit = await db.unit.findUniqueOrThrow({ where: { id: unitId } });
+    const household = await db.household.create({ data: { societyId, unitId } });
+    const vehicle = await db.householdVehicle.create({ data: { societyId, householdId: household.id, plateNumber: randomUUID(), vehicleType: 'CAR' } });
+    const slot = await parking.createSlot(societyId, userId, { code: randomUUID(), buildingId: unit.buildingId });
+    await expect(parking.createSlot(otherSocietyId, userId, { code: randomUUID(), buildingId: unit.buildingId })).rejects.toThrow('Building not found');
+    const input = { slotId: slot.id, householdId: household.id, vehicleId: vehicle.id };
+    const allocation = await parking.allocate(societyId, userId, input);
+    await expect(parking.release(otherSocietyId, userId, allocation.id)).rejects.toThrow('not found');
+    await db.$executeRaw(Prisma.sql`SAVEPOINT parking_scope_probe`);
+    await expect(db.$executeRaw(Prisma.sql`UPDATE "ParkingAllocation" SET "societyId"=${otherSocietyId}::uuid WHERE "id"=${allocation.id}::uuid`)).rejects.toThrow('same society');
+    await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_scope_probe`);
+    await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_scope_probe`);
+    await db.$executeRaw(Prisma.sql`SAVEPOINT parking_slot_probe`);
+    await expect(db.$executeRaw(Prisma.sql`UPDATE "ParkingSlot" SET "societyId"=${otherSocietyId}::uuid WHERE "id"=${slot.id}::uuid`)).rejects.toThrow('same society');
+    await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_slot_probe`);
+    await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_slot_probe`);
+    await db.householdVehicle.update({ where: { id: vehicle.id }, data: { active: false } });
+    await db.$executeRaw(Prisma.sql`UPDATE "ParkingSlot" SET "active"=false WHERE "id"=${slot.id}::uuid`);
+    await parking.release(societyId, userId, allocation.id);
+    await expect(parking.release(societyId, userId, allocation.id)).rejects.toThrow('not found');
+    const events = await parking.history(societyId) as Array<{ id: string; slotId: string; action: string }>;
+    expect(events.filter(row => row.slotId === slot.id).map(row => row.action).sort()).toEqual(['ALLOCATED', 'RELEASED', 'SLOT_CREATED']);
+    await db.$executeRaw(Prisma.sql`SAVEPOINT parking_immutable_probe`);
+    await expect(db.$executeRaw(Prisma.sql`DELETE FROM "ParkingEvent" WHERE "id"=${events[0].id}::uuid`)).rejects.toThrow('append-only');
+    await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_immutable_probe`);
+    await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_immutable_probe`);
   });
 
   for (const state of ['CHECKED_IN', 'CHECKED_OUT', 'INACTIVE_SLOT'] as const) {
