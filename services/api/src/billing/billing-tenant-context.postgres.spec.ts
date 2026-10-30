@@ -10,6 +10,7 @@ import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
 import { ParkingPermitService } from '../parking/parking-permit.service';
 import { ParkingService } from '../parking/parking.service';
+import { ParkingOperationsService } from '../parking/parking-operations.service';
 import { ConflictException } from '@nestjs/common';
 import { GateAssignmentService } from '../gates/gate-assignment.service';
 import { GatesController } from '../gates/gates.controller';
@@ -69,7 +70,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'Household', 'HouseholdVehicle', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdVehicle', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -260,10 +261,13 @@ database('Billing transactions under a non-owner RLS role', () => {
   const assignmentMemberships = new Set<string>();
   const parkingSlots = new Set<string>(), parkingPolicies = new Set<string>();
   const parkingHouseholds = new Set<string>();
+  const parkingViolations = new Set<string>();
   afterEach(async () => {
-    if (!arrivalUnits.size && !arrivalGates.size && !arrivalUsers.size) return;
+    if (!arrivalUnits.size && !arrivalGates.size && !arrivalUsers.size && !parkingPolicies.size && !parkingViolations.size) return;
     // Only this test's UUID-isolated copied rows. No public immutable evidence.
     const ids = [...arrivalUnits];
+    if (parkingViolations.size) await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingViolation" WHERE "id" IN (${Prisma.join([...parkingViolations].map(id => Prisma.sql`${id}::uuid`))})`);
+    parkingViolations.clear();
     if (parkingSlots.size) {
       const slotIds = Prisma.join([...parkingSlots].map(id => Prisma.sql`${id}::uuid`));
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingEvent" WHERE "slotId" IN (${slotIds})`);
@@ -561,6 +565,118 @@ database('Billing transactions under a non-owner RLS role', () => {
     await expect(failed.release(societyA, owner, allocation.id)).rejects.toThrow('Parking response failure');
     expect(await parking.list(societyA)).toEqual([expect.objectContaining({ allocationId: allocation.id })]);
     expect(await parking.history(societyA)).toHaveLength(2);
+  });
+
+  const parkingOperations = new ParkingOperationsService(runtime);
+  async function reportParkingViolation(scope: string, input: Parameters<ParkingOperationsService['reportViolation']>[2]) {
+    const row = await parkingOperations.reportViolation(scope, owner, input);
+    parkingViolations.add(String(row.id));
+    return row;
+  }
+
+  it('isolates parking policy creation and replacement in both societies with actor evidence', async () => {
+    for (const scope of [societyA, societyB]) {
+      parkingPolicies.add(scope);
+      expect(await parkingOperations.policy(scope)).toEqual([]);
+      expect(await parkingOperations.updatePolicy(scope, owner, { maxActiveResidentVehicles: 1, requireCredential: true, allowTemporaryOverflow: false }))
+        .toMatchObject({ societyId: scope, maxActiveResidentVehicles: 1, requireCredential: true, allowTemporaryOverflow: false, updatedByUserId: owner });
+      expect(await parkingOperations.updatePolicy(scope, tenant, { maxActiveResidentVehicles: 12, requireCredential: false, allowTemporaryOverflow: true }))
+        .toMatchObject({ societyId: scope, maxActiveResidentVehicles: 12, requireCredential: false, allowTemporaryOverflow: true, updatedByUserId: tenant });
+      expect(await parkingOperations.policy(scope)).toHaveLength(1);
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "societyId" FROM "ParkingPolicy"`)).toEqual([]);
+  });
+
+  it('isolates credential lifecycle, normalization, active-only revocation and retained notes in both societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const own = await parkingHousehold(scope);
+      const credential = await parkingOperations.issueCredential(scope, owner, { vehicleId: own.vehicleId, credential: ' shared-code ', note: ' Original ' });
+      expect(credential).toMatchObject({ societyId: scope, vehicleId: own.vehicleId, credential: 'SHARED-CODE', status: 'ACTIVE', issuedByUserId: owner, note: 'Original' });
+      expect(await parkingOperations.credentials(scope)).toEqual([expect.objectContaining({ id: credential.id, unitNumber: expect.any(String) })]);
+      const foreign = scope === societyA ? societyB : societyA;
+      expect((await parkingOperations.credentials(foreign) as Array<{ id: string }>).some(row => row.id === credential.id)).toBe(false);
+      await expect(parkingOperations.revokeCredential(foreign, owner, String(credential.id))).rejects.toThrow('not found');
+      expect(await parkingOperations.revokeCredential(scope, tenant, String(credential.id), ' ')).toMatchObject({ status: 'REVOKED', revokedByUserId: tenant, revokedAt: expect.any(Date), note: 'Original' });
+      await expect(parkingOperations.revokeCredential(scope, owner, String(credential.id))).rejects.toThrow('not found');
+      const replacement = await parkingOperations.issueCredential(scope, owner, { vehicleId: own.vehicleId, credential: 'replacement' });
+      expect(await parkingOperations.revokeCredential(scope, owner, String(replacement.id), ' Replaced ')).toMatchObject({ note: 'Replaced' });
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingCredential"`)).toEqual([]);
+  });
+
+  it('denies foreign/inactive credential vehicles and malformed household/building parents', async () => {
+    const own = await parkingHousehold(), foreign = await parkingHousehold(societyB);
+    await expect(parkingOperations.issueCredential(societyA, owner, { vehicleId: foreign.vehicleId, credential: 'foreign' })).rejects.toThrow('not found');
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { active: false } });
+    await expect(parkingOperations.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential: 'inactive' })).rejects.toThrow('not found');
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { active: true, householdId: foreign.householdId } });
+    await expect(parkingOperations.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential: 'malformed' })).rejects.toThrow('not found');
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { householdId: own.householdId } });
+    await parkingOperations.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential: 'valid' });
+    const household = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    await fixture.unit.update({ where: { id: household.unitId }, data: { buildingId: buildingB } });
+    expect(await parkingOperations.credentials(societyA)).toEqual([]);
+  });
+
+  it('retains real credential value and active-vehicle uniqueness under concurrent issuance with safe conflicts', async () => {
+    const own = await parkingHousehold(), otherVehicle = await parkingVehicle(societyA, own.householdId);
+    const results = await Promise.allSettled(['first-code', 'second-code'].map(credential => parkingOperations.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential })));
+    expect(results.filter(row => row.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find(row => row.status === 'rejected')).toMatchObject({ reason: expect.any(ConflictException) });
+    const rows = await parkingOperations.credentials(societyA) as Array<{ id: string; credential: string }>;
+    await expect(parkingOperations.issueCredential(societyA, owner, { vehicleId: otherVehicle.id, credential: rows[0].credential })).rejects.toBeInstanceOf(ConflictException);
+    await parkingOperations.revokeCredential(societyA, owner, rows[0].id);
+    // Credential values remain reserved even after revocation; vehicle reuse
+    // requires a different value, as required by the migrated unique keys.
+    await expect(parkingOperations.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential: rows[0].credential })).rejects.toBeInstanceOf(ConflictException);
+    expect(await parkingOperations.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential: 'fresh-code' })).toMatchObject({ status: 'ACTIVE' });
+  });
+
+  it('retains all violation reference boundaries and active-only resolution with actor metadata', async () => {
+    const own = await parkingHousehold(), foreign = await parkingHousehold(societyB);
+    const slotId = await residentSlot(), foreignSlot = await residentSlot(societyB);
+    const ownVisit = await permitVisit(), foreignVisit = await permitVisit(societyB);
+    const ownPermitSlot = await permitSlot(), foreignPermitSlot = await permitSlot(societyB);
+    const ownPermit = await permits.create(societyA, owner, permitInput(ownPermitSlot, ownVisit));
+    const foreignPermit = await permits.create(societyB, owner, permitInput(foreignPermitSlot, foreignVisit));
+    const valid = { slotId, vehicleId: own.vehicleId, permitId: ownPermit.id, code: ' wrong slot ', note: ' Move vehicle ', severity: 'CRITICAL' as const };
+    for (const change of [{ slotId: foreignSlot }, { vehicleId: foreign.vehicleId }, { permitId: foreignPermit.id }]) {
+      await expect(parkingOperations.reportViolation(societyA, owner, { ...valid, ...change })).rejects.toThrow('not found');
+    }
+    const violation = await reportParkingViolation(societyA, valid);
+    expect(violation).toMatchObject({ code: 'WRONG_SLOT', severity: 'CRITICAL', note: 'Move vehicle', reportedByUserId: owner, status: 'OPEN' });
+    expect(await parkingOperations.violations(societyB)).toEqual([]);
+    await expect(parkingOperations.resolveViolation(societyB, tenant, String(violation.id))).rejects.toThrow('not found');
+    expect(await parkingOperations.resolveViolation(societyA, tenant, String(violation.id), ' Done '))
+      .toMatchObject({ status: 'RESOLVED', resolvedByUserId: tenant, resolvedAt: expect.any(Date), resolutionNote: 'Done' });
+    await expect(parkingOperations.resolveViolation(societyA, tenant, String(violation.id))).rejects.toThrow('not found');
+    expect(await parkingOperations.violations(societyA)).toHaveLength(1);
+    for (const reference of [{ slotId }, { vehicleId: own.vehicleId }, { permitId: ownPermit.id }]) {
+      expect(await reportParkingViolation(societyA, { ...reference, code: 'reference only' })).toMatchObject({ severity: 'WARNING', code: 'REFERENCE_ONLY' });
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "ParkingViolation"`)).toEqual([]);
+  });
+
+  it('rolls back policy, credential and violation mutations when the tenant callback fails after writes', async () => {
+    const own = await parkingHousehold(), slotId = await residentSlot();
+    parkingPolicies.add(societyA);
+    const failed = new ParkingOperationsService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, async tx => {
+      await run(tx);
+      throw new Error('Parking operations response failure');
+    }) } as never);
+    const input = { maxActiveResidentVehicles: 2, requireCredential: false, allowTemporaryOverflow: true };
+    await expect(failed.updatePolicy(societyA, owner, input)).rejects.toThrow('response failure');
+    expect(await parkingOperations.policy(societyA)).toEqual([]);
+    await expect(failed.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential: 'failed' })).rejects.toThrow('response failure');
+    expect(await parkingOperations.credentials(societyA)).toEqual([]);
+    const credential = await parkingOperations.issueCredential(societyA, owner, { vehicleId: own.vehicleId, credential: 'retained' });
+    await expect(failed.revokeCredential(societyA, owner, String(credential.id))).rejects.toThrow('response failure');
+    expect(await parkingOperations.credentials(societyA)).toEqual([expect.objectContaining({ status: 'ACTIVE' })]);
+    await expect(failed.reportViolation(societyA, owner, { slotId, code: 'failed' })).rejects.toThrow('response failure');
+    expect(await parkingOperations.violations(societyA)).toEqual([]);
+    const violation = await reportParkingViolation(societyA, { slotId, code: 'retained' });
+    await expect(failed.resolveViolation(societyA, owner, String(violation.id))).rejects.toThrow('response failure');
+    expect(await parkingOperations.violations(societyA)).toEqual([expect.objectContaining({ status: 'OPEN' })]);
   });
 
   const assignments = new GateAssignmentService(runtime);

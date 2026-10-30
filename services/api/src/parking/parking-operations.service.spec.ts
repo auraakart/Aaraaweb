@@ -18,7 +18,7 @@ describe('ParkingOperationsService',()=>{
 
   it('issues credentials only for an active society vehicle',async()=>{
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([])};
-    const prisma={$transaction:vi.fn((cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,cb:(client:typeof tx)=>unknown)=>cb(tx))};
     const service=new ParkingOperationsService(prisma as unknown as PrismaService);
     await expect(service.issueCredential(societyId,actorId,{vehicleId,credential:'PARK-101'}))
       .rejects.toBeInstanceOf(NotFoundException);
@@ -26,7 +26,7 @@ describe('ParkingOperationsService',()=>{
 
   it('maps active credential uniqueness races to conflict',async()=>{
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:vehicleId}]).mockRejectedValueOnce({code:'23505'})};
-    const prisma={$transaction:vi.fn((cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={withTenantContext:vi.fn((_scope:string,cb:(client:typeof tx)=>unknown)=>cb(tx))};
     const service=new ParkingOperationsService(prisma as unknown as PrismaService);
     await expect(service.issueCredential(societyId,actorId,{vehicleId,credential:'PARK-101'}))
       .rejects.toBeInstanceOf(ConflictException);

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ParkingPermitService } from '../parking/parking-permit.service';
 import { ParkingService } from '../parking/parking.service';
+import { ParkingOperationsService } from '../parking/parking-operations.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { VisitorVerificationService } from '../visitors/visitor-verification.service';
 import { GatesController } from '../gates/gates.controller';
@@ -236,6 +237,34 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await expect(db.$executeRaw(Prisma.sql`DELETE FROM "ParkingEvent" WHERE "id"=${events[0].id}::uuid`)).rejects.toThrow('append-only');
     await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_immutable_probe`);
     await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_immutable_probe`);
+  });
+
+  databaseTest('retains parking policy, credential and violation workflows with real migrated constraints', async db => {
+    const scoped = {
+      withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+        return run(tx);
+      }),
+    } as never;
+    const parking = new ParkingService(scoped), operations = new ParkingOperationsService(scoped);
+    const household = await db.household.create({ data: { societyId, unitId } });
+    const vehicle = await db.householdVehicle.create({ data: { societyId, householdId: household.id, plateNumber: randomUUID(), vehicleType: 'CAR' } });
+    const slot = await parking.createSlot(societyId, userId, { code: randomUUID() });
+    await operations.updatePolicy(societyId, userId, { maxActiveResidentVehicles: 1, requireCredential: true, allowTemporaryOverflow: false });
+    const input = { slotId: slot.id, householdId: household.id, vehicleId: vehicle.id };
+    await expect(parking.allocate(societyId, userId, input)).rejects.toThrow('credential is required');
+    const credential = await operations.issueCredential(societyId, userId, { vehicleId: vehicle.id, credential: ' migrated-code ', note: ' Original ' });
+    expect(await operations.credentials(societyId)).toEqual([expect.objectContaining({ credential: 'MIGRATED-CODE', note: 'Original' })]);
+    const allocation = await parking.allocate(societyId, userId, input);
+    await expect(operations.reportViolation(otherSocietyId, userId, { slotId: slot.id, vehicleId: vehicle.id, code: 'foreign' })).rejects.toThrow('not found');
+    const violation = await operations.reportViolation(societyId, userId, { slotId: slot.id, vehicleId: vehicle.id, code: 'wrong slot' });
+    await expect(operations.resolveViolation(otherSocietyId, userId, String(violation.id))).rejects.toThrow('not found');
+    await expect(operations.revokeCredential(otherSocietyId, userId, String(credential.id))).rejects.toThrow('not found');
+    expect(await operations.revokeCredential(societyId, userId, String(credential.id), ' ')).toMatchObject({ status: 'REVOKED', note: 'Original' });
+    expect(await operations.resolveViolation(societyId, userId, String(violation.id), ' Fixed ')).toMatchObject({ status: 'RESOLVED', resolutionNote: 'Fixed' });
+    await expect(operations.resolveViolation(societyId, userId, String(violation.id))).rejects.toThrow('not found');
+    await parking.release(societyId, userId, allocation.id);
+    await expect(parking.allocate(societyId, userId, input)).rejects.toThrow('credential is required');
   });
 
   for (const state of ['CHECKED_IN', 'CHECKED_OUT', 'INACTIVE_SLOT'] as const) {
