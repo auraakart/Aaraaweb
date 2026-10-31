@@ -64,6 +64,8 @@ export default defineConfig({
       'src/privacy/privacy-self-context.spec.ts',
       'src/privacy/privacy-self.controller.spec.ts',
       'src/households/household.service.spec.ts',
+      'src/households/household-change-request.service.spec.ts',
+      'src/households/household-request-context.regression.spec.ts',
     ],
     coverage: {
       enabled: true,
