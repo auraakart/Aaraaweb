@@ -13,6 +13,9 @@ describe('commercial V1 relationship-expiry security regression', () => {
       unitOccupancy: { findMany: vi.fn().mockResolvedValue([]) },
       household: { findMany: vi.fn() },
     };
+    Object.assign(prisma, {
+      withTenantContext: vi.fn(async (_scope: string, run: (tx: typeof prisma) => Promise<unknown>) => run(prisma)),
+    });
     const service = new HouseholdService(prisma as unknown as PrismaService);
 
     await expect(service.listMine('society-a', 'moved-out-user')).resolves.toEqual([]);
@@ -39,6 +42,9 @@ describe('commercial V1 relationship-expiry security regression', () => {
       },
       unitOccupancy: { findFirst: vi.fn().mockResolvedValue(null) },
     };
+    Object.assign(prisma, {
+      withTenantContext: vi.fn(async (_scope: string, run: (tx: typeof prisma) => Promise<unknown>) => run(prisma)),
+    });
     const service = new HouseholdService(prisma as unknown as PrismaService);
 
     await expect(
