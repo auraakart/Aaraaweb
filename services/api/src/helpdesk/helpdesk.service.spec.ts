@@ -1,11 +1,11 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../prisma/prisma.service';
 import { HelpdeskService } from './helpdesk.service';
 
 describe('HelpdeskService', () => {
   it('authorizes household tickets through current occupancy, never legacy residency', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma(prisma) as never);
     await service.listMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
     const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
     const sql = query.strings.join(' ');
@@ -16,7 +16,7 @@ describe('HelpdeskService', () => {
 
   it('rejects invalid ticket title before writing', async () => {
     const prisma = { $queryRaw: vi.fn(), $transaction: vi.fn() };
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma(prisma) as never);
 
     await expect(
       service.createMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
@@ -32,7 +32,7 @@ describe('HelpdeskService', () => {
 
   it('returns generic not-found when resident does not own the requested unit', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]), $transaction: vi.fn() };
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma(prisma) as never);
 
     await expect(
       service.createMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
@@ -56,16 +56,16 @@ describe('HelpdeskService', () => {
       title:'Water leakage',description:'Water leakage near kitchen sink',category:'Plumbing',
       priority:'HIGH',status:'OPEN',assignedToId:null,resolvedAt:null,closedAt:null,createdAt:new Date(),updatedAt:new Date(),
     };
-    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
+    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:'occupancy-1'}]).mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
     const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'occupancy-1'}]),$transaction:vi.fn(async(cb:(client:typeof tx)=>unknown)=>cb(tx))};
-    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    const service=new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
     const result=await service.createMine(existing.societyId,existing.createdById,{
       unitId:existing.unitId,idempotencyKey:existing.idempotencyKey,title:'  Water leakage  ',
       description:existing.description,category:' Plumbing ',priority:'HIGH',
     });
     expect(result.id).toBe(existing.id);
     expect(result.ticketNumber).toBe(existing.ticketNumber);
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
@@ -79,9 +79,9 @@ describe('HelpdeskService', () => {
       title:'Water leakage',description:'Water leakage near kitchen sink',category:null,
       priority:'NORMAL',status:'OPEN',assignedToId:null,resolvedAt:null,closedAt:null,createdAt:new Date(),updatedAt:new Date(),
     };
-    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
+    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:'occupancy-1'}]).mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
     const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'occupancy-1'}]),$transaction:vi.fn(async(cb:(client:typeof tx)=>unknown)=>cb(tx))};
-    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    const service=new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
     await expect(service.createMine(existing.societyId,existing.createdById,{
       unitId:existing.unitId,idempotencyKey:existing.idempotencyKey,title:existing.title,
       description:'A different issue description',priority:'NORMAL',
@@ -91,7 +91,7 @@ describe('HelpdeskService', () => {
 
   it('does not expose activity history for a ticket outside resident ownership', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma(prisma) as never);
 
     await expect(
       service.activitiesMine(
@@ -109,7 +109,7 @@ describe('HelpdeskService', () => {
         .mockResolvedValueOnce([{ id: '44444444-4444-4444-4444-444444444444' }])
         .mockResolvedValueOnce([]),
     };
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma(prisma) as never);
 
     await service.activitiesMine(
       '11111111-1111-1111-1111-111111111111',
@@ -132,7 +132,7 @@ describe('HelpdeskService', () => {
       }]),
       $transaction: vi.fn(),
     };
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma(prisma) as never);
 
     await expect(
       service.updateStatus(
@@ -149,7 +149,7 @@ describe('HelpdeskService', () => {
   it('scopes resident reopen to current occupancy inside the locked transaction', async () => {
     const tx = {$queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn()};
     const prisma = {$transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx))};
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
 
     await expect(service.reopenMine(
       '11111111-1111-1111-1111-111111111111',
@@ -183,7 +183,7 @@ describe('HelpdeskService', () => {
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
     const prisma = {$transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx))};
-    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    const service = new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
 
     const result = await service.reopenMine(current.societyId,current.createdById,current.id,'The leak has returned');
     expect(result.status).toBe('IN_PROGRESS');
@@ -197,6 +197,7 @@ describe('HelpdeskService', () => {
     const ticketId='44444444-4444-4444-4444-444444444444';
     const tx={
       $queryRaw:vi.fn()
+        .mockResolvedValueOnce([{id:ticketId}])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ticketId,type:'COMMENT',message:'Please update me'}]),
       $executeRaw:vi.fn(),
@@ -205,12 +206,12 @@ describe('HelpdeskService', () => {
       $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
       $transaction:vi.fn(async(callback:(client:typeof tx)=>unknown)=>callback(tx)),
     };
-    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    const service=new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
 
     const result=await service.addComment(societyId,userId,ticketId,'  Please update me  ',false,'resident-comment-attempt-1');
 
     expect(result).toEqual({ok:true});
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
@@ -220,6 +221,7 @@ describe('HelpdeskService', () => {
     const ticketId='44444444-4444-4444-4444-444444444444';
     const tx={
       $queryRaw:vi.fn()
+        .mockResolvedValueOnce([{id:ticketId}])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ticketId,type:'COMMENT',message:'Original update'}]),
       $executeRaw:vi.fn(),
@@ -228,7 +230,7 @@ describe('HelpdeskService', () => {
       $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
       $transaction:vi.fn(async(callback:(client:typeof tx)=>unknown)=>callback(tx)),
     };
-    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    const service=new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
 
     await expect(service.addComment(
       societyId,userId,ticketId,'Different update',false,'resident-comment-attempt-2',
@@ -244,7 +246,7 @@ describe('HelpdeskService', () => {
       $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
       $executeRaw:vi.fn().mockResolvedValue(1),
     };
-    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    const service=new HelpdeskService(tenantPrisma(prisma) as never);
 
     await expect(service.addComment(societyId,userId,ticketId,'Reviewer update',true)).resolves.toEqual({ok:true});
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);

@@ -3,6 +3,14 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'src/helpdesk/helpdesk-context.regression.spec.ts',
+      'src/helpdesk/helpdesk.service.spec.ts',
+      'src/helpdesk/helpdesk-operator.spec.ts',
+      'src/helpdesk/helpdesk-triage-intelligence.spec.ts',
+      'src/helpdesk/helpdesk-resident-recovery.spec.ts',
+      'src/helpdesk/helpdesk-asset-linkage.spec.ts',
+      'src/helpdesk/helpdesk-sla.service.spec.ts',
+      'src/helpdesk/helpdesk-readiness.spec.ts',
       'src/households/occupancy-read-context.regression.spec.ts',
       'src/households/occupancy-mutation-context.regression.spec.ts',
       'src/households/occupancy-worker-capability.spec.ts',
@@ -78,6 +86,8 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/helpdesk/helpdesk.service.ts',
+        'src/helpdesk/helpdesk-sla.service.ts',
         'src/access/access.service.ts',
         'src/access/gate-arrival.service.ts',
         'src/visitors/visitor.service.ts',
@@ -117,6 +127,8 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/helpdesk/helpdesk.service.ts': { statements: 85, branches: 70, functions: 90, lines: 85 },
+        'src/helpdesk/helpdesk-sla.service.ts': { statements: 85, branches: 70, functions: 90, lines: 85 },
         'src/parking/parking-operations.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },
         'src/parking/parking.service.ts': { statements: 90, branches: 80, functions: 100, lines: 90 },
         'src/parking/parking-permit.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },

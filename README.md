@@ -58,7 +58,9 @@ Society Branding and Partner White Label development uses this shared repository
 
 ## Current development cycle
 
-[V5.10 health hardening](docs/V5.10-HEALTH-HARDENING.md) consolidates the 25 October review into recovery, reproducibility, full lint, risk coverage, complexity and truthful status controls. Package identity is 5.10.0 / mobile build 51000. [PR #1525](https://github.com/auraakart/Aaraaweb/pull/1525) passed full protected application/native CI and merged into develop. Database RLS/hosted and independent partner/device acceptance remain open.
+[V5.12 tenant boundaries and experience closure](docs/V5.12-TENANT-AND-EXPERIENCE-CLOSURE.md) consolidates the 31 October health recommendations. Package/API/Admin identity is 5.12.0; Resident/Guard build is 51200. Ordered work covers Helpdesk and Amenities tenant clients, bounded hotspot extraction, Home informational duplication, selective dependency review and evidence reconciliation. A version label is not a published APK.
+
+[V5.11 occupancy and experience hardening](docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md) has accepted occupancy read/mutation, worker/private-file, performance-baseline and compact Resident form source slices. Consolidated acceptance continues in V5.12; hosted isolation, independent Partner A/B worker/artifact and physical-device acceptance remain open. [V5.10 health hardening](docs/V5.10-HEALTH-HARDENING.md) is historical accepted engineering evidence.
 
 V4.99.3 was promoted to main at `29f95ecaef53c5a03af8858ea89ca58cf2fe0811` on 24 October, with V5.8/V5.9 source included. Full pre-main CI 40047889745 passed; post-main CI reuses the same validated source tree. Earlier candidate-preparation notes below are historical, not current publication status.
 

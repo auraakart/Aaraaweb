@@ -12,13 +12,15 @@ export class HelpdeskSlaService {
   constructor(private readonly prisma: PrismaService) {}
 
   listPolicies(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT p.*, target."name" AS "escalationTargetName"
-      FROM "HelpdeskSlaPolicy" p
-      LEFT JOIN "User" target ON target."id"=p."escalationTargetUserId"
-      WHERE p."societyId"=${societyId}::uuid
-      ORDER BY CASE p."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END
-    `);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      return tx.$queryRaw(Prisma.sql`
+        SELECT p.*, target."name" AS "escalationTargetName"
+        FROM "HelpdeskSlaPolicy" p
+        LEFT JOIN "User" target ON target."id"=p."escalationTargetUserId"
+        WHERE p."societyId"=${societyId}::uuid
+        ORDER BY CASE p."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END
+      `);
+    });
   }
 
   async upsertPolicy(societyId: string, actorUserId: string, input: {
@@ -36,34 +38,36 @@ export class HelpdeskSlaService {
     const escalationTargetUserId = input.escalationTargetUserId ?? null;
     const automaticEscalationEnabled = input.automaticEscalationEnabled ?? false;
     if (automaticEscalationEnabled && !escalationTargetUserId) {
-      throw new BadRequestException('Automatic escalation requires an escalation target');
-    }
-    if (escalationTargetUserId) {
-      const membership = await this.prisma.societyMembership.findFirst({
-        where: { societyId, userId: escalationTargetUserId, active: true }, select: { id: true },
-      });
-      if (!membership) throw new BadRequestException('Escalation target must be an active member of the current society');
-    }
-    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
-      INSERT INTO "HelpdeskSlaPolicy" (
-        "societyId","priority","firstResponseMinutes","resolutionMinutes","escalationAfterMinutes","active",
-        "updatedByUserId","escalationTargetUserId","automaticEscalationEnabled"
-      ) VALUES (
-        ${societyId}::uuid,${input.priority},${input.firstResponseMinutes},${input.resolutionMinutes},${input.escalationAfterMinutes},
-        ${input.active ?? true},${actorUserId}::uuid,${escalationTargetUserId}::uuid,${automaticEscalationEnabled}
-      )
-      ON CONFLICT ("societyId","priority") DO UPDATE SET
-        "firstResponseMinutes"=EXCLUDED."firstResponseMinutes",
-        "resolutionMinutes"=EXCLUDED."resolutionMinutes",
-        "escalationAfterMinutes"=EXCLUDED."escalationAfterMinutes",
-        "active"=EXCLUDED."active",
-        "updatedByUserId"=EXCLUDED."updatedByUserId",
-        "escalationTargetUserId"=EXCLUDED."escalationTargetUserId",
-        "automaticEscalationEnabled"=EXCLUDED."automaticEscalationEnabled",
-        "updatedAt"=CURRENT_TIMESTAMP
-      RETURNING *
-    `);
-    return rows[0];
+  throw new BadRequestException('Automatic escalation requires an escalation target');
+}
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      if (escalationTargetUserId) {
+        const membership = await tx.societyMembership.findFirst({
+          where: { societyId, userId: escalationTargetUserId, active: true }, select: { id: true },
+        });
+        if (!membership) throw new BadRequestException('Escalation target must be an active member of the current society');
+      }
+      const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+        INSERT INTO "HelpdeskSlaPolicy" (
+          "societyId","priority","firstResponseMinutes","resolutionMinutes","escalationAfterMinutes","active",
+          "updatedByUserId","escalationTargetUserId","automaticEscalationEnabled"
+        ) VALUES (
+          ${societyId}::uuid,${input.priority},${input.firstResponseMinutes},${input.resolutionMinutes},${input.escalationAfterMinutes},
+          ${input.active ?? true},${actorUserId}::uuid,${escalationTargetUserId}::uuid,${automaticEscalationEnabled}
+        )
+        ON CONFLICT ("societyId","priority") DO UPDATE SET
+          "firstResponseMinutes"=EXCLUDED."firstResponseMinutes",
+          "resolutionMinutes"=EXCLUDED."resolutionMinutes",
+          "escalationAfterMinutes"=EXCLUDED."escalationAfterMinutes",
+          "active"=EXCLUDED."active",
+          "updatedByUserId"=EXCLUDED."updatedByUserId",
+          "escalationTargetUserId"=EXCLUDED."escalationTargetUserId",
+          "automaticEscalationEnabled"=EXCLUDED."automaticEscalationEnabled",
+          "updatedAt"=CURRENT_TIMESTAMP
+        RETURNING *
+      `);
+      return rows[0];
+    });
   }
 
   listQueue(societyId: string, search = '') {
@@ -71,93 +75,93 @@ export class HelpdeskSlaService {
     if (query.length > 120) throw new BadRequestException('Search must be 120 characters or fewer');
     const term = `%${query.replace(/[\\%_]/g, '\\$&')}%`;
     const filter = query ? Prisma.sql`AND (ht."ticketNumber" ILIKE ${term} OR ht."title" ILIKE ${term})` : Prisma.empty;
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
-${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
-      FROM "HelpdeskTicket" ht
-      JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
-      JOIN "Building" b ON b."id"=u."buildingId"
-      JOIN "User" creator ON creator."id"=ht."createdById"
-      WHERE ht."societyId"=${societyId}::uuid ${filter}
-      ORDER BY
-        CASE ${HELPDESK_TICKET_SLA_STATE_SQL}
-          WHEN 'RESOLUTION_BREACHED' THEN 0
-          WHEN 'RESPONSE_BREACHED' THEN 1
-          ELSE 2
-        END,
-        ht."resolutionDueAt" NULLS LAST,
-        CASE ht."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END,
-        ht."createdAt" ASC
-      LIMIT 500
-    `);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      return tx.$queryRaw(Prisma.sql`
+        SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
+      ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
+        FROM "HelpdeskTicket" ht
+        JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
+        JOIN "Building" b ON b."id"=u."buildingId"
+        JOIN "User" creator ON creator."id"=ht."createdById"
+        WHERE ht."societyId"=${societyId}::uuid ${filter}
+        ORDER BY
+          CASE ${HELPDESK_TICKET_SLA_STATE_SQL}
+            WHEN 'RESOLUTION_BREACHED' THEN 0
+            WHEN 'RESPONSE_BREACHED' THEN 1
+            ELSE 2
+          END,
+          ht."resolutionDueAt" NULLS LAST,
+          CASE ht."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END,
+          ht."createdAt" ASC
+        LIMIT 500
+      `);
+    });
   }
 
   async readiness(societyId: string, ticketId: string) {
-    const [ticket] = await this.prisma.$queryRaw<Array<{
-      id: string; priority: Priority; status: string; assignedToId: string | null;
-      firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null;
-      resolvedAt: Date | null; slaState: SlaState; escalationLevel: number; escalatedToId: string | null;
-      resolutionCode: string | null; closureCode: string | null; computedSlaState: SlaState;
-    }>>(Prisma.sql`
-      SELECT ht."id",ht."priority",ht."status",ht."assignedToId",ht."firstRespondedAt",
-             ht."firstResponseDueAt",ht."resolutionDueAt",ht."resolvedAt",ht."slaState",
-             ht."escalationLevel",ht."escalatedToId",ht."resolutionCode",ht."closureCode",
-             ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
-      FROM "HelpdeskTicket" ht
-      WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid
-      LIMIT 1
-    `);
-    if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
-
-    const [policy] = await this.prisma.$queryRaw<Array<{
-      firstResponseMinutes: number; resolutionMinutes: number; escalationAfterMinutes: number;
-      automaticEscalationEnabled: boolean; escalationTargetUserId: string | null; escalationTargetName: string | null;
-    }>>(Prisma.sql`
-      SELECT p."firstResponseMinutes",p."resolutionMinutes",p."escalationAfterMinutes",
-             p."automaticEscalationEnabled",p."escalationTargetUserId",target."name" AS "escalationTargetName"
-      FROM "HelpdeskSlaPolicy" p
-      LEFT JOIN "User" target ON target."id"=p."escalationTargetUserId"
-      WHERE p."societyId"=${societyId}::uuid AND p."priority"=${ticket.priority} AND p."active"=true
-      LIMIT 1
-    `);
-
-    const terminal = ['RESOLVED','CLOSED'].includes(ticket.status);
-    const breached = ['RESPONSE_BREACHED','RESOLUTION_BREACHED'].includes(ticket.computedSlaState);
-    const blockers: string[] = [];
-    if (!terminal && !ticket.assignedToId) blockers.push('ASSIGNEE_MISSING');
-    if (!terminal && ticket.computedSlaState === 'UNTRACKED') blockers.push('SLA_UNTRACKED');
-    if (!terminal && breached && !ticket.escalatedToId) blockers.push('BREACH_NOT_ESCALATED');
-    if (ticket.status === 'RESOLVED' && !ticket.resolutionCode) blockers.push('RESOLUTION_CODE_MISSING');
-    if (ticket.status === 'CLOSED' && !ticket.closureCode) blockers.push('CLOSURE_CODE_MISSING');
-
-    const nextActions: string[] = [];
-    if (blockers.includes('ASSIGNEE_MISSING')) nextActions.push('Assign an active society reviewer to own the ticket.');
-    if (blockers.includes('SLA_UNTRACKED')) nextActions.push('Apply the active SLA policy for this ticket priority.');
-    if (blockers.includes('BREACH_NOT_ESCALATED')) nextActions.push('Escalate the breached ticket to an active society member.');
-    if (!terminal && !breached && ticket.computedSlaState === 'ON_TRACK') nextActions.push('Continue resolution work before the service target is breached.');
-    if (terminal && blockers.length === 0) nextActions.push('Review closure evidence and retain the activity/SLA history for audit.');
-
-    return {
-      ticketId,
-      status: ticket.status,
-      priority: ticket.priority,
-      assigned: !!ticket.assignedToId,
-      computedSlaState: ticket.computedSlaState,
-      firstResponded: !!ticket.firstRespondedAt,
-      firstResponseDueAt: ticket.firstResponseDueAt,
-      resolutionDueAt: ticket.resolutionDueAt,
-      escalationLevel: ticket.escalationLevel,
-      escalated: !!ticket.escalatedToId,
-      critical: ticket.priority === 'URGENT' || breached,
-      blockers,
-      nextActions,
-      policy: policy ?? null,
-      boundary: 'Operational service-readiness evidence only; lifecycle transitions, SLA evaluation and escalation eligibility remain server-authoritative.',
-    };
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const [ticket] = await tx.$queryRaw<Array<{
+        id: string; priority: Priority; status: string; assignedToId: string | null;
+        firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null;
+        resolvedAt: Date | null; slaState: SlaState; escalationLevel: number; escalatedToId: string | null;
+        resolutionCode: string | null; closureCode: string | null; computedSlaState: SlaState;
+      }>>(Prisma.sql`
+        SELECT ht."id",ht."priority",ht."status",ht."assignedToId",ht."firstRespondedAt",
+               ht."firstResponseDueAt",ht."resolutionDueAt",ht."resolvedAt",ht."slaState",
+               ht."escalationLevel",ht."escalatedToId",ht."resolutionCode",ht."closureCode",
+               ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
+        FROM "HelpdeskTicket" ht
+        WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid
+        LIMIT 1
+      `);
+      if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
+      const [policy] = await tx.$queryRaw<Array<{
+        firstResponseMinutes: number; resolutionMinutes: number; escalationAfterMinutes: number;
+        automaticEscalationEnabled: boolean; escalationTargetUserId: string | null; escalationTargetName: string | null;
+      }>>(Prisma.sql`
+        SELECT p."firstResponseMinutes",p."resolutionMinutes",p."escalationAfterMinutes",
+               p."automaticEscalationEnabled",p."escalationTargetUserId",target."name" AS "escalationTargetName"
+        FROM "HelpdeskSlaPolicy" p
+        LEFT JOIN "User" target ON target."id"=p."escalationTargetUserId"
+        WHERE p."societyId"=${societyId}::uuid AND p."priority"=${ticket.priority} AND p."active"=true
+        LIMIT 1
+      `);
+      const terminal = ['RESOLVED','CLOSED'].includes(ticket.status);
+      const breached = ['RESPONSE_BREACHED','RESOLUTION_BREACHED'].includes(ticket.computedSlaState);
+      const blockers: string[] = [];
+      if (!terminal && !ticket.assignedToId) blockers.push('ASSIGNEE_MISSING');
+      if (!terminal && ticket.computedSlaState === 'UNTRACKED') blockers.push('SLA_UNTRACKED');
+      if (!terminal && breached && !ticket.escalatedToId) blockers.push('BREACH_NOT_ESCALATED');
+      if (ticket.status === 'RESOLVED' && !ticket.resolutionCode) blockers.push('RESOLUTION_CODE_MISSING');
+      if (ticket.status === 'CLOSED' && !ticket.closureCode) blockers.push('CLOSURE_CODE_MISSING');
+      const nextActions: string[] = [];
+      if (blockers.includes('ASSIGNEE_MISSING')) nextActions.push('Assign an active society reviewer to own the ticket.');
+      if (blockers.includes('SLA_UNTRACKED')) nextActions.push('Apply the active SLA policy for this ticket priority.');
+      if (blockers.includes('BREACH_NOT_ESCALATED')) nextActions.push('Escalate the breached ticket to an active society member.');
+      if (!terminal && !breached && ticket.computedSlaState === 'ON_TRACK') nextActions.push('Continue resolution work before the service target is breached.');
+      if (terminal && blockers.length === 0) nextActions.push('Review closure evidence and retain the activity/SLA history for audit.');
+      return {
+        ticketId,
+        status: ticket.status,
+        priority: ticket.priority,
+        assigned: !!ticket.assignedToId,
+        computedSlaState: ticket.computedSlaState,
+        firstResponded: !!ticket.firstRespondedAt,
+        firstResponseDueAt: ticket.firstResponseDueAt,
+        resolutionDueAt: ticket.resolutionDueAt,
+        escalationLevel: ticket.escalationLevel,
+        escalated: !!ticket.escalatedToId,
+        critical: ticket.priority === 'URGENT' || breached,
+        blockers,
+        nextActions,
+        policy: policy ?? null,
+        boundary: 'Operational service-readiness evidence only; lifecycle transitions, SLA evaluation and escalation eligibility remain server-authoritative.',
+      };
+    });
   }
 
   async applyPolicy(societyId: string, actorUserId: string, ticketId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const [ticket] = await tx.$queryRaw<Array<{ id: string; priority: Priority; createdAt: Date; status: string; slaState: SlaState }>>(Prisma.sql`
         SELECT "id","priority","createdAt","status","slaState" FROM "HelpdeskTicket"
         WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
@@ -192,7 +196,7 @@ ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
   }
 
   async evaluate(societyId: string, actorUserId: string, ticketId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const [ticket] = await tx.$queryRaw<Array<{ id: string; status: string; slaState: SlaState; firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null; resolvedAt: Date | null; closedAt: Date | null }>>(Prisma.sql`
         SELECT "id","status","slaState","firstRespondedAt","firstResponseDueAt","resolutionDueAt","resolvedAt","closedAt"
         FROM "HelpdeskTicket" WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
@@ -215,11 +219,11 @@ ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
   }
 
   async escalate(societyId: string, actorUserId: string, ticketId: string, escalatedToId: string, note?: string) {
-    const membership = await this.prisma.societyMembership.findFirst({
-      where: { societyId, userId: escalatedToId, active: true }, select: { id: true },
-    });
-    if (!membership) throw new BadRequestException('Escalation target must be an active member of the current society');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const membership = await tx.societyMembership.findFirst({
+        where: { societyId, userId: escalatedToId, active: true }, select: { id: true },
+      });
+      if (!membership) throw new BadRequestException('Escalation target must be an active member of the current society');
       const [ticket] = await tx.$queryRaw<Array<{ id: string; status: string; slaState: SlaState; escalationLevel: number }>>(Prisma.sql`
         SELECT "id","status","slaState","escalationLevel" FROM "HelpdeskTicket"
         WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
@@ -242,15 +246,17 @@ ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
   }
 
   history(societyId: string, ticketId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT e.*,
-        CASE WHEN e."actorSource"='AUTOMATION' THEN 'Aaraagate automation' ELSE COALESCE(actor."name", 'Unknown user') END AS "actorName",
-        target."name" AS "escalatedToName"
-      FROM "HelpdeskSlaEvent" e
-      LEFT JOIN "User" actor ON actor."id"=e."actorUserId"
-      LEFT JOIN "User" target ON target."id"=e."escalatedToId"
-      WHERE e."societyId"=${societyId}::uuid AND e."ticketId"=${ticketId}::uuid
-      ORDER BY e."createdAt" ASC
-    `);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      return tx.$queryRaw(Prisma.sql`
+        SELECT e.*,
+          CASE WHEN e."actorSource"='AUTOMATION' THEN 'Aaraagate automation' ELSE COALESCE(actor."name", 'Unknown user') END AS "actorName",
+          target."name" AS "escalatedToName"
+        FROM "HelpdeskSlaEvent" e
+        LEFT JOIN "User" actor ON actor."id"=e."actorUserId"
+        LEFT JOIN "User" target ON target."id"=e."escalatedToId"
+        WHERE e."societyId"=${societyId}::uuid AND e."ticketId"=${ticketId}::uuid
+        ORDER BY e."createdAt" ASC
+      `);
+    });
   }
 }

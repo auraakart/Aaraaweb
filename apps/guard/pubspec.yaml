@@ -1,7 +1,7 @@
 name: aaraagate_guard
 description: aaraagate Security Guard mobile application.
 publish_to: 'none'
-version: 5.11.0+51100
+version: 5.12.0+51200
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
