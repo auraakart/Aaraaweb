@@ -2639,21 +2639,25 @@
       "id": "V5.11",
       "name": "Occupancy, isolation and experience hardening",
       "status": "IN_DEVELOPMENT",
-      "currentSlice": "V5.11.1",
+      "currentSlice": "V5.11.2",
       "baselineSha": "8232a65e807870202667c452c00b39529e031fc3",
       "evidence": [
-        "docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md"
+        "docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md",
+        "docs/V5.11.2-OCCUPANCY-MUTATION-INTEGRITY.md"
       ],
       "slices": [
         {
           "id": "V5.11.1",
           "name": "Occupancy tenant read/detail/context boundaries",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1552,
+          "mergeSha": "802d0605a77819fcb370cca106355f7540458e9c",
+          "ciRun": 41182899153
         },
         {
           "id": "V5.11.2",
           "name": "Move-in/out transaction and audit integrity",
-          "status": "PLANNED"
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI"
         },
         {
           "id": "V5.11.3",
