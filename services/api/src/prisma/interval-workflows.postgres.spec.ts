@@ -1,3 +1,4 @@
+import { DocumentsService } from '../documents/documents.service';
 import { OccupancyLifecycleService } from '../households/occupancy-lifecycle.service';
 import { HouseholdChangeRequestService } from '../households/household-change-request.service';
 import { HouseholdService } from '../households/household.service';
@@ -611,6 +612,7 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await db.unitOwnership.create({ data: { societyId, unitId: unit.id, userId, verified: true } });
     const request = await service.requestOwnerMoveIn(societyId, userId, { unitId: unit.id, userId, relation: 'OWNER', effectiveAt: new Date(Date.now() - 1_000) });
     await service.review(societyId, userId, request.id, true);
+    expect(await service.dueApproved()).toEqual(expect.arrayContaining([expect.objectContaining({ id: request.id, societyId, reviewedByUserId: userId })]));
     for (const item of (await service.get(societyId, request.id)).checklist as Array<{ id: string }>) await service.setChecklistItem(societyId, userId, request.id, item.id, true);
     const completed = await service.complete(societyId, userId, request.id);
     expect(completed.status).toBe('COMPLETED');
@@ -619,6 +621,25 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     for (const item of (await service.get(societyId, out.id)).checklist as Array<{ id: string }>) await service.setChecklistItem(societyId, userId, out.id, item.id, true);
     await service.complete(societyId, userId, out.id);
     expect(await db.unitOccupancy.findUniqueOrThrow({ where: { id: completed.occupancyId! } })).toMatchObject({ active: false, gateApprovalEnabled: false, gateNotificationEnabled: false, primaryGateContact: false });
+  });
+
+  databaseTest('preserves private document publication, ownership, version replacement and immutable history on migrated tables', async db => {
+    const service=new DocumentsService(db);
+    await db.unitOwnership.create({data:{societyId,unitId,userId,verified:true,effectiveFrom:new Date(Date.now()-86_400_000)}});
+    const input={unitId,audience:'PROPERTY_OWNER_ONLY' as const,category:'PROPERTY',title:'Private deed',storageKey:`societies/${societyId}/documents/${randomUUID()}.pdf`,fileName:'deed.pdf',mimeType:'application/pdf',sizeBytes:100,knowledgeText:'Private property deed reviewed by the society management.'};
+    const draft=await service.createDraft(societyId,userId,input);await service.publish(societyId,userId,draft.id as string);
+    const published=await service.getPublishedDocumentForUser(societyId,userId,draft.id as string);
+    expect(published).toMatchObject({id:draft.id,sizeBytes:100});
+    expect(()=>JSON.stringify(published)).not.toThrow();
+    const replacement=await service.createReplacementDraft(societyId,userId,draft.id as string,{...input,storageKey:`societies/${societyId}/documents/${randomUUID()}.pdf`});
+    await service.publish(societyId,userId,replacement.id as string);
+    expect(await service.getManagementDocument(societyId,draft.id as string)).toMatchObject({status:'ARCHIVED',supersededByDocumentId:replacement.id});
+    const events=await service.history(societyId,draft.id as string) as Array<{id:string}>;
+    expect(events).toHaveLength(3);
+    await db.$executeRaw(Prisma.sql`SAVEPOINT document_event_probe`);
+    await expect(db.$executeRaw(Prisma.sql`UPDATE "SocietyDocumentEvent" SET "note"='forbidden' WHERE "id"=${events[0].id}::uuid`)).rejects.toThrow('append-only');
+    await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT document_event_probe`);
+    await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT document_event_probe`);
   });
 
 });

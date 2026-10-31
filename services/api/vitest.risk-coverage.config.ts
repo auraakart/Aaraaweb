@@ -5,6 +5,8 @@ export default defineConfig({
     include: [
       'src/households/occupancy-read-context.regression.spec.ts',
       'src/households/occupancy-mutation-context.regression.spec.ts',
+      'src/households/occupancy-worker-capability.spec.ts',
+      'src/documents/*.spec.ts',
       'src/households/occupancy-lifecycle*.spec.ts',
       'src/occupancy-authority.regression.spec.ts',
       'src/access/visitor-management.e2e.spec.ts',
@@ -99,6 +101,8 @@ export default defineConfig({
         'src/households/household.service.ts',
         'src/households/occupancy-lifecycle.service.ts',
         'src/households/occupancy-lifecycle-self.service.ts',
+        'src/documents/documents.service.ts',
+        'src/documents/documents-storage.service.ts',
         'src/accounting/payment-availability.service.ts',
         'src/accounting/payment-reconciliation.service.ts',
         'src/accounting/payment-reconciliation-observability.service.ts',
@@ -164,6 +168,8 @@ export default defineConfig({
           functions: 80,
           lines: 75,
         },
+        'src/documents/documents.service.ts': { statements: 80, branches: 65, functions: 100, lines: 90 },
+        'src/documents/documents-storage.service.ts': { statements: 85, branches: 70, functions: 100, lines: 90 },
         'src/households/occupancy-lifecycle.service.ts': { statements: 85, branches: 75, functions: 95, lines: 95 },
         'src/households/occupancy-lifecycle-self.service.ts': { statements: 95, branches: 90, functions: 100, lines: 100 },
         'src/households/household.service.ts': {
