@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// Narrow checks for two Prisma/PostgreSQL mismatches reproduced by real DB
+// Narrow checks for known Prisma/PostgreSQL mismatches reproduced by real DB
 // tests. This is a source guard, not a substitute for database execution.
 export function parameterContractFindings(source) {
   const findings = [];
@@ -12,6 +12,14 @@ export function parameterContractFindings(source) {
     const tail = source.slice(match.index + match[0].trimEnd().length);
     if (!/^\s*::\s*(?:int(?:eger|4)?|smallint)\b/.test(tail)) {
       findings.push({ index: match.index, message: 'Cast interpolated integer make_interval arguments explicitly to int.' });
+    }
+  }
+  // Fixed due-work discovery capabilities take PostgreSQL integer limits;
+  // Prisma sends JS numbers as bigint unless SQL explicitly narrows them.
+  const dueLimits = /\baaraagate_due_\w+\s*\(\s*\$\{[^}]+\}/g;
+  for (const match of source.matchAll(dueLimits)) {
+    if (!/^\s*::\s*(?:int(?:eger|4)?)\b/.test(source.slice(match.index + match[0].length))) {
+      findings.push({ index: match.index, message: 'Cast due-work capability limits explicitly to integer.' });
     }
   }
   const locks = /\$queryRaw(?:\s*<[^`]*>)?\s*(?:\([^`]*?)?`\s*SELECT\s+pg_advisory_xact_lock\s*\(/g;

@@ -14,7 +14,7 @@ function fixture() {
 describe('Amenity unpaid-deposit expiry capability', () => {
   it.each([[0, 1], [500, 200], [3.9, 3], [NaN, 50], [Infinity, 50]])('bounds discovery limit %s to %s', async (input, expected) => {
     const f = fixture(); await expect(f.worker.run(input)).resolves.toMatchObject({ expired: 0, mutationPerformed: false });
-    expect(f.tx.$queryRaw.mock.calls[0][0]).toMatchObject({ values: [expected] });
+    expect(f.tx.$queryRaw.mock.calls[0][0]).toMatchObject({ values: [expected], sql: expect.stringContaining('::integer') });
     expect(f.denied).not.toHaveBeenCalled(); expect(f.promote).not.toHaveBeenCalled();
   });
   it('sets each selected society before locking and promotes only successfully closed reservations in the same batch', async () => {

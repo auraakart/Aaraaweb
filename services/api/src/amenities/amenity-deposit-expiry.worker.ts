@@ -12,10 +12,11 @@ export class AmenityDepositExpiryWorker {
   ) {}
 
   run(limit = 50) {
+    const batchLimit = Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.trunc(limit))) : 50;
     // Preserve all-or-nothing batch rollback, row/advisory lock order and promotion.
     return this.prisma.$transaction(async tx => {
       const candidates = await tx.$queryRaw<Candidate[]>(Prisma.sql`
-        SELECT "id","societyId" FROM aaraagate_due_amenity_deposits(${Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.trunc(limit))) : 50})
+        SELECT "id","societyId" FROM aaraagate_due_amenity_deposits(${batchLimit}::integer)
       `);
       let expired = 0;
       for (const candidate of candidates) {
