@@ -235,8 +235,9 @@ void main() {
         // At 200% text, the Community preview is lazily built below the fold.
         // Scroll to its section before checking a notice displaced from inbox.
         if (crowded) {
-          await tester.scrollUntilVisible(find.text('Community'), 250,
+          await tester.scrollUntilVisible(find.text('Water tank cleaning'), 250,
               scrollable: find.byType(Scrollable).first);
+          await tester.pumpAndSettle();
         }
         expect(find.text('Water tank cleaning'), findsOneWidget);
         expect(find.text('Community'), scenario == 'other' || crowded ? findsOneWidget : findsNothing);
