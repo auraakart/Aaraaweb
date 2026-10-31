@@ -97,6 +97,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     // schema. Copy migrated labels and align the isolated ORM enum columns,
     // retaining every migrated default, check and index.
     const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
+      { table: 'User', column: 'status', type: 'UserStatus', defaultValue: 'ACTIVE' },
       { table: 'SocietyMembership', column: 'role', type: 'MembershipRole' },
       { table: 'HouseholdVehicle', column: 'vehicleType', type: 'VehicleType' },
       { table: 'Society', column: 'status', type: 'SocietyStatus', defaultValue: 'ACTIVE' },
