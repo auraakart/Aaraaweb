@@ -1,3 +1,4 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { BadRequestException } from '@nestjs/common';
 import { describe,expect,it,vi } from 'vitest';
 import { AmenitiesService } from './amenities.service';
@@ -9,7 +10,7 @@ const unit='44444444-4444-4444-8444-444444444444';
 
 describe('V4.77 amenity no-show fair-use policy',()=>{
   it('rejects partial no-show policy configuration',async()=>{
-    const service=new AmenitiesService({$queryRaw:vi.fn()} as never);
+    const service=new AmenitiesService(tenantPrisma({$queryRaw:vi.fn()}) as never);
     await expect(service.createAmenity(society,{
       code:'COURT',
       name:'Court',
@@ -19,7 +20,7 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
 
   it('blocks a new booking using the database evaluation time',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
-    const txQueryRaw=vi.fn()
+    const txQueryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id:amenity,societyId:society,code:'COURT',name:'Court',description:null,location:null,schedule:{},
@@ -32,7 +33,7 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
         evaluatedAt:new Date('2001-01-02T00:00:00.000Z'),
       }]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as never);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:queryRaw,$transaction:transaction},$queryRaw:txQueryRaw}) as never);
     await expect(service.createBooking(society,user,amenity,{
       unitId:unit,startsAt:'2099-01-01T10:00:00.000Z',endsAt:'2099-01-01T11:00:00.000Z',
     })).rejects.toThrow('paused until');
@@ -40,7 +41,7 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
 
   it('blocks a new waitlist join under the same resident-specific pause',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
-    const txQueryRaw=vi.fn()
+    const txQueryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id:amenity,societyId:society,code:'COURT',name:'Court',description:null,location:null,schedule:{},
@@ -53,7 +54,7 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
         evaluatedAt:new Date('2030-01-02T00:00:00.000Z'),
       }]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as never);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:queryRaw,$transaction:transaction},$queryRaw:txQueryRaw}) as never);
     await expect(service.joinWaitlist(society,user,amenity,{
       unitId:unit,startsAt:'2099-01-01T10:00:00.000Z',endsAt:'2099-01-01T11:00:00.000Z',
     })).rejects.toThrow('paused until');
@@ -62,7 +63,7 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
   it('allows booking after the configured database pause has expired',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
     const booking={id:'booking-1',status:'CONFIRMED'};
-    const txQueryRaw=vi.fn()
+    const txQueryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id:amenity,societyId:society,code:'COURT',name:'Court',description:null,location:null,schedule:{},
@@ -77,7 +78,7 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
       .mockResolvedValueOnce([{count:0}])
       .mockResolvedValueOnce([booking]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as never);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:queryRaw,$transaction:transaction},$queryRaw:txQueryRaw}) as never);
     await expect(service.createBooking(society,user,amenity,{
       unitId:unit,startsAt:'2099-01-01T10:00:00.000Z',endsAt:'2099-01-01T11:00:00.000Z',
     })).resolves.toEqual(booking);

@@ -13,16 +13,16 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Coverage | Count |
 | --- | ---: |
 | Tables, including SQL-only tables | 287 |
-| API runtime/script source files | 458 |
-| Migration SQL files | 223 |
-| Database access sites | 2471 |
-| Raw SQL / ORM sites | 1725 / 746 |
+| API runtime/script source files | 459 |
+| Migration SQL files | 224 |
+| Database access sites | 2473 |
+| Raw SQL / ORM sites | 1727 / 746 |
 | Controller route handlers | 967 |
 | Unsafe runtime SQL calls discovered | 0 |
 | Unsafe disposable performance-seed calls | 11 |
-| Recognized SQL utility sites | 67 |
-| Indirect SQL expressions requiring manual resolution | 16 |
-| Runtime calls to `withTenantContext` | 308 |
+| Recognized SQL utility sites | 68 |
+| Indirect SQL expressions requiring manual resolution | 17 |
+| Runtime calls to `withTenantContext` | 330 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.

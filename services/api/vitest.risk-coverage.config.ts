@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'src/amenities/*.spec.ts',
       'src/helpdesk/helpdesk-context.regression.spec.ts',
       'src/helpdesk/helpdesk.service.spec.ts',
       'src/helpdesk/helpdesk-operator.spec.ts',
@@ -86,6 +87,10 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/amenities/amenities.service.ts',
+        'src/amenities/amenity-booking-creator.ts',
+        'src/amenities/amenity-analytics.query.ts',
+        'src/amenities/amenity-deposit-expiry.worker.ts',
         'src/helpdesk/helpdesk.service.ts',
         'src/helpdesk/helpdesk-sla.service.ts',
         'src/access/access.service.ts',
@@ -127,6 +132,10 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/amenities/amenities.service.ts': { statements: 75, branches: 60, functions: 90, lines: 80 },
+        'src/amenities/amenity-booking-creator.ts': { statements: 90, branches: 70, functions: 100, lines: 95 },
+        'src/amenities/amenity-analytics.query.ts': { statements: 100, branches: 90, functions: 100, lines: 100 },
+        'src/amenities/amenity-deposit-expiry.worker.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/helpdesk/helpdesk.service.ts': { statements: 85, branches: 70, functions: 90, lines: 85 },
         'src/helpdesk/helpdesk-sla.service.ts': { statements: 85, branches: 70, functions: 90, lines: 85 },
         'src/parking/parking-operations.service.ts': { statements: 90, branches: 85, functions: 100, lines: 90 },

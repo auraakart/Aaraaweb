@@ -1,14 +1,16 @@
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../prisma/prisma.service';
 import { AmenitiesService } from './amenities.service';
 
 const societyId='11111111-1111-4111-8111-111111111111';
 const actorId='22222222-2222-4222-8222-222222222222';
 const bookingId='33333333-3333-4333-8333-333333333333';
 
-function serviceWith(queryRaw:ReturnType<typeof vi.fn>, transaction?:ReturnType<typeof vi.fn>) {
-  return new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction??vi.fn()} as unknown as PrismaService);
+function serviceWith(queryRaw:ReturnType<typeof vi.fn>, transaction?:(run: (tx: { $queryRaw: typeof queryRaw }) => Promise<unknown>) => Promise<unknown>) {
+  return new AmenitiesService({
+    withTenantContext: vi.fn((_scope: string, run: (tx: { $queryRaw: typeof queryRaw }) => Promise<unknown>) => transaction ? transaction(run) : run({$queryRaw:queryRaw})),
+    $transaction: transaction ?? vi.fn(),
+  } as never);
 }
 
 function sqlText(queryRaw:ReturnType<typeof vi.fn>) {

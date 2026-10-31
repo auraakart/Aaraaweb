@@ -31,3 +31,11 @@ test('detects multiline two-key advisory locks and permits a text result', () =>
   assert.deepEqual(findings(query + '::text\n`);'), []);
   assert.equal(findings(query.replace('$queryRaw(', '$queryRaw<Array<{ locked: string }>>(') + '\n`);').length, 1);
 });
+
+test('due-work capabilities require an explicit integer limit for Prisma numbers', () => {
+  for (const name of ['aaraagate_due_amenity_deposits', 'aaraagate_due_occupancy_lifecycle']) {
+    assert.equal(findings(name + '(${batchLimit})').length, 1);
+    assert.deepEqual(findings(name + '(${batchLimit}::integer)'), []);
+    assert.deepEqual(findings(name + '(50)'), []);
+  }
+});
