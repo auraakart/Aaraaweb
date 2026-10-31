@@ -205,10 +205,10 @@ export class HouseholdService {
   }
 
   async addVehicle(societyId: string, userId: string, householdId: string, input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string }) {
-    await this.assertOwnHousehold(societyId, userId, householdId);
-    const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
-    if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.assertOwnHousehold(societyId, userId, householdId, tx);
+      const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
+      if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
       // Serialize direct writes and approval-driven writes for the society-wide
       // plate invariant. This also prevents two inactive-row reactivations from
       // racing after both callers observe the same stale state.
@@ -251,11 +251,16 @@ export class HouseholdService {
   }
 
   async deactivateVehicle(societyId: string, userId: string, householdId: string, vehicleId: string) {
-    const household = await this.assertOwnHousehold(societyId, userId, householdId);
-    const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
-    if (!vehicle) throw new NotFoundException('Active household vehicle not found');
-    await this.setVehicleParkingSlot(household, vehicle.id, undefined);
-    return this.prisma.householdVehicle.update({ where: { id: vehicle.id }, data: { active: false } });
+    return this.prisma.withTenantContext(societyId, async tx => {
+      // Read preferences only after taking the shared household-writer lock.
+      // Clearing a label and deactivating its vehicle must commit together.
+      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id"=${householdId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`;
+      const household = await this.assertOwnHousehold(societyId, userId, householdId, tx);
+      const vehicle = await tx.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
+      if (!vehicle) throw new NotFoundException('Active household vehicle not found');
+      await this.setVehicleParkingSlot(household, vehicle.id, undefined, tx);
+      return tx.householdVehicle.update({ where: { id: vehicle.id }, data: { active: false } });
+    });
   }
 
   async addEmergencyContact(
@@ -320,7 +325,7 @@ export class HouseholdService {
     return expiry;
   }
 
-  private async setVehicleParkingSlot(household: { id: string; accessPreferences: Prisma.JsonValue | null }, vehicleId: string, parkingSlot?: string, client: Prisma.TransactionClient = this.prisma) {
+  private async setVehicleParkingSlot(household: { id: string; accessPreferences: Prisma.JsonValue | null }, vehicleId: string, parkingSlot: string | undefined, client: Prisma.TransactionClient) {
     const preferences = this.jsonObject(household.accessPreferences);
     const parkingSlots = this.stringMap(preferences.parkingSlots);
     const normalizedSlot = parkingSlot?.trim();
