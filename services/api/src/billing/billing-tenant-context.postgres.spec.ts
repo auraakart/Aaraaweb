@@ -245,11 +245,26 @@ database('Billing transactions under a non-owner RLS role', () => {
 
   const helpdesk = new HelpdeskService(runtime);
   const helpdeskSla = new HelpdeskSlaService(runtime);
+  const helpdeskUnits = new Set<string>(), helpdeskTickets = new Set<string>(), helpdeskPolicies = new Set<string>();
+  afterEach(async () => {
+    for (const ticketId of helpdeskTickets) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskActivity" WHERE "ticketId"=${ticketId}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskSlaEvent" WHERE "ticketId"=${ticketId}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskTicket" WHERE "id"=${ticketId}::uuid`);
+    }
+    for (const unitId of helpdeskUnits) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UnitOccupancy" WHERE "unitId"=${unitId}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "Unit" WHERE "id"=${unitId}::uuid`);
+    }
+    for (const id of helpdeskPolicies) await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskSlaPolicy" WHERE "id"=${id}::uuid`);
+    helpdeskTickets.clear(); helpdeskUnits.clear(); helpdeskPolicies.clear();
+  });
   async function helpdeskComplaint(scope = societyA) {
-    const unitId = randomUUID();
+    const unitId = randomUUID(); helpdeskUnits.add(unitId);
     await fixture.unit.create({ data: { id: unitId, societyId: scope, buildingId: scope === societyA ? buildingA : buildingB, number: unitId } });
     await fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId: tenant, relation: 'TENANT', effectiveFrom: new Date(Date.now() - 86400000) } });
-    return helpdesk.createMine(scope, tenant, { unitId, idempotencyKey: randomUUID(), title: 'Kitchen water leak', description: 'Water is leaking below the kitchen sink' });
+    const created = await helpdesk.createMine(scope, tenant, { unitId, idempotencyKey: randomUUID(), title: 'Kitchen water leak', description: 'Water is leaking below the kitchen sink' });
+    helpdeskTickets.add(created.id); return created;
   }
   for (const scope of [societyA, societyB]) {
     it(`isolates Helpdesk read, comment and review history in ${scope}`, async () => {
@@ -265,7 +280,8 @@ database('Billing transactions under a non-owner RLS role', () => {
     });
     it(`keeps Helpdesk SLA policies, tracking and history scoped in ${scope}`, async () => {
       const ticket = await helpdeskComplaint(scope);
-      await helpdeskSla.upsertPolicy(scope, owner, { priority: 'NORMAL', firstResponseMinutes: 5, resolutionMinutes: 60, escalationAfterMinutes: 10 });
+      const policy = await helpdeskSla.upsertPolicy(scope, owner, { priority: 'NORMAL', firstResponseMinutes: 5, resolutionMinutes: 60, escalationAfterMinutes: 10 });
+      helpdeskPolicies.add(String(policy.id));
       expect(await helpdeskSla.listPolicies(scope)).toEqual(expect.arrayContaining([expect.objectContaining({ societyId: scope })]));
       await helpdeskSla.applyPolicy(scope, owner, ticket.id);
       expect(await helpdeskSla.readiness(scope, ticket.id)).toMatchObject({ computedSlaState: 'ON_TRACK', policy: expect.objectContaining({ firstResponseMinutes: 5 }) });
@@ -275,7 +291,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   }
   it('rejects a Helpdesk parent unit from another society', async () => {
     await expect(helpdesk.createMine(societyA, tenant, { unitId: unitB, idempotencyKey: randomUUID(), title: 'Foreign unit', description: 'Invalid cross society unit' })).rejects.toThrow('Unit not found');
-    const id = randomUUID();
+    const id = randomUUID(); helpdeskTickets.add(id);
     await fixture.$executeRaw(Prisma.sql`INSERT INTO "HelpdeskTicket" ("id","societyId","unitId","createdById","title","description") VALUES (${id}::uuid,${societyA}::uuid,${unitB}::uuid,${tenant}::uuid,'Malformed parent','Cross society parent')`);
     await expect(helpdesk.activitiesReview(societyA, id)).rejects.toThrow('not found');
   });
