@@ -70,6 +70,10 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
           // deleting immutable ParcelEvent evidence or disabling audit triggers.
           const db = new Proxy(tx, {
             get(target, property) {
+              if (property === 'withTenantContext') return async (scope: string, callback: (client: typeof db) => Promise<unknown>) => {
+                await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id', ${scope}, true)`);
+                return callback(db);
+              };
               if (property === '$transaction') return (callback: (client: typeof db) => Promise<unknown>) => callback(db);
               const value = Reflect.get(target, property);
               return typeof value === 'function' ? value.bind(target) : value;

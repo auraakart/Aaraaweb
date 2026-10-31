@@ -1,3 +1,4 @@
+import { HouseholdChangeRequestService } from '../households/household-change-request.service';
 import { HouseholdService } from '../households/household.service';
 import { ParkingAdminController } from '../households/parking-admin.controller';
 import { AccessSubjectType, MembershipRole, Prisma } from '@prisma/client';
@@ -72,7 +73,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
-    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdVehicle', 'EmergencyContact', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+    'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdChangeRequest', 'HouseholdVehicle', 'EmergencyContact', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -282,6 +283,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (parkingHouseholds.size) {
       const households = Prisma.join([...parkingHouseholds].map(id => Prisma.sql`${id}::uuid`));
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingCredential" WHERE "vehicleId" IN (SELECT "id" FROM "HouseholdVehicle" WHERE "householdId" IN (${households}))`);
+      await fixture.householdChangeRequest.deleteMany({ where: { householdId: { in: [...parkingHouseholds] } } });
       await fixture.emergencyContact.deleteMany({ where: { householdId: { in: [...parkingHouseholds] } } });
       await fixture.householdVehicle.deleteMany({ where: { householdId: { in: [...parkingHouseholds] } } });
       await fixture.household.deleteMany({ where: { id: { in: [...parkingHouseholds] } } });
@@ -575,6 +577,78 @@ database('Billing transactions under a non-owner RLS role', () => {
 
   const householdParking = new HouseholdService(runtime);
   const parkingAdmin = new ParkingAdminController(runtime, householdParking);
+
+  const changeRequests = new HouseholdChangeRequestService(runtime, householdParking);
+  const changeInput = () => ({ plateNumber: randomUUID(), vehicleType: 'CAR' as const });
+
+  it('isolates household request queues, history, approvals and rejection in both societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const home = await residentHome(scope), input = changeInput();
+      const request = await changeRequests.requestVehicleAdd(scope, tenant, home.id, input);
+      const foreign = scope === societyA ? societyB : societyA;
+      expect(await changeRequests.listPending(scope)).toEqual(expect.arrayContaining([expect.objectContaining({ id: request.id, householdId: home.id })]));
+      expect(await changeRequests.listPending(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: request.id })]));
+      expect(await changeRequests.listMine(scope, tenant)).toEqual(expect.arrayContaining([expect.objectContaining({ id: request.id })]));
+      await expect(changeRequests.approve(foreign, owner, request.id)).rejects.toThrow('not found');
+      await expect(changeRequests.reject(foreign, owner, request.id)).rejects.toThrow('not found');
+      expect((await changeRequests.approve(scope, owner, request.id)).status).toBe('APPROVED');
+      const vehicle = await fixture.householdVehicle.findFirstOrThrow({ where: { societyId: scope, plateNumber: input.plateNumber.toUpperCase().replaceAll('-', '') } });
+      const remove = await changeRequests.requestVehicleRemove(scope, tenant, home.id, vehicle.id);
+      expect((await changeRequests.reject(scope, owner, remove.id, ' Keep ')).reviewNote).toBe('Keep');
+      expect((await fixture.householdVehicle.findUniqueOrThrow({ where: { id: vehicle.id } })).active).toBe(true);
+    }
+  });
+
+  it('serializes society-wide duplicate submissions across distinct households', async () => {
+    const first = await residentHome(), second = await residentHome(), input = changeInput();
+    const results = await Promise.allSettled([first, second].map(home => changeRequests.requestVehicleAdd(societyA, tenant, home.id, input)));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    expect(await fixture.householdChangeRequest.count({ where: { societyId: societyA, householdId: { in: [first.id, second.id] } } })).toBe(1);
+  });
+
+  it('claims competing reviews once and backfills a scoped legacy rejection', async () => {
+    const home = await residentHome(), request = await changeRequests.requestVehicleAdd(societyA, tenant, home.id, changeInput());
+    let applications = 0;
+    const reviewed = new HouseholdChangeRequestService(runtime, { addVehicle: async () => { applications++; } } as never);
+    const results = await Promise.allSettled([reviewed.approve(societyA, owner, request.id), reviewed.approve(societyA, owner, request.id)]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1); expect(applications).toBe(1);
+    const legacyId = randomUUID();
+    await fixture.household.update({ where: { id: home.id }, data: { accessPreferences: { delivery: 'door', householdChangeRequests: [{ id: legacyId, type: 'VEHICLE_REMOVE', status: 'PENDING', requestedByUserId: tenant, payload: {}, createdAt: new Date().toISOString() }] } } });
+    await expect(changeRequests.reject(societyB, owner, legacyId)).rejects.toThrow('not found');
+    await changeRequests.reject(societyA, owner, legacyId);
+    expect(await fixture.householdChangeRequest.findUniqueOrThrow({ where: { id: legacyId } })).toMatchObject({ status: 'REJECTED', societyId: societyA });
+    expect((await fixture.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toMatchObject({ delivery: 'door', householdChangeRequests: [expect.objectContaining({ id: legacyId, status: 'REJECTED' })] });
+  });
+
+  it('rolls back actual dual writes and retains PROCESSING after completion bookkeeping fails', async () => {
+    const home = await residentHome();
+    const failed = new HouseholdChangeRequestService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, async tx => { await run(tx); throw new Error('After write'); }) } as never, householdParking);
+    await expect(failed.requestVehicleAdd(societyA, tenant, home.id, changeInput())).rejects.toThrow('After write');
+    expect(await fixture.householdChangeRequest.count({ where: { householdId: home.id } })).toBe(0);
+    expect((await fixture.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toEqual({});
+    const request = await changeRequests.requestVehicleAdd(societyA, tenant, home.id, changeInput());
+    let phases = 0, applications = 0;
+    const completionFailed = new HouseholdChangeRequestService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+      const phase = ++phases;
+      return runtime.withTenantContext(scope, async tx => { const result = await run(tx); if (phase === 3) throw new Error('Completion failed'); return result; });
+    } } as never, { addVehicle: async () => { applications++; } } as never);
+    await expect(completionFailed.approve(societyA, owner, request.id)).rejects.toThrow('Completion failed');
+    expect((await fixture.householdChangeRequest.findUniqueOrThrow({ where: { id: request.id } })).status).toBe('PROCESSING');
+    await expect(completionFailed.approve(societyA, owner, request.id)).rejects.toThrow('Only pending'); expect(applications).toBe(1);
+  });
+
+  it('denies malformed household parents and expired request authority', async () => {
+    const home = await residentHome(), input = changeInput();
+    await fixture.unitOccupancy.updateMany({ where: { societyId: societyA, unitId: home.unitId }, data: { effectiveTo: new Date(Date.now() - 1_000) } });
+    await expect(changeRequests.requestVehicleAdd(societyA, tenant, home.id, input)).rejects.toThrow('active resident');
+    await fixture.unitOwnership.create({ data: { societyId: societyA, unitId: home.unitId, userId: owner, verified: true } });
+    const request = await changeRequests.requestFamilyAdd(societyA, owner, home.id, { name: 'Member', phone: randomUUID() });
+    await fixture.unit.update({ where: { id: home.unitId }, data: { societyId: societyB } });
+    await expect(changeRequests.requestFamilyAdd(societyA, owner, home.id, { name: 'Member', phone: randomUUID() })).rejects.toThrow('not found');
+    await expect(changeRequests.approve(societyA, owner, request.id)).rejects.toThrow('not found');
+    expect(await changeRequests.listPending(societyA)).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: request.id })]));
+  });
 
   const contactInput = { name: ' Family ', phone: ' +91 900-000 ', relation: ' Sister ', priority: 2, idempotencyKey: ' contact-key-1 ' };
   async function residentHome(scope = societyA) {

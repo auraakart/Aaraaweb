@@ -13,6 +13,7 @@ describe('HouseholdChangeRequestService', () => {
       requestedBy: { id: 'resident-1', name: 'Resident', phone: '+919999999999' },
     }]);
     const prisma = {
+      withTenantContext: async (_scope: string, run: (tx: unknown) => Promise<unknown>) => run(prisma),
       householdChangeRequest: { findMany },
       household: { findMany: vi.fn() },
     };
@@ -24,7 +25,7 @@ describe('HouseholdChangeRequestService', () => {
     const result = await service.listPending('society-1');
 
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { societyId: 'society-1', status: 'PENDING' },
+      where: { societyId: 'society-1', status: 'PENDING', household: { societyId: 'society-1', unit: { societyId: 'society-1', building: { societyId: 'society-1' } } } },
       orderBy: { createdAt: 'asc' },
     }));
     expect(prisma.household.findMany).not.toHaveBeenCalled();
@@ -53,7 +54,7 @@ describe('HouseholdChangeRequestService', () => {
         update: vi.fn(),
       },
       householdChangeRequest: {
-        findFirst: vi.fn().mockResolvedValue(current),
+        findFirst: vi.fn().mockResolvedValueOnce(stale).mockResolvedValue(current),
         update: vi.fn(),
         create: vi.fn(),
       },
@@ -61,7 +62,7 @@ describe('HouseholdChangeRequestService', () => {
     const prisma = {
       household: { findMany: vi.fn().mockResolvedValue([{ id: 'household-1', accessPreferences: { householdChangeRequests: [stale] } }]) },
       householdChangeRequest: { findFirst: vi.fn().mockResolvedValue(stale) },
-      $transaction: vi.fn(async (operation: (client: typeof tx) => unknown) => operation(tx)),
+      withTenantContext: vi.fn(async (_scope: string, operation: (client: typeof tx) => unknown) => operation(tx)),
     };
     const households = { addVehicle: vi.fn() };
     const service = new HouseholdChangeRequestService(
@@ -89,9 +90,12 @@ describe('HouseholdChangeRequestService', () => {
       reviewNote: null,
     };
     const tx = {
+      householdVehicle: { findFirst: vi.fn().mockResolvedValue(null) },
+      unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'occupancy-1' }) },
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'owner-1' }) },
       $executeRaw: vi.fn().mockResolvedValue(1),
       household: {
-        findFirst: vi.fn().mockResolvedValue({ id: 'household-1', accessPreferences: {} }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'household-1', unitId: 'unit-1', accessPreferences: {} }),
         update: vi.fn(),
       },
       householdChangeRequest: {
@@ -104,7 +108,7 @@ describe('HouseholdChangeRequestService', () => {
       householdVehicle: { findFirst: vi.fn().mockResolvedValue(null) },
       unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'occupancy-1' }) },
       unitOwnership: { findFirst: vi.fn().mockResolvedValue(null) },
-      $transaction: vi.fn(async (operation: (client: typeof tx) => unknown) => operation(tx)),
+      withTenantContext: vi.fn(async (_scope: string, operation: (client: typeof tx) => unknown) => operation(tx)),
     };
     const service = new HouseholdChangeRequestService(
       prisma as unknown as ConstructorParameters<typeof HouseholdChangeRequestService>[0],
@@ -124,9 +128,12 @@ describe('HouseholdChangeRequestService', () => {
 
   it('dual-writes a new request to the indexed table and legacy JSON ledger', async () => {
     const tx = {
+      householdVehicle: { findFirst: vi.fn().mockResolvedValue(null) },
+      unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'occupancy-1' }) },
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'owner-1' }) },
       $executeRaw: vi.fn().mockResolvedValue(1),
       household: {
-        findFirst: vi.fn().mockResolvedValue({ id: 'household-1', accessPreferences: { delivery: 'door' } }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'household-1', unitId: 'unit-1', accessPreferences: { delivery: 'door' } }),
         update: vi.fn().mockResolvedValue({ id: 'household-1' }),
       },
       householdChangeRequest: {
@@ -137,7 +144,7 @@ describe('HouseholdChangeRequestService', () => {
     const prisma = {
       household: { findFirst: vi.fn().mockResolvedValue({ id: 'household-1', unitId: 'unit-1' }) },
       unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'owner-1' }) },
-      $transaction: vi.fn(async (operation: (client: typeof tx) => unknown) => operation(tx)),
+      withTenantContext: vi.fn(async (_scope: string, operation: (client: typeof tx) => unknown) => operation(tx)),
     };
     const service = new HouseholdChangeRequestService(
       prisma as unknown as ConstructorParameters<typeof HouseholdChangeRequestService>[0],

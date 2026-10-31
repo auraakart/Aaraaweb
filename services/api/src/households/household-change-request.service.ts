@@ -42,99 +42,111 @@ export class HouseholdChangeRequestService {
     name: string; phone: string; gateApprovalEnabled?: boolean; gateApprovalExpiresAt?: string | null; gateNotificationEnabled?: boolean;
     primaryGateContact?: boolean; escalationOrder?: number;
   }) {
-    await this.assertVerifiedOwnerHousehold(societyId, userId, householdId);
-    const name = input.name.trim();
-    const phone = input.phone.trim();
-    if (!name || !phone) throw new BadRequestException('Family member name and phone are required');
-    return this.appendRequest(societyId, householdId, {
-      type: 'FAMILY_MEMBER_ADD', requestedByUserId: userId,
-      payload: {
-        name, phone,
-        gateApprovalEnabled: input.gateApprovalEnabled ?? false,
-        gateApprovalExpiresAt: input.gateApprovalEnabled === false ? null : (input.gateApprovalExpiresAt ?? null),
-        gateNotificationEnabled: input.gateNotificationEnabled ?? true,
-        primaryGateContact: input.primaryGateContact ?? false,
-        escalationOrder: input.escalationOrder ?? 100,
-      },
-    }, (r) => r.type === 'FAMILY_MEMBER_ADD' && r.status === 'PENDING' && r.payload.phone === phone);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.assertVerifiedOwnerHousehold(societyId, userId, householdId, tx);
+      const name = input.name.trim();
+      const phone = input.phone.trim();
+      if (!name || !phone) throw new BadRequestException('Family member name and phone are required');
+      return this.appendRequest(tx, societyId, householdId, {
+        type: 'FAMILY_MEMBER_ADD', requestedByUserId: userId,
+        payload: {
+          name, phone,
+          gateApprovalEnabled: input.gateApprovalEnabled ?? false,
+          gateApprovalExpiresAt: input.gateApprovalEnabled === false ? null : (input.gateApprovalExpiresAt ?? null),
+          gateNotificationEnabled: input.gateNotificationEnabled ?? true,
+          primaryGateContact: input.primaryGateContact ?? false,
+          escalationOrder: input.escalationOrder ?? 100,
+        },
+      }, (r) => r.type === 'FAMILY_MEMBER_ADD' && r.status === 'PENDING' && r.payload.phone === phone);
+    });
   }
 
   async requestFamilyRemove(societyId: string, userId: string, householdId: string, occupancyId: string) {
-    const household = await this.assertVerifiedOwnerHousehold(societyId, userId, householdId);
-    const occupancy = await this.prisma.unitOccupancy.findFirst({
-      where: { id: occupancyId, societyId, unitId: household.unitId, relation: UnitRelation.FAMILY_MEMBER, active: true },
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const household = await this.assertVerifiedOwnerHousehold(societyId, userId, householdId, tx);
+      const occupancy = await tx.unitOccupancy.findFirst({
+        where: { id: occupancyId, societyId, unitId: household.unitId, relation: UnitRelation.FAMILY_MEMBER, active: true },
+      });
+      if (!occupancy) throw new NotFoundException('Active family member not found');
+      return this.appendRequest(tx, societyId, householdId, {
+        type: 'FAMILY_MEMBER_REMOVE', requestedByUserId: userId, targetId: occupancyId, payload: {},
+      }, (r) => r.type === 'FAMILY_MEMBER_REMOVE' && r.status === 'PENDING' && r.targetId === occupancyId);
     });
-    if (!occupancy) throw new NotFoundException('Active family member not found');
-    return this.appendRequest(societyId, householdId, {
-      type: 'FAMILY_MEMBER_REMOVE', requestedByUserId: userId, targetId: occupancyId, payload: {},
-    }, (r) => r.type === 'FAMILY_MEMBER_REMOVE' && r.status === 'PENDING' && r.targetId === occupancyId);
   }
 
   async requestVehicleAdd(societyId: string, userId: string, householdId: string, input: {
     plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string;
   }) {
-    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
-    const plateNumber = this.normalizePlate(input.plateNumber);
-    if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
-    const active = await this.prisma.householdVehicle.findFirst({ where: { societyId, plateNumber, active: true }, select: { id: true } });
-    if (active) throw new BadRequestException('This vehicle is already registered in the society');
-    return this.appendRequest(societyId, householdId, {
-      type: 'VEHICLE_ADD', requestedByUserId: userId,
-      payload: {
-        plateNumber, vehicleType: input.vehicleType,
-        make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null,
-      },
-    }, (r) => r.type === 'VEHICLE_ADD' && ['PENDING', 'PROCESSING'].includes(r.status) && r.payload.plateNumber === plateNumber,
-    { societyId }, `vehicle:${societyId}:${plateNumber}`);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.assertOwnerOrResidentHousehold(societyId, userId, householdId, tx);
+      const plateNumber = this.normalizePlate(input.plateNumber);
+      if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
+      const active = await tx.householdVehicle.findFirst({ where: { societyId, plateNumber, active: true }, select: { id: true } });
+      if (active) throw new BadRequestException('This vehicle is already registered in the society');
+      return this.appendRequest(tx, societyId, householdId, {
+        type: 'VEHICLE_ADD', requestedByUserId: userId,
+        payload: {
+          plateNumber, vehicleType: input.vehicleType,
+          make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null,
+        },
+      }, (r) => r.type === 'VEHICLE_ADD' && ['PENDING', 'PROCESSING'].includes(r.status) && r.payload.plateNumber === plateNumber,
+      { societyId }, `vehicle:${societyId}:${plateNumber}`);
+    });
   }
 
   async requestVehicleRemove(societyId: string, userId: string, householdId: string, vehicleId: string) {
-    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
-    const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
-    if (!vehicle) throw new NotFoundException('Active household vehicle not found');
-    return this.appendRequest(societyId, householdId, {
-      type: 'VEHICLE_REMOVE', requestedByUserId: userId, targetId: vehicleId, payload: { plateNumber: vehicle.plateNumber },
-    }, (r) => r.type === 'VEHICLE_REMOVE' && r.status === 'PENDING' && r.targetId === vehicleId);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.assertOwnerOrResidentHousehold(societyId, userId, householdId, tx);
+      const vehicle = await tx.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
+      if (!vehicle) throw new NotFoundException('Active household vehicle not found');
+      return this.appendRequest(tx, societyId, householdId, {
+        type: 'VEHICLE_REMOVE', requestedByUserId: userId, targetId: vehicleId, payload: { plateNumber: vehicle.plateNumber },
+      }, (r) => r.type === 'VEHICLE_REMOVE' && r.status === 'PENDING' && r.targetId === vehicleId);
+    });
   }
 
   async listMine(societyId: string, userId: string) {
     const mine = await this.households.listMine(societyId, userId);
-    const units = new Map(mine.map((household) => [household.id, household.unitId]));
-    const indexed = mine.length ? await this.prisma.householdChangeRequest.findMany({
-      where: { societyId, requestedByUserId: userId, householdId: { in: [...units.keys()] } },
-      orderBy: { createdAt: 'desc' },
-    }) : [];
-    const merged = new Map(indexed.map((request) => {
-      const stored = this.fromIndexed(request);
-      return [stored.id, { ...stored, householdId: request.householdId, unitId: units.get(request.householdId) }];
-    }));
-    // Retain a scoped fallback for records that predate or were rejected by the
-    // backfill. This never scans households outside the user's active context.
-    for (const request of mine.flatMap((household) => this.requestsOf(household.accessPreferences)
-      .filter((r) => r.requestedByUserId === userId)
-      .map((r) => ({ ...r, householdId: household.id, unitId: household.unitId })))) {
-      if (!merged.has(request.id)) merged.set(request.id, request);
-    }
-    return [...merged.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const units = new Map(mine.map((household) => [household.id, household.unitId]));
+      const indexed = mine.length ? await tx.householdChangeRequest.findMany({
+        where: { societyId, requestedByUserId: userId, householdId: { in: [...units.keys()] } },
+        orderBy: { createdAt: 'desc' },
+      }) : [];
+      const merged = new Map(indexed.map((request) => {
+        const stored = this.fromIndexed(request);
+        return [stored.id, { ...stored, householdId: request.householdId, unitId: units.get(request.householdId) }];
+      }));
+      // Retain a scoped fallback for records that predate or were rejected by the
+      // backfill. This never scans households outside the user's active context.
+      for (const request of mine.flatMap((household) => this.requestsOf(household.accessPreferences)
+        .filter((r) => r.requestedByUserId === userId)
+        .map((r) => ({ ...r, householdId: household.id, unitId: household.unitId })))) {
+        if (!merged.has(request.id)) merged.set(request.id, request);
+      }
+      return [...merged.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    });
   }
 
   async listPending(societyId: string) {
-    const requests = await this.prisma.householdChangeRequest.findMany({
-      where: { societyId, status: 'PENDING' },
-      include: {
-        household: { select: { unitId: true, unit: { select: { number: true, building: { select: { name: true } } } } } },
-        requestedBy: { select: { id: true, name: true, phone: true } },
-      },
-      orderBy: { createdAt: 'asc' },
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const requests = await tx.householdChangeRequest.findMany({
+        where: { societyId, status: 'PENDING', household: { societyId, unit: { societyId, building: { societyId } } } },
+        include: {
+          household: { select: { unitId: true, unit: { select: { number: true, building: { select: { name: true } } } } } },
+          requestedBy: { select: { id: true, name: true, phone: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      return requests.map((request) => ({
+        ...this.fromIndexed(request),
+        householdId: request.householdId,
+        unitId: request.household.unitId,
+        unitNumber: request.household.unit.number,
+        buildingName: request.household.unit.building.name,
+        requester: request.requestedBy,
+      }));
     });
-    return requests.map((request) => ({
-      ...this.fromIndexed(request),
-      householdId: request.householdId,
-      unitId: request.household.unitId,
-      unitNumber: request.household.unit.number,
-      buildingName: request.household.unit.building.name,
-      requester: request.requestedBy,
-    }));
   }
 
   async approve(societyId: string, reviewerUserId: string, requestId: string, reviewNote?: string) {
@@ -194,6 +206,7 @@ export class HouseholdChangeRequestService {
   }
 
   private async appendRequest(
+    tx: Prisma.TransactionClient,
     societyId: string,
     householdId: string,
     input: Omit<StoredChangeRequest, 'id' | 'status' | 'createdAt'>,
@@ -201,29 +214,27 @@ export class HouseholdChangeRequestService {
     pendingScope: Prisma.HouseholdChangeRequestWhereInput = { householdId },
     advisoryLockKey?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${householdId}::uuid FOR UPDATE`;
-      // Vehicle registration is unique across a society, so requests from two
-      // different households need a shared transaction lock before deduping.
-      if (advisoryLockKey) {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${advisoryLockKey}, 0))`;
-      }
-      const household = await tx.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, accessPreferences: true } });
-      if (!household) throw new NotFoundException('Household not found');
-      const preferences = this.jsonObject(household.accessPreferences);
-      const legacyRequests = this.requestsOf(preferences);
-      const indexedRequests = await tx.householdChangeRequest.findMany({
-        where: { ...pendingScope, status: { in: ['PENDING', 'PROCESSING'] } },
-      });
-      const pending = new Map(indexedRequests.map((request) => [request.id, this.fromIndexed(request)]));
-      for (const request of legacyRequests.filter((item) => ['PENDING', 'PROCESSING'].includes(item.status))) pending.set(request.id, request);
-      if ([...pending.values()].some(duplicate)) throw new BadRequestException('A matching request is already pending society approval');
-      const request: StoredChangeRequest = { ...input, id: randomUUID(), status: 'PENDING', createdAt: new Date().toISOString() };
-      await tx.householdChangeRequest.create({ data: this.toIndexedData(societyId, householdId, request) });
-      preferences.householdChangeRequests = [...legacyRequests, request] as unknown as Prisma.JsonArray;
-      await tx.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
-      return { ...request, householdId };
+    await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${householdId}::uuid AND "societyId" = ${societyId}::uuid FOR UPDATE`;
+    // Vehicle registration is unique across a society, so requests from two
+    // different households need a shared transaction lock before deduping.
+    if (advisoryLockKey) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${advisoryLockKey}, 0))`;
+    }
+    const household = await tx.household.findFirst({ where: { id: householdId, societyId, unit: { societyId, building: { societyId } } }, select: { id: true, accessPreferences: true } });
+    if (!household) throw new NotFoundException('Household not found');
+    const preferences = this.jsonObject(household.accessPreferences);
+    const legacyRequests = this.requestsOf(preferences);
+    const indexedRequests = await tx.householdChangeRequest.findMany({
+      where: { ...pendingScope, societyId, status: { in: ['PENDING', 'PROCESSING'] } },
     });
+    const pending = new Map(indexedRequests.map((request) => [request.id, this.fromIndexed(request)]));
+    for (const request of legacyRequests.filter((item) => ['PENDING', 'PROCESSING'].includes(item.status))) pending.set(request.id, request);
+    if ([...pending.values()].some(duplicate)) throw new BadRequestException('A matching request is already pending society approval');
+    const request: StoredChangeRequest = { ...input, id: randomUUID(), status: 'PENDING', createdAt: new Date().toISOString() };
+    await tx.householdChangeRequest.create({ data: this.toIndexedData(societyId, householdId, request) });
+    preferences.householdChangeRequests = [...legacyRequests, request] as unknown as Prisma.JsonArray;
+    await tx.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
+    return { ...request, householdId };
   }
 
   private async replaceRequest(
@@ -233,9 +244,9 @@ export class HouseholdChangeRequestService {
     expectedStatus: ChangeStatus,
     change: (r: StoredChangeRequest) => StoredChangeRequest,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${householdId}::uuid FOR UPDATE`;
-      const household = await tx.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, accessPreferences: true } });
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${householdId}::uuid AND "societyId" = ${societyId}::uuid FOR UPDATE`;
+      const household = await tx.household.findFirst({ where: { id: householdId, societyId, unit: { societyId, building: { societyId } } }, select: { id: true, accessPreferences: true } });
       if (!household) throw new NotFoundException('Household not found');
       const preferences = this.jsonObject(household.accessPreferences);
       const requests = this.requestsOf(preferences);
@@ -261,22 +272,24 @@ export class HouseholdChangeRequestService {
   }
 
   private async findRequest(societyId: string, requestId: string) {
-    const indexed = await this.prisma.householdChangeRequest.findFirst({ where: { id: requestId, societyId } });
-    if (indexed) return { householdId: indexed.householdId, request: this.fromIndexed(indexed) };
-    // Compatibility fallback for malformed legacy entries skipped by migration.
-    const rows = await this.prisma.household.findMany({ where: { societyId }, select: { id: true, accessPreferences: true } });
-    for (const h of rows) {
-      const request = this.requestsOf(h.accessPreferences).find((r) => r.id === requestId);
-      if (request) return { householdId: h.id, request };
-    }
-    throw new NotFoundException('Household change request not found');
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const indexed = await tx.householdChangeRequest.findFirst({ where: { id: requestId, societyId, household: { societyId, unit: { societyId, building: { societyId } } } } });
+      if (indexed) return { householdId: indexed.householdId, request: this.fromIndexed(indexed) };
+      // Compatibility fallback for malformed legacy entries skipped by migration.
+      const rows = await tx.household.findMany({ where: { societyId, unit: { societyId, building: { societyId } } }, select: { id: true, accessPreferences: true } });
+      for (const h of rows) {
+        const request = this.requestsOf(h.accessPreferences).find((r) => r.id === requestId);
+        if (request) return { householdId: h.id, request };
+      }
+      throw new NotFoundException('Household change request not found');
+    });
   }
 
-  private async assertVerifiedOwnerHousehold(societyId: string, userId: string, householdId: string) {
-    const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, unitId: true } });
+  private async assertVerifiedOwnerHousehold(societyId: string, userId: string, householdId: string, tx: Prisma.TransactionClient) {
+    const household = await tx.household.findFirst({ where: { id: householdId, societyId, unit: { societyId, building: { societyId } } }, select: { id: true, unitId: true } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
-    const ownership = await this.prisma.unitOwnership.findFirst({ where: {
+    const ownership = await tx.unitOwnership.findFirst({ where: {
       societyId, unitId: household.unitId, userId, active: true, verified: true,
       effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
     } });
@@ -284,16 +297,16 @@ export class HouseholdChangeRequestService {
     return household;
   }
 
-  private async assertOwnerOrResidentHousehold(societyId: string, userId: string, householdId: string) {
-    const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, unitId: true } });
+  private async assertOwnerOrResidentHousehold(societyId: string, userId: string, householdId: string, tx: Prisma.TransactionClient) {
+    const household = await tx.household.findFirst({ where: { id: householdId, societyId, unit: { societyId, building: { societyId } } }, select: { id: true, unitId: true } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
     const [occupancy, ownership] = await Promise.all([
-      this.prisma.unitOccupancy.findFirst({ where: {
+      tx.unitOccupancy.findFirst({ where: {
         societyId, unitId: household.unitId, userId, active: true,
         effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
       }, select: { id: true } }),
-      this.prisma.unitOwnership.findFirst({ where: {
+      tx.unitOwnership.findFirst({ where: {
         societyId, unitId: household.unitId, userId, active: true, verified: true,
         effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
       }, select: { id: true } }),
