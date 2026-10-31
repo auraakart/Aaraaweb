@@ -17,6 +17,7 @@ export default defineConfig({
       'src/households/parking-admin-context.regression.spec.ts',
       'src/households/household-core-context.regression.spec.ts',
       'src/households/household-vehicle-context.regression.spec.ts',
+      'src/households/household-contact-family-context.regression.spec.ts',
       'src/access/walk-in-visitor.e2e.spec.ts',
       'src/access/gate-arrival.service.spec.ts',
       'src/visitors/visitor.service.spec.ts',

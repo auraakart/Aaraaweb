@@ -54,12 +54,12 @@ export class HouseholdService {
     name: string; phone: string; gateApprovalEnabled?: boolean; gateApprovalExpiresAt?: string | null; gateNotificationEnabled?: boolean;
     primaryGateContact?: boolean; escalationOrder?: number;
   }) {
-    const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId);
-    const phone = input.phone.trim();
-    const name = input.name.trim();
-    if (!phone || !name) throw new BadRequestException('Family member name and phone are required');
-    const now = new Date();
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId, tx);
+      const phone = input.phone.trim();
+      const name = input.name.trim();
+      if (!phone || !name) throw new BadRequestException('Family member name and phone are required');
+      const now = new Date();
       let member = await tx.user.findUnique({ where: { phone } });
       if (!member) member = await tx.user.create({ data: { phone, name } });
       if (member.id === ownerUserId) throw new BadRequestException('Owner is already linked to this home');
@@ -110,12 +110,12 @@ export class HouseholdService {
   async updateFamilyMember(societyId: string, ownerUserId: string, householdId: string, occupancyId: string, input: {
     gateApprovalEnabled?: boolean; gateApprovalExpiresAt?: string | null; gateNotificationEnabled?: boolean; primaryGateContact?: boolean; escalationOrder?: number;
   }) {
-    const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId);
-    const occupancy = await this.prisma.unitOccupancy.findFirst({
-      where: { id: occupancyId, societyId, unitId: household.unitId, relation: UnitRelation.FAMILY_MEMBER, active: true },
-    });
-    if (!occupancy) throw new NotFoundException('Active family member not found');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId, tx);
+      const occupancy = await tx.unitOccupancy.findFirst({
+        where: { id: occupancyId, societyId, unitId: household.unitId, relation: UnitRelation.FAMILY_MEMBER, active: true },
+      });
+      if (!occupancy) throw new NotFoundException('Active family member not found');
       if (input.primaryGateContact === true) {
         await tx.unitOccupancy.updateMany({
           where: { societyId, unitId: household.unitId, active: true, primaryGateContact: true, id: { not: occupancy.id } },
@@ -140,13 +140,13 @@ export class HouseholdService {
   }
 
   async deactivateFamilyMember(societyId: string, ownerUserId: string, householdId: string, occupancyId: string) {
-    const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId);
-    const occupancy = await this.prisma.unitOccupancy.findFirst({
-      where: { id: occupancyId, societyId, unitId: household.unitId, relation: UnitRelation.FAMILY_MEMBER, active: true },
-    });
-    if (!occupancy) throw new NotFoundException('Active family member not found');
-    const now = new Date();
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId, tx);
+      const occupancy = await tx.unitOccupancy.findFirst({
+        where: { id: occupancyId, societyId, unitId: household.unitId, relation: UnitRelation.FAMILY_MEMBER, active: true },
+      });
+      if (!occupancy) throw new NotFoundException('Active family member not found');
+      const now = new Date();
       const ended = await tx.unitOccupancy.update({
         where: { id: occupancy.id },
         data: { active: false, effectiveTo: now, primaryGateContact: false, gateApprovalEnabled: false, gateApprovalExpiresAt: null, gateNotificationEnabled: false },
@@ -269,17 +269,17 @@ export class HouseholdService {
     householdId: string,
     input: { name: string; phone: string; relation?: string; priority?: number; idempotencyKey: string },
   ) {
-    await this.assertOwnHousehold(societyId, userId, householdId);
-    const name = input.name.trim();
-    const phone = input.phone.trim();
-    const relation = input.relation?.trim() || null;
-    const priority = input.priority ?? 1;
-    const idempotencyKey = input.idempotencyKey.trim();
-    if (idempotencyKey.length < 8 || idempotencyKey.length > 120) {
-      throw new BadRequestException('Idempotency key must be between 8 and 120 characters');
-    }
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.assertOwnHousehold(societyId, userId, householdId, tx);
+      const name = input.name.trim();
+      const phone = input.phone.trim();
+      const relation = input.relation?.trim() || null;
+      const priority = input.priority ?? 1;
+      const idempotencyKey = input.idempotencyKey.trim();
+      if (idempotencyKey.length < 8 || idempotencyKey.length > 120) {
+        throw new BadRequestException('Idempotency key must be between 8 and 120 characters');
+      }
 
-    return this.prisma.$transaction(async (tx) => {
       const lockKey = `emergency-contact:${societyId}:${householdId}:${idempotencyKey}`;
       await tx.$queryRaw(Prisma.sql`
         SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text
@@ -305,11 +305,13 @@ export class HouseholdService {
   }
 
   async deactivateEmergencyContact(societyId: string, userId: string, householdId: string, contactId: string) {
-    await this.assertOwnHousehold(societyId, userId, householdId);
-    const contact = await this.prisma.emergencyContact.findFirst({ where: { id: contactId, householdId, societyId } });
-    if (!contact) throw new NotFoundException('Emergency contact not found');
-    if (!contact.active) return contact;
-    return this.prisma.emergencyContact.update({ where: { id: contact.id }, data: { active: false } });
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.assertOwnHousehold(societyId, userId, householdId, tx);
+      const contact = await tx.emergencyContact.findFirst({ where: { id: contactId, householdId, societyId } });
+      if (!contact) throw new NotFoundException('Emergency contact not found');
+      if (!contact.active) return contact;
+      return tx.emergencyContact.update({ where: { id: contact.id }, data: { active: false } });
+    });
   }
 
   private gateApprovalExpiry(value: string | null | undefined, enabled: boolean, current: Date | null) {
@@ -352,7 +354,7 @@ export class HouseholdService {
     return Object.fromEntries(Object.entries(value as Prisma.JsonObject).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   }
 
-  private async assertResidentUnit(societyId: string, userId: string, unitId: string, client: Prisma.TransactionClient = this.prisma) {
+  private async assertResidentUnit(societyId: string, userId: string, unitId: string, client: Prisma.TransactionClient) {
     const now = new Date();
     const link = await client.unitOccupancy.findFirst({
       where: { societyId, userId, unitId, unit: { societyId, building: { societyId } }, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
@@ -361,20 +363,20 @@ export class HouseholdService {
     return link;
   }
 
-  private async assertOwnHousehold(societyId: string, userId: string, householdId: string, client: Prisma.TransactionClient = this.prisma) {
+  private async assertOwnHousehold(societyId: string, userId: string, householdId: string, client: Prisma.TransactionClient) {
     const household = await client.household.findFirst({ where: { id: householdId, societyId } });
     if (!household) throw new NotFoundException('Household not found');
     await this.assertResidentUnit(societyId, userId, household.unitId, client);
     return household;
   }
 
-  private async assertVerifiedOwnerHousehold(societyId: string, userId: string, householdId: string) {
-    const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId } });
+  private async assertVerifiedOwnerHousehold(societyId: string, userId: string, householdId: string, client: Prisma.TransactionClient) {
+    const household = await client.household.findFirst({ where: { id: householdId, societyId } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
-    const ownership = await this.prisma.unitOwnership.findFirst({
+    const ownership = await client.unitOwnership.findFirst({
       where: {
-        societyId, unitId: household.unitId, userId, active: true, verified: true,
+        societyId, unitId: household.unitId, userId, unit: { societyId, building: { societyId } }, active: true, verified: true,
         effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
       },
     });

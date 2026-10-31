@@ -91,12 +91,14 @@ database('Billing transactions under a non-owner RLS role', () => {
     // A domain preserves the migrated public enum while resolving the existing
     // webhook SQL cast inside this isolated schema. The ORM-filter enum below
     // additionally needs matching local column and parameter types.
-    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType', 'UnitRelation']
+    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType']
       .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
     // Prisma binds both written enum values and filters to its configured
     // schema. Copy migrated labels and align the isolated ORM enum columns,
     // retaining every migrated default, check and index.
     const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
+      { table: 'User', column: 'status', type: 'UserStatus', defaultValue: 'ACTIVE' },
+      { table: 'UnitOccupancy', column: 'relation', type: 'UnitRelation' },
       { table: 'SocietyMembership', column: 'role', type: 'MembershipRole' },
       { table: 'HouseholdVehicle', column: 'vehicleType', type: 'VehicleType' },
       { table: 'Society', column: 'status', type: 'SocietyStatus', defaultValue: 'ACTIVE' },
@@ -301,6 +303,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     await fixture.societyMembership.deleteMany({ where: { id: { in: [...assignmentMemberships] } } });
     assignmentMemberships.clear();
     await fixture.gate.deleteMany({ where: { id: { in: [...arrivalGates] } } });
+    await fixture.societyMembership.deleteMany({ where: { userId: { in: [...arrivalUsers] } } });
     await fixture.user.deleteMany({ where: { id: { in: [...arrivalUsers] } } });
     for (const [id, featureOverrides] of arrivalFeatures) await fixture.society.update({ where: { id }, data: { featureOverrides: featureOverrides as Prisma.InputJsonValue } });
     arrivalUnits.clear(); arrivalGates.clear(); arrivalUsers.clear(); arrivalFeatures.clear();
@@ -572,6 +575,130 @@ database('Billing transactions under a non-owner RLS role', () => {
 
   const householdParking = new HouseholdService(runtime);
   const parkingAdmin = new ParkingAdminController(runtime, householdParking);
+
+  const contactInput = { name: ' Family ', phone: ' +91 900-000 ', relation: ' Sister ', priority: 2, idempotencyKey: ' contact-key-1 ' };
+  async function residentHome(scope = societyA) {
+    const own = await parkingHousehold(scope);
+    const home = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    await arrivalOccupancy(scope, home.unitId, tenant);
+    return home;
+  }
+  async function ownerHome(scope = societyA) {
+    const home = await residentHome(scope);
+    const ownership = await fixture.unitOwnership.create({ data: { societyId: scope, unitId: home.unitId, userId: owner, verified: true } });
+    return { home, ownership };
+  }
+  function trackFamily(result: { user: { id: string } }) { arrivalUsers.add(result.user.id); }
+
+  it('isolates contact creation, normalized retries, conflicts and inactive replays in both societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const home = await residentHome(scope);
+      const added = await householdParking.addEmergencyContact(scope, tenant, home.id, contactInput);
+      expect(added).toMatchObject({ societyId: scope, householdId: home.id, name: 'Family', phone: '+91 900-000', relation: 'Sister', priority: 2, idempotencyKey: 'contact-key-1' });
+      expect((await householdParking.addEmergencyContact(scope, tenant, home.id, { ...contactInput, name: 'family', phone: '+91900000', relation: 'sister' })).id).toBe(added.id);
+      await expect(householdParking.addEmergencyContact(scope, tenant, home.id, { ...contactInput, priority: 3 })).rejects.toThrow('different emergency contact');
+      await expect(householdParking.deactivateEmergencyContact(scope === societyA ? societyB : societyA, tenant, home.id, added.id)).rejects.toThrow('Household not found');
+      expect((await householdParking.deactivateEmergencyContact(scope, tenant, home.id, added.id)).active).toBe(false);
+      expect((await householdParking.deactivateEmergencyContact(scope, tenant, home.id, added.id)).active).toBe(false);
+      expect((await householdParking.addEmergencyContact(scope, tenant, home.id, contactInput)).active).toBe(false);
+      expect(await fixture.emergencyContact.count({ where: { householdId: home.id } })).toBe(1);
+    }
+  });
+
+  it('retains resident and parent scope for emergency contacts, including wrong-household substitutions', async () => {
+    const home = await residentHome(), other = await residentHome(), foreign = await residentHome(societyB);
+    const contact = await householdParking.addEmergencyContact(societyA, tenant, home.id, contactInput);
+    for (const id of [other.id, foreign.id]) await expect(householdParking.deactivateEmergencyContact(societyA, tenant, id, contact.id)).rejects.toThrow(/not found/);
+    await fixture.unitOccupancy.updateMany({ where: { unitId: home.unitId, userId: tenant }, data: { effectiveTo: new Date(Date.now() - 1) } });
+    await expect(householdParking.addEmergencyContact(societyA, tenant, home.id, contactInput)).rejects.toThrow('authenticated resident');
+    await expect(householdParking.deactivateEmergencyContact(societyA, tenant, home.id, contact.id)).rejects.toThrow('authenticated resident');
+    await fixture.unitOccupancy.updateMany({ where: { unitId: home.unitId, userId: tenant }, data: { effectiveTo: null } });
+    await fixture.unit.update({ where: { id: home.unitId }, data: { buildingId: buildingB } });
+    await expect(householdParking.addEmergencyContact(societyA, tenant, home.id, contactInput)).rejects.toThrow('authenticated resident');
+  });
+
+  it('serializes identical and conflicting concurrent contact requests under the existing idempotency lock', async () => {
+    const home = await residentHome();
+    for (const conflicting of [false, true]) {
+      let reads = 0; let release!: () => void;
+      const bothRead = new Promise<void>(resolve => { release = resolve; });
+      const concurrent = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+        get(target, key) {
+          if (key === 'emergencyContact') return new Proxy(target.emergencyContact, { get(model, method) {
+            if (method === 'findFirst') return async (args: Prisma.EmergencyContactFindFirstArgs) => {
+              const row = await model.findFirst(args); if (++reads === 2) release();
+              await Promise.race([bothRead, new Promise(resolve => setTimeout(resolve, 200))]); return row;
+            };
+            const value = Reflect.get(model, method); return typeof value === 'function' ? value.bind(model) : value;
+          } });
+          const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }))) } as never);
+      const input = { ...contactInput, idempotencyKey: randomUUID() };
+      const results = await Promise.allSettled([concurrent.addEmergencyContact(societyA, tenant, home.id, input), concurrent.addEmergencyContact(societyA, tenant, home.id, { ...input, name: conflicting ? 'Other' : input.name })]);
+      expect(await fixture.emergencyContact.count({ where: { householdId: home.id, idempotencyKey: input.idempotencyKey } })).toBe(1);
+      expect(results.filter(row => row.status === 'fulfilled')).toHaveLength(conflicting ? 1 : 2);
+      if (conflicting) expect(results.find(row => row.status === 'rejected')).toMatchObject({ reason: { message: 'Idempotency key already used for a different emergency contact' } });
+      else expect(results[0]).toMatchObject({ value: { id: (results[1] as PromiseFulfilledResult<{ id: string }>).value.id } });
+    }
+  });
+
+  it('rolls back actual contact creation and deactivation writes when the tenant operation fails', async () => {
+    const home = await residentHome();
+    const failing = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, async tx => { await run(tx); throw new Error('After write'); }) } as never);
+    await expect(failing.addEmergencyContact(societyA, tenant, home.id, contactInput)).rejects.toThrow('After write');
+    expect(await fixture.emergencyContact.count({ where: { householdId: home.id } })).toBe(0);
+    const contact = await householdParking.addEmergencyContact(societyA, tenant, home.id, contactInput);
+    await expect(failing.deactivateEmergencyContact(societyA, tenant, home.id, contact.id)).rejects.toThrow('After write');
+    expect((await fixture.emergencyContact.findUniqueOrThrow({ where: { id: contact.id } })).active).toBe(true);
+  });
+
+  it('allows verified nonresident owners to manage scoped family membership in both societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const { home } = await ownerHome(scope);
+      const member = await householdParking.addFamilyMember(scope, owner, home.id, { name: ' Family ', phone: `family-${randomUUID()}`, primaryGateContact: true, gateNotificationEnabled: false }); trackFamily(member);
+      expect(member).toMatchObject({ societyId: scope, unitId: home.unitId, relation: 'FAMILY_MEMBER', gateApprovalEnabled: false, gateNotificationEnabled: true, primaryGateContact: true });
+      await expect(householdParking.updateFamilyMember(scope === societyA ? societyB : societyA, owner, home.id, member.id, {})).rejects.toThrow('Household not found');
+      await expect(householdParking.updateFamilyMember(scope, tenant, home.id, member.id, {})).rejects.toThrow('verified current owner');
+      await householdParking.updateFamilyMember(scope, owner, home.id, member.id, { gateApprovalEnabled: true, gateApprovalExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+      await householdParking.updateFamilyMember(scope, owner, home.id, member.id, { gateApprovalEnabled: false });
+      expect((await fixture.unitOccupancy.findUniqueOrThrow({ where: { id: member.id } })).gateApprovalExpiresAt).toBeNull();
+      await householdParking.deactivateFamilyMember(scope, owner, home.id, member.id);
+      expect((await fixture.societyMembership.findUniqueOrThrow({ where: { userId_societyId_role: { userId: member.userId, societyId: scope, role: 'FAMILY_MEMBER' } } })).active).toBe(false);
+      expect((await fixture.unitOccupancy.findFirstOrThrow({ where: { unitId: home.unitId, userId: tenant } })).primaryGateContact).toBe(true);
+    }
+  });
+
+  it('retains family membership while another current home remains and preserves failed-mutation rollback', async () => {
+    const first = await ownerHome(), second = await ownerHome(); const phone = `family-${randomUUID()}`;
+    const member = await householdParking.addFamilyMember(societyA, owner, first.home.id, { name: 'Family', phone }); trackFamily(member);
+    const other = await householdParking.addFamilyMember(societyA, owner, second.home.id, { name: 'Family', phone });
+    await expect(householdParking.updateFamilyMember(societyA, owner, first.home.id, other.id, {})).rejects.toThrow('Active family member not found');
+    const failing = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, async tx => { await run(tx); throw new Error('After write'); }) } as never);
+    await expect(failing.deactivateFamilyMember(societyA, owner, first.home.id, member.id)).rejects.toThrow('After write');
+    expect((await fixture.unitOccupancy.findUniqueOrThrow({ where: { id: member.id } })).active).toBe(true);
+    await householdParking.deactivateFamilyMember(societyA, owner, first.home.id, member.id);
+    expect((await fixture.societyMembership.findUniqueOrThrow({ where: { userId_societyId_role: { userId: member.userId, societyId: societyA, role: 'FAMILY_MEMBER' } } })).active).toBe(true);
+    await householdParking.deactivateFamilyMember(societyA, owner, second.home.id, other.id);
+    expect((await fixture.societyMembership.findUniqueOrThrow({ where: { userId_societyId_role: { userId: member.userId, societyId: societyA, role: 'FAMILY_MEMBER' } } })).active).toBe(false);
+    const failedPhone = `family-failed-${randomUUID()}`;
+    await expect(failing.addFamilyMember(societyA, owner, first.home.id, { name: 'Failed', phone: failedPhone })).rejects.toThrow('After write');
+    const unexpected = await fixture.user.findUnique({ where: { phone: failedPhone } }); if (unexpected) arrivalUsers.add(unexpected.id);
+    expect(unexpected).toBeNull();
+  });
+
+  it('denies unverified, inactive, future and ended ownership and malformed family parents', async () => {
+    const { home, ownership } = await ownerHome();
+    const input = { name: 'Denied', phone: `denied-${randomUUID()}` };
+    for (const data of [ { verified: false }, { verified: true, active: false }, { active: true, effectiveFrom: new Date(Date.now() + 3_600_000) }, { effectiveFrom: new Date(0), effectiveTo: new Date(Date.now() - 1) } ]) {
+      await fixture.unitOwnership.update({ where: { id: ownership.id }, data });
+      await expect(householdParking.addFamilyMember(societyA, owner, home.id, input)).rejects.toThrow('verified current owner');
+    }
+    await fixture.unitOwnership.update({ where: { id: ownership.id }, data: { verified: true, active: true, effectiveFrom: new Date(0), effectiveTo: null } });
+    await fixture.unit.update({ where: { id: home.unitId }, data: { buildingId: buildingB } });
+    await expect(householdParking.addFamilyMember(societyA, owner, home.id, input)).rejects.toThrow('verified current owner');
+    expect(await fixture.user.findUnique({ where: { phone: input.phone } })).toBeNull();
+  });
 
   it('isolates normalized registration, removal and historical-row reactivation in both societies', async () => {
     for (const scope of [societyA, societyB]) {

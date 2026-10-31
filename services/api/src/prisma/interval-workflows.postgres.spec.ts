@@ -206,6 +206,33 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_event_probe`);
   });
 
+  databaseTest('retains contact retries and approved family membership on migrated household relations', async db => {
+    const scoped = { withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`); return run(tx);
+    }) } as never;
+    const households = new HouseholdService(scoped), requests = new HouseholdChangeRequestService(db, households);
+    const home = await households.create(societyId, userId, unitId);
+    const input = { name: ' Family ', phone: ' +91 900-000 ', idempotencyKey: randomUUID() };
+    const contact = await households.addEmergencyContact(societyId, userId, home.id, input);
+    expect((await households.addEmergencyContact(societyId, userId, home.id, { ...input, name: 'family', phone: '+91900000' })).id).toBe(contact.id);
+    await expect(households.addEmergencyContact(societyId, userId, home.id, { ...input, priority: 2 })).rejects.toThrow('different emergency contact');
+    await households.deactivateEmergencyContact(societyId, userId, home.id, contact.id);
+    expect((await households.deactivateEmergencyContact(societyId, userId, home.id, contact.id)).active).toBe(false);
+    const nonresidentOwner = await db.user.create({ data: { phone: `family-owner-${randomUUID()}` } });
+    await db.unitOwnership.create({ data: { societyId, unitId, userId: nonresidentOwner.id, verified: true } });
+    const add = await requests.requestFamilyAdd(societyId, nonresidentOwner.id, home.id, { name: 'Member', phone: `member-${randomUUID()}`, primaryGateContact: true });
+    await requests.approve(societyId, userId, add.id);
+    const member = await db.unitOccupancy.findFirstOrThrow({ where: { societyId, unitId, relation: 'FAMILY_MEMBER', active: true } });
+    expect(member).toMatchObject({ primaryGateContact: true, gateNotificationEnabled: true, gateApprovalEnabled: false });
+    await households.updateFamilyMember(societyId, nonresidentOwner.id, home.id, member.id, { gateApprovalEnabled: true, gateApprovalExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    await expect(households.updateFamilyMember(otherSocietyId, nonresidentOwner.id, home.id, member.id, {})).rejects.toThrow('Household not found');
+    const remove = await requests.requestFamilyRemove(societyId, nonresidentOwner.id, home.id, member.id);
+    await requests.approve(societyId, userId, remove.id);
+    expect((await db.unitOccupancy.findUniqueOrThrow({ where: { id: member.id } })).active).toBe(false);
+    expect((await db.societyMembership.findUniqueOrThrow({ where: { userId_societyId_role: { userId: member.userId, societyId, role: 'FAMILY_MEMBER' } } })).active).toBe(false);
+    expect((await db.unitOccupancy.findFirstOrThrow({ where: { societyId, unitId, userId, active: true } })).primaryGateContact).toBe(true);
+  });
+
   databaseTest('retains approved vehicle add/remove workflows and historical reactivation on migrated tables', async db => {
     const scoped = { withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
