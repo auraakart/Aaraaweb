@@ -120,6 +120,7 @@ void main() {
 
     expect(items.single.kind, ResidentHomeHighlightKind.notice);
     expect(items.single.subtitle, 'Acknowledged');
+    expect(items.single.sourceId, 'notice-a');
     expect(items.single.urgency, ResidentHomeUrgency.info);
   });
 }

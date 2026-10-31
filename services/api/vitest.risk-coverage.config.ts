@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     include: [
       'src/amenities/*.spec.ts',
+      'src/services-marketplace/provider-marketplace-completion.dispute-evidence.spec.ts',
       'src/helpdesk/helpdesk-context.regression.spec.ts',
       'src/helpdesk/helpdesk.service.spec.ts',
       'src/helpdesk/helpdesk-operator.spec.ts',
@@ -87,6 +88,7 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/services-marketplace/service-dispute-evidence.ts',
         'src/amenities/amenities.service.ts',
         'src/amenities/amenity-booking-creator.ts',
         'src/amenities/amenity-analytics.query.ts',
@@ -132,6 +134,7 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/services-marketplace/service-dispute-evidence.ts': { statements: 95, branches: 85, functions: 100, lines: 100 },
         'src/amenities/amenities.service.ts': { statements: 75, branches: 60, functions: 90, lines: 80 },
         'src/amenities/amenity-booking-creator.ts': { statements: 90, branches: 70, functions: 100, lines: 95 },
         'src/amenities/amenity-analytics.query.ts': { statements: 100, branches: 90, functions: 100, lines: 100 },
