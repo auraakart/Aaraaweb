@@ -45,68 +45,17 @@ class VehiclesScreen extends StatelessWidget {
   }
 
   Future<void> _add(BuildContext context) async {
-    final plate = TextEditingController();
-    final make = TextEditingController();
-    final model = TextEditingController();
-    final color = TextEditingController();
-    var type = 'CAR';
-    final submit = await showDialog<bool>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Register vehicle'),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                controller: plate,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(labelText: 'Registration number', hintText: 'KA01AB1234'),
-              ),
-              const SizedBox(height: AaraagateTokens.space3),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: type,
-                decoration: const InputDecoration(labelText: 'Vehicle type'),
-                items: const [
-                  DropdownMenuItem(value: 'CAR', child: Text('Car')),
-                  DropdownMenuItem(value: 'TWO_WHEELER', child: Text('Two-wheeler')),
-                  DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                ],
-                onChanged: (value) => value == null ? null : setState(() => type = value),
-              ),
-              const SizedBox(height: AaraagateTokens.space3),
-              TextField(controller: make, decoration: const InputDecoration(labelText: 'Make (optional)', hintText: 'Maruti Suzuki')),
-              const SizedBox(height: AaraagateTokens.space3),
-              TextField(controller: model, decoration: const InputDecoration(labelText: 'Model (optional)', hintText: 'Baleno')),
-              const SizedBox(height: AaraagateTokens.space3),
-              TextField(controller: color, decoration: const InputDecoration(labelText: 'Colour (optional)')),
-              const SizedBox(height: AaraagateTokens.space3),
-              const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.verified_user_outlined, size: 20),
-                  SizedBox(width: AaraagateTokens.space2),
-                  Expanded(child: Text('The vehicle becomes active only after Society Admin approval.')),
-                ],
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Submit for approval')),
-          ],
-        ),
-      ),
+      builder: (_) => const _VehicleRegistrationDialog(),
     );
-    final plateNumber = plate.text.trim();
-    final makeValue = make.text.trim();
-    final modelValue = model.text.trim();
-    final colorValue = color.text.trim();
-    plate.dispose();
-    make.dispose();
-    model.dispose();
-    color.dispose();
-    if (submit != true || plateNumber.isEmpty || !context.mounted) return;
+    if (result == null || !context.mounted) return;
+    final plateNumber = result['plateNumber'].toString();
+    final makeValue = result['make'].toString();
+    final modelValue = result['model'].toString();
+    final colorValue = result['color'].toString();
+    final type = result['vehicleType'].toString();
+    if (plateNumber.isEmpty) return;
     try {
       if (_demo) {
         DemoHouseholdState.addPending(householdId, 'VEHICLE_ADD', {
@@ -275,4 +224,92 @@ class _PendingVehicleRequestCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _VehicleRegistrationDialog extends StatefulWidget {
+  const _VehicleRegistrationDialog();
+
+  @override
+  State<_VehicleRegistrationDialog> createState() => _VehicleRegistrationDialogState();
+}
+
+class _VehicleRegistrationDialogState extends State<_VehicleRegistrationDialog> {
+  final _plate = TextEditingController();
+  final _make = TextEditingController();
+  final _model = TextEditingController();
+  final _color = TextEditingController();
+  String _type = 'CAR';
+  String? _error;
+
+  @override
+  void dispose() {
+    _plate.dispose();
+    _make.dispose();
+    _model.dispose();
+    _color.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final plate = _plate.text.trim();
+    if (plate.isEmpty) {
+      setState(() => _error = 'Enter a registration number.');
+      return;
+    }
+    Navigator.pop(context, <String, dynamic>{
+      'plateNumber': plate,
+      'vehicleType': _type,
+      'make': _make.text.trim(),
+      'model': _model.text.trim(),
+      'color': _color.text.trim(),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+    title: const Text('Register vehicle'),
+    content: SingleChildScrollView(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(
+          controller: _plate,
+          textCapitalization: TextCapitalization.characters,
+          textInputAction: TextInputAction.next,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: InputDecoration(labelText: 'Registration number', hintText: 'KA01AB1234', errorText: _error),
+        ),
+        const SizedBox(height: AaraagateTokens.space3),
+        DropdownButtonFormField<String>(
+          isExpanded: true,
+          isDense: false,
+          itemHeight: null,
+          initialValue: _type,
+          decoration: const InputDecoration(labelText: 'Vehicle type'),
+          items: const [
+            DropdownMenuItem(value: 'CAR', child: Text('Car')),
+            DropdownMenuItem(value: 'TWO_WHEELER', child: Text('Two-wheeler')),
+            DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+          ],
+          onChanged: (value) { if (value != null) setState(() => _type = value); },
+        ),
+        const SizedBox(height: AaraagateTokens.space3),
+        TextField(controller: _make, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Make', helperText: 'Optional', helperMaxLines: 2, hintText: 'Maruti Suzuki')),
+        const SizedBox(height: AaraagateTokens.space3),
+        TextField(controller: _model, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Model', helperText: 'Optional', helperMaxLines: 2, hintText: 'Baleno')),
+        const SizedBox(height: AaraagateTokens.space3),
+        TextField(controller: _color, textInputAction: TextInputAction.done, onSubmitted: (_) => _submit(), decoration: const InputDecoration(labelText: 'Colour', helperText: 'Optional', helperMaxLines: 2)),
+        const SizedBox(height: AaraagateTokens.space3),
+        const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.verified_user_outlined, size: 20),
+          SizedBox(width: AaraagateTokens.space2),
+          Expanded(child: Text('The vehicle becomes active only after Society Admin approval.')),
+        ]),
+      ]),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      FilledButton(onPressed: _submit, child: const Text('Submit for approval')),
+    ],
+  );
 }
