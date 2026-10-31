@@ -2639,14 +2639,15 @@
       "id": "V5.11",
       "name": "Occupancy, isolation and experience hardening",
       "status": "IN_DEVELOPMENT",
-      "currentSlice": "V5.11.4",
+      "currentSlice": "V5.11.5",
       "baselineSha": "8232a65e807870202667c452c00b39529e031fc3",
       "evidence": [
         "docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md",
         "docs/V5.11.2-OCCUPANCY-MUTATION-INTEGRITY.md",
         "docs/V5.11.3-OCCUPANCY-WORKER-CAPABILITY.md",
         "docs/V5.11.3-PRIVATE-DOCUMENT-ISOLATION.md",
-        "docs/V5.11.4-MEASURED-PERFORMANCE-BASELINE.md"
+        "docs/V5.11.4-MEASURED-PERFORMANCE-BASELINE.md",
+        "docs/V5.11.5-RESIDENT-FORM-LIFECYCLE.md"
       ],
       "slices": [
         {
@@ -2676,12 +2677,15 @@
         {
           "id": "V5.11.4",
           "name": "Measured query and transaction performance",
-          "status": "BASELINE_IMPLEMENTED_PENDING_PROTECTED_MEASUREMENTS"
+          "status": "BASELINE_MERGED_PROTECTED_CI_PASSED_NO_QUERY_CHANGE_JUSTIFIED",
+          "pullRequest": 1555,
+          "mergeSha": "e7e12b1b531f2c80a9b89ccbf0b1cf787bc8648f",
+          "ciRun": 41185517842
         },
         {
           "id": "V5.11.5",
           "name": "Resident Guard Admin experience refinement",
-          "status": "PLANNED"
+          "status": "SELECTED_FORMS_IMPLEMENTED_PENDING_PROTECTED_FLUTTER"
         },
         {
           "id": "V5.11.6",

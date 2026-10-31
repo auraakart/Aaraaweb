@@ -215,17 +215,20 @@ class _EmergencyContactDialogState extends State<_EmergencyContactDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add emergency contact'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      title: const Text('Add contact'),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: _name, decoration: const InputDecoration(labelText: 'Name'), textCapitalization: TextCapitalization.words),
+          TextField(controller: _name, decoration: const InputDecoration(labelText: 'Name'), textInputAction: TextInputAction.next, textCapitalization: TextCapitalization.words),
           const SizedBox(height: AaraagateTokens.space3),
-          TextField(controller: _phone, decoration: const InputDecoration(labelText: 'Mobile number'), keyboardType: TextInputType.phone),
+          TextField(controller: _phone, decoration: const InputDecoration(labelText: 'Mobile number'), keyboardType: TextInputType.phone, textInputAction: TextInputAction.next),
           const SizedBox(height: AaraagateTokens.space3),
-          TextField(controller: _relation, decoration: const InputDecoration(labelText: 'Relationship (optional)')),
+          TextField(controller: _relation, textInputAction: TextInputAction.done, onSubmitted: (_) => _submit(), decoration: const InputDecoration(labelText: 'Relationship', helperText: 'Optional', helperMaxLines: 2)),
           const SizedBox(height: AaraagateTokens.space3),
           DropdownButtonFormField<int>(
             isExpanded: true,
+            isDense: false,
+            itemHeight: null,
             initialValue: _priority,
             decoration: const InputDecoration(labelText: 'Priority'),
             items: const [
@@ -237,7 +240,7 @@ class _EmergencyContactDialogState extends State<_EmergencyContactDialog> {
           ),
           if (_error != null) ...[
             const SizedBox(height: AaraagateTokens.space2),
-            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Semantics(liveRegion: true, child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
           ],
         ]),
       ),
