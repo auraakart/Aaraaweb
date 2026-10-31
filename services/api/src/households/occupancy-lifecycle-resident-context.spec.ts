@@ -11,7 +11,7 @@ describe('OccupancyLifecycleService resident property context', () => {
         {unitId:'unit-1',ownershipBps:10000,unit:{id:'unit-1',number:'101',building:{id:'b-1',name:'A Block',code:'A'}}},
       ])},
     };
-    const service=new OccupancyLifecycleService(prisma as never);
+    const service=new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     const result=await service.selfContext('society-1','user-1');
 
     expect(result.ownedUnitIds).toEqual(['unit-1']);

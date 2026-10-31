@@ -9,10 +9,10 @@ describe('OccupancyLifecycleService operator workflow', () => {
       unit: { findMany: vi.fn().mockResolvedValue([]) },
       unitOccupancy: { findMany: vi.fn().mockResolvedValue([]) },
     };
-    const service = new OccupancyLifecycleService(prisma as never);
+    const service = new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     await expect(service.operatorContext('society-1')).resolves.toEqual({ units: [], occupancies: [] });
     expect(prisma.unit.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { building: { societyId: 'society-1' } },
+      where: { societyId: 'society-1', building: { societyId: 'society-1' } },
     }));
     expect(prisma.unitOccupancy.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ societyId: 'society-1', active: true }),
@@ -21,7 +21,7 @@ describe('OccupancyLifecycleService operator workflow', () => {
 
   it('rejects operator move-in when the mobile number is not registered', async () => {
     const prisma = { user: { findUnique: vi.fn().mockResolvedValue(null) } };
-    const service = new OccupancyLifecycleService(prisma as never);
+    const service = new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     await expect(service.requestMoveInByPhone('society-1','actor-1',{
       unitId:'11111111-1111-1111-1111-111111111111',
       tenantPhone:'+91 90000 00000',
@@ -36,7 +36,7 @@ describe('OccupancyLifecycleService operator workflow', () => {
 
   it('resolves a registered mobile number into the existing lifecycle request path', async () => {
     const prisma = { user: { findUnique: vi.fn().mockResolvedValue({id:'user-1'}) } };
-    const service = new OccupancyLifecycleService(prisma as never);
+    const service = new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     const spy = vi.spyOn(service,'requestMoveIn').mockResolvedValue({id:'request-1'} as never);
     const effectiveAt=new Date('2026-09-20T00:00:00.000Z');
 

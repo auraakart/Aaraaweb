@@ -5,7 +5,7 @@ import { OccupancyLifecycleService } from './occupancy-lifecycle.service';
 describe('OccupancyLifecycleService boundaries', () => {
   it('does not expose another resident lifecycle request through self reads', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new OccupancyLifecycleService(prisma as never);
+    const service = new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     await expect(service.getMine(
       '22222222-2222-2222-2222-222222222222',
       '44444444-4444-4444-4444-444444444444',
@@ -50,7 +50,7 @@ describe('OccupancyLifecycleService boundaries', () => {
       },
     };
     const prisma = { $transaction: vi.fn().mockImplementation(async (callback: (value: typeof tx) => unknown) => callback(tx)) };
-    const service = new OccupancyLifecycleService(prisma as never);
+    const service = new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     await service.complete(row.societyId, '66666666-6666-6666-6666-666666666666', row.id);
     expect(tx.unitOccupancy.update).toHaveBeenCalledWith({
       where: { id: occupancy.id },

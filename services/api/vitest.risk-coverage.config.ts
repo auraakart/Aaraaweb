@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'src/households/occupancy-read-context.regression.spec.ts',
       'src/occupancy-authority.regression.spec.ts',
       'src/access/visitor-management.e2e.spec.ts',
       'src/access/access.service.spec.ts',
