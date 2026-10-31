@@ -573,6 +573,128 @@ database('Billing transactions under a non-owner RLS role', () => {
   const householdParking = new HouseholdService(runtime);
   const parkingAdmin = new ParkingAdminController(runtime, householdParking);
 
+  it('isolates normalized registration, removal and historical-row reactivation in both societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const own = await parkingHousehold(scope), next = await parkingHousehold(scope);
+      for (const id of [own.householdId, next.householdId]) {
+        const home = await fixture.household.findUniqueOrThrow({ where: { id } });
+        await arrivalOccupancy(scope, home.unitId, tenant);
+      }
+      const input = { plateNumber: ' tn 01-ab 1234 ', vehicleType: 'CAR' as const, make: ' Make ', model: ' Model ', color: ' Blue ' };
+      const vehicle = await householdParking.addVehicle(scope, tenant, own.householdId, input);
+      expect(vehicle).toMatchObject({ societyId: scope, householdId: own.householdId, plateNumber: 'TN01AB1234', make: 'Make', model: 'Model', color: 'Blue', active: true });
+      await fixture.household.update({ where: { id: own.householdId }, data: { accessPreferences: { delivery: 'door', householdChangeRequests: [{ id: 'pending' }] } } });
+      await householdParking.updateVehicleParkingSlot(scope, own.householdId, vehicle.id, 'A1');
+      await householdParking.updateVehicleParkingSlot(scope, own.householdId, own.vehicleId, 'B1');
+      await expect(householdParking.addVehicle(scope, tenant, next.householdId, input)).rejects.toThrow('already registered');
+      await expect(householdParking.deactivateVehicle(scope === societyA ? societyB : societyA, tenant, own.householdId, vehicle.id)).rejects.toThrow('Household not found');
+      expect(await householdParking.deactivateVehicle(scope, tenant, own.householdId, vehicle.id)).toMatchObject({ id: vehicle.id, active: false });
+      expect((await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } })).accessPreferences).toEqual({ delivery: 'door', householdChangeRequests: [{ id: 'pending' }], parkingSlots: { [own.vehicleId]: 'B1' } });
+      const restored = await householdParking.addVehicle(scope, tenant, next.householdId, { ...input, make: '', model: '', color: '' });
+      expect(restored).toMatchObject({ id: vehicle.id, householdId: next.householdId, active: true, make: null, model: null, color: null });
+    }
+  });
+
+  it('denies vehicle changes for expired/foreign households and wrong-household or inactive vehicles', async () => {
+    const own = await parkingHousehold(), other = await parkingHousehold(), foreign = await parkingHousehold(societyB);
+    const home = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    const link = await arrivalOccupancy(societyA, home.unitId, tenant);
+    const input = { plateNumber: 'TN01', vehicleType: 'CAR' as const };
+    await expect(householdParking.addVehicle(societyA, tenant, foreign.householdId, input)).rejects.toThrow('Household not found');
+    for (const vehicleId of [other.vehicleId, foreign.vehicleId]) await expect(householdParking.deactivateVehicle(societyA, tenant, own.householdId, vehicleId)).rejects.toThrow('Active household vehicle not found');
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { active: false } });
+    await expect(householdParking.deactivateVehicle(societyA, tenant, own.householdId, own.vehicleId)).rejects.toThrow('Active household vehicle not found');
+    await fixture.householdVehicle.update({ where: { id: own.vehicleId }, data: { active: true } });
+    await fixture.unitOccupancy.update({ where: { id: link.id }, data: { effectiveTo: new Date(Date.now() - 1) } });
+    await expect(householdParking.addVehicle(societyA, tenant, own.householdId, input)).rejects.toThrow('authenticated resident');
+    await expect(householdParking.deactivateVehicle(societyA, tenant, own.householdId, own.vehicleId)).rejects.toThrow('authenticated resident');
+    await fixture.unitOccupancy.update({ where: { id: link.id }, data: { effectiveTo: null } });
+    await fixture.unit.update({ where: { id: home.unitId }, data: { buildingId: buildingB } });
+    await expect(householdParking.addVehicle(societyA, tenant, own.householdId, input)).rejects.toThrow('authenticated resident');
+    await expect(householdParking.deactivateVehicle(societyA, tenant, own.householdId, own.vehicleId)).rejects.toThrow('authenticated resident');
+  });
+
+  it('serializes concurrent new registrations and inactive-row reactivations across households', async () => {
+    const first = await parkingHousehold(), second = await parkingHousehold();
+    for (const id of [first.householdId, second.householdId]) {
+      const home = await fixture.household.findUniqueOrThrow({ where: { id } });
+      await arrivalOccupancy(societyA, home.unitId, tenant);
+    }
+    const input = { plateNumber: 'TN01LOCK', vehicleType: 'CAR' as const };
+    let previousId: string | undefined;
+    for (const phase of ['new', 'reactivation']) {
+      let reads = 0;
+      let releaseReads!: () => void;
+      const bothRead = new Promise<void>(resolve => { releaseReads = resolve; });
+      const concurrent = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+        get(target, key) {
+          if (key === 'householdVehicle') return new Proxy(target.householdVehicle, { get(model, method) {
+            if (method === 'findFirst') return async (args: Prisma.HouseholdVehicleFindFirstArgs) => {
+              const row = await model.findFirst(args);
+              if (++reads === 2) releaseReads();
+              await Promise.race([bothRead, new Promise(resolve => setTimeout(resolve, 200))]);
+              return row;
+            };
+            const value = Reflect.get(model, method); return typeof value === 'function' ? value.bind(model) : value;
+          } });
+          const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }))) } as never);
+      const results = await Promise.allSettled([first, second].map(home => concurrent.addVehicle(societyA, tenant, home.householdId, input)));
+      expect(results.filter(row => row.status === 'fulfilled')).toHaveLength(1);
+      expect(results.find(row => row.status === 'rejected')).toMatchObject({ reason: { message: 'This vehicle is already registered in the society' } });
+      const rows = await fixture.householdVehicle.findMany({ where: { societyId: societyA, plateNumber: input.plateNumber } });
+      expect(rows).toHaveLength(1);
+      if (phase === 'reactivation') expect(rows[0].id).toBe(previousId);
+      previousId = rows[0].id;
+      await householdParking.deactivateVehicle(societyA, tenant, rows[0].householdId, rows[0].id);
+    }
+  });
+
+  it('rolls back both the label removal and active-state change after actual writes', async () => {
+    const own = await parkingHousehold();
+    const home = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    await arrivalOccupancy(societyA, home.unitId, tenant);
+    await householdParking.updateVehicleParkingSlot(societyA, home.id, own.vehicleId, 'A1');
+    const failing = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, async tx => {
+      await run(tx);
+      throw new Error('After both writes');
+    }) } as never);
+    await expect(failing.deactivateVehicle(societyA, tenant, home.id, own.vehicleId)).rejects.toThrow('After both writes');
+    expect((await fixture.householdVehicle.findUniqueOrThrow({ where: { id: own.vehicleId } })).active).toBe(true);
+    expect((await fixture.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toEqual({ parkingSlots: { [own.vehicleId]: 'A1' } });
+  });
+
+  it('preserves another vehicle label during competing deactivation and parking updates', async () => {
+    const own = await parkingHousehold(), second = await parkingVehicle(societyA, own.householdId);
+    const home = await fixture.household.findUniqueOrThrow({ where: { id: own.householdId } });
+    await arrivalOccupancy(societyA, home.unitId, tenant);
+    await householdParking.updateVehicleParkingSlot(societyA, home.id, own.vehicleId, 'A1');
+    let reads = 0;
+    let releaseReads!: () => void;
+    const bothRead = new Promise<void>(resolve => { releaseReads = resolve; });
+    const concurrent = new HouseholdService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, {
+      get(target, key) {
+        if (key === 'household') return new Proxy(target.household, { get(model, method) {
+          if (method === 'findFirst') return async (args: Prisma.HouseholdFindFirstArgs) => {
+            const row = await model.findFirst(args);
+            if (++reads === 2) releaseReads();
+            await Promise.race([bothRead, new Promise(resolve => setTimeout(resolve, 200))]);
+            return row;
+          };
+          const value = Reflect.get(model, method); return typeof value === 'function' ? value.bind(model) : value;
+        } });
+        const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }))) } as never);
+    await Promise.all([
+      concurrent.deactivateVehicle(societyA, tenant, home.id, own.vehicleId),
+      concurrent.updateVehicleParkingSlot(societyA, home.id, second.id, 'B1'),
+    ]);
+    expect((await fixture.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toEqual({ parkingSlots: { [second.id]: 'B1' } });
+    expect((await fixture.householdVehicle.findUniqueOrThrow({ where: { id: own.vehicleId } })).active).toBe(false);
+  });
+
   it('creates, lists and updates resident households within each selected society', async () => {
     for (const scope of [societyA, societyB]) {
       const { unitId } = await arrivalDestination(scope);

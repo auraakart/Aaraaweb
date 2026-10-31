@@ -1,3 +1,4 @@
+import { HouseholdChangeRequestService } from '../households/household-change-request.service';
 import { HouseholdService } from '../households/household.service';
 import { ParkingAdminController } from '../households/parking-admin.controller';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -203,6 +204,34 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     await expect(db.$executeRaw(Prisma.sql`UPDATE "ParkingEvent" SET "note"='forbidden' WHERE "id"=${events[0].id}::uuid`)).rejects.toThrow('append-only');
     await db.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT parking_event_probe`);
     await db.$executeRaw(Prisma.sql`RELEASE SAVEPOINT parking_event_probe`);
+  });
+
+  databaseTest('retains approved vehicle add/remove workflows and historical reactivation on migrated tables', async db => {
+    const scoped = { withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT set_config('app.aaraagate_society_id',${scope},true)`);
+      return run(tx);
+    }) } as never;
+    const households = new HouseholdService(scoped);
+    const requests = new HouseholdChangeRequestService(db, households);
+    const home = await households.create(societyId, userId, unitId);
+    const reviewer = await db.user.create({ data: { phone: `vehicle-review-${randomUUID()}` } });
+    const input = { plateNumber: ' tn 01-ab 1234 ', vehicleType: 'CAR' as const, make: ' Make ' };
+    const add = await requests.requestVehicleAdd(societyId, userId, home.id, input);
+    expect((await requests.approve(societyId, reviewer.id, add.id, ' Approved ')).status).toBe('APPROVED');
+    const vehicle = await db.householdVehicle.findFirstOrThrow({ where: { societyId, householdId: home.id, plateNumber: 'TN01AB1234' } });
+    expect(vehicle).toMatchObject({ active: true, make: 'Make' });
+    await households.updateVehicleParkingSlot(societyId, home.id, vehicle.id, 'A1');
+    const remove = await requests.requestVehicleRemove(societyId, userId, home.id, vehicle.id);
+    expect((await requests.approve(societyId, reviewer.id, remove.id)).status).toBe('APPROVED');
+    expect((await db.householdVehicle.findUniqueOrThrow({ where: { id: vehicle.id } })).active).toBe(false);
+    expect((await db.household.findUniqueOrThrow({ where: { id: home.id } })).accessPreferences).toMatchObject({ parkingSlots: {} });
+    const again = await requests.requestVehicleAdd(societyId, userId, home.id, input);
+    await requests.approve(societyId, reviewer.id, again.id);
+    expect(await db.householdVehicle.findMany({ where: { societyId, plateNumber: 'TN01AB1234' } })).toEqual([expect.objectContaining({ id: vehicle.id, active: true })]);
+    await expect(households.deactivateVehicle(otherSocietyId, userId, home.id, vehicle.id)).rejects.toThrow('Household not found');
+    await db.unitOccupancy.updateMany({ where: { societyId, unitId, userId }, data: { effectiveTo: new Date(Date.now() - 1) } });
+    await expect(households.deactivateVehicle(societyId, userId, home.id, vehicle.id)).rejects.toThrow('authenticated resident');
+    await expect(households.addVehicle(societyId, userId, home.id, { ...input, plateNumber: 'OTHER' })).rejects.toThrow('authenticated resident');
   });
 
   databaseTest('retains resident household creation, nested reads and protected preferences on migrated tables', async db => {
