@@ -1,3 +1,4 @@
+import { DocumentsService } from '../documents/documents.service';
 import { OccupancyLifecycleService } from '../households/occupancy-lifecycle.service';
 import { HouseholdChangeRequestService } from '../households/household-change-request.service';
 import { HouseholdService } from '../households/household.service';
@@ -51,6 +52,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const lookupOwner = `${role}_lookup`;
   const claimsOwner = `${role}_claims`;
   const accountingOwner = `${role}_accounting`;
+  const occupancyOwner = `${role}_occupancy`;
   const password = randomUUID();
   const base = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost/aaraagate_test');
   const fixtureUrl = new URL(base);
@@ -69,13 +71,13 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
     'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdChangeRequest', 'HouseholdVehicle', 'EmergencyContact', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
-  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false;
+  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false, occupancyOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
     execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'execute', '--stdin', '--url', url], {
@@ -189,6 +191,20 @@ database('Billing transactions under a non-owner RLS role', () => {
       ALTER FUNCTION "${schema}".aaraagate_seed_accounting_deliveries(text) OWNER TO "${accountingOwner}";
       ALTER FUNCTION "${schema}".aaraagate_claim_accounting_deliveries(integer) OWNER TO "${accountingOwner}";
       REVOKE CREATE ON SCHEMA "${schema}" FROM "${accountingOwner}";`);
+    executeDdl(`CREATE ROLE "${occupancyOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+    occupancyOwnerCreated = true;
+    const occupancyMigration = readFileSync(join(__dirname,
+      '../../prisma/migrations/20261031090000_v511_occupancy_worker_discovery/migration.sql'), 'utf8');
+    executeDdl(occupancyMigration.replaceAll('public.', `"${schema}".`), fixtureUrl.toString());
+    executeDdl(`GRANT USAGE, CREATE ON SCHEMA "${schema}" TO "${occupancyOwner}";
+      GRANT SELECT ("id","societyId","unitId","reviewedByUserId","status","effectiveAt") ON "${schema}"."OccupancyLifecycleRequest" TO "${occupancyOwner}";
+      GRANT SELECT ("id","societyId","buildingId") ON "${schema}"."Unit" TO "${occupancyOwner}";
+      GRANT SELECT ("id","societyId") ON "${schema}"."Building" TO "${occupancyOwner}";
+      CREATE POLICY occupancy_discovery ON "${schema}"."OccupancyLifecycleRequest" FOR SELECT TO "${occupancyOwner}" USING (true);
+      CREATE POLICY occupancy_discovery ON "${schema}"."Unit" FOR SELECT TO "${occupancyOwner}" USING (true);
+      CREATE POLICY occupancy_discovery ON "${schema}"."Building" FOR SELECT TO "${occupancyOwner}" USING (true);
+      ALTER FUNCTION "${schema}".aaraagate_due_occupancy_lifecycle(integer) OWNER TO "${occupancyOwner}";
+      REVOKE CREATE ON SCHEMA "${schema}" FROM "${occupancyOwner}";`);
     for (const user of [owner, tenant]) await fixture.$executeRaw(Prisma.sql`
       INSERT INTO "User" ("id","phone","updatedAt") VALUES (${user}::uuid,${`rls-${user}`},CURRENT_TIMESTAMP)`);
     for (const society of [societyA, societyB]) await fixture.$executeRaw(Prisma.sql`
@@ -219,6 +235,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (lookupOwnerCreated) executeDdl(`DROP ROLE "${lookupOwner}"`);
     if (claimsOwnerCreated) executeDdl(`DROP ROLE "${claimsOwner}"`);
     if (accountingOwnerCreated) executeDdl(`DROP ROLE "${accountingOwner}"`);
+    if (occupancyOwnerCreated) executeDdl(`DROP ROLE "${occupancyOwner}"`);
   });
 
   async function invoice(societyId = societyA, unitId = unitA) {
@@ -2517,6 +2534,104 @@ database('Billing transactions under a non-owner RLS role', () => {
     await expect(lifecycle.addDocument(societyA, owner, malformed, 'ID', 'ref')).rejects.toThrow('not found');
     const occupancy = await fixture.unitOccupancy.findFirstOrThrow({ where: { societyId: societyA, unitId: unitA, userId: tenant, active: true } });
     await expect(lifecycle.requestMyMoveOut(societyA, owner, { occupancyId: occupancy.id, effectiveAt: new Date() })).rejects.toThrow('Your active occupancy');
+  });
+
+  it('requires an explicit worker grant and exposes only bounded due routing metadata', async () => {
+    await expect(lifecycle.dueApproved()).rejects.toThrow('permission denied');
+    executeDdl(`GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_due_occupancy_lifecycle(integer) TO "${role}"`);
+    const due: string[] = [];
+    for (const scope of [societyA, societyB]) {
+      const unit = await lifecycleMutationUnit(scope), id = await lifecycleReadFixture(scope, unit);
+      await fixture.$executeRaw(Prisma.sql`UPDATE "OccupancyLifecycleRequest" SET "status"='APPROVED',"reviewedByUserId"=${owner}::uuid,"effectiveAt"=CURRENT_TIMESTAMP-INTERVAL '1 day' WHERE "id"=${id}::uuid`);
+      due.push(id);
+    }
+    const futureUnit = await lifecycleMutationUnit(), future = await lifecycleReadFixture(societyA, futureUnit);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "OccupancyLifecycleRequest" SET "status"='APPROVED',"reviewedByUserId"=${owner}::uuid,"effectiveAt"=CURRENT_TIMESTAMP+INTERVAL '1 day' WHERE "id"=${future}::uuid`);
+    const malformed = await lifecycleReadFixture(societyA, unitB);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "OccupancyLifecycleRequest" SET "status"='APPROVED',"effectiveAt"=CURRENT_TIMESTAMP-INTERVAL '1 day' WHERE "id"=${malformed}::uuid`);
+    const rows = await lifecycle.dueApproved(50);
+    expect(rows.map(row=>row.id)).toEqual(expect.arrayContaining(due));
+    expect(rows.map(row=>row.id)).not.toContain(future);expect(rows.map(row=>row.id)).not.toContain(malformed);
+    expect(Object.keys(rows[0]).sort()).toEqual(['id','reviewedByUserId','societyId']);
+    expect(await lifecycle.dueApproved(1)).toHaveLength(1);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_due_occupancy_lifecycle(500)`)).toEqual([]);
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "OccupancyLifecycleRequest"`)).toEqual([]);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "OccupancyLifecycleRequest" SET "status"='COMPLETED' WHERE "id"=${due[0]}::uuid`);
+    expect((await lifecycle.dueApproved()).map(row=>row.id)).not.toContain(due[0]);
+  });
+  const documents = new DocumentsService(runtime);
+  const documentInput = (scope: string, audience: 'ALL_MEMBERS'|'MANAGEMENT'|'OWNERS_ONLY'|'PROPERTY_OWNER_ONLY' = 'ALL_MEMBERS', unitId?: string) => ({
+    category: 'POLICY', audience, unitId, title: 'Parking evidence '+randomUUID(), storageKey: `societies/${scope}/documents/${randomUUID()}.pdf`, fileName: 'policy.pdf', mimeType: 'application/pdf', sizeBytes: 100,
+    knowledgeText: 'Parking overnight visitor permit policy reviewed by management.',
+  });
+  it('isolates document lifecycle, owner audiences, downloads and knowledge in both societies', async () => {
+    for (const [scope, unit, foreign] of [[societyA, unitA, societyB], [societyB, unitB, societyA]]) {
+      const reader = await fixture.user.create({ data: { phone: 'document-reader-'+randomUUID() } });
+      await fixture.societyMembership.create({ data: { societyId: scope, userId: reader.id, role: MembershipRole.TENANT, active: true } });
+      const ids: Record<string,string> = {};
+      for (const audience of ['ALL_MEMBERS','MANAGEMENT','OWNERS_ONLY','PROPERTY_OWNER_ONLY'] as const) {
+        const draft = await documents.createDraft(scope, owner, documentInput(scope, audience, audience === 'PROPERTY_OWNER_ONLY' ? unit : undefined));
+        ids[audience] = draft.id as string;
+        await expect(documents.getPublishedDocumentForUser(scope, owner, ids[audience])).rejects.toThrow('not found');
+        await documents.publish(scope, owner, ids[audience]);
+      }
+      const visible = await documents.listPublishedForUser(scope, reader.id) as Array<{ id: string }>;
+      expect(visible.map(row=>row.id)).toContain(ids.ALL_MEMBERS);
+      expect(visible.map(row=>row.id)).not.toContain(ids.OWNERS_ONLY);
+      expect(visible.map(row=>row.id)).not.toContain(ids.PROPERTY_OWNER_ONLY);
+      expect(visible.map(row=>row.id)).not.toContain(ids.MANAGEMENT);
+      expect(await documents.getPublishedDocumentForUser(scope, owner, ids.PROPERTY_OWNER_ONLY)).toMatchObject({ id: ids.PROPERTY_OWNER_ONLY });
+      await expect(documents.getPublishedDocumentForUser(scope, reader.id, ids.PROPERTY_OWNER_ONLY)).rejects.toThrow('not found');
+      await expect(documents.getManagementDocument(foreign, ids.ALL_MEMBERS)).rejects.toThrow('not found');
+      await expect(documents.publish(foreign, owner, ids.ALL_MEMBERS)).rejects.toThrow('not found');
+      await expect(documents.history(foreign, ids.ALL_MEMBERS)).rejects.toThrow('not found');
+      const hits = await documents.searchKnowledgeForUser(scope, reader.id, 'parking overnight visitor permit');
+      expect(hits.map(row=>row.documentId)).toContain(ids.ALL_MEMBERS);
+      expect(hits.map(row=>row.documentId)).not.toContain(ids.OWNERS_ONLY);
+      expect(hits.map(row=>row.documentId)).not.toContain(ids.MANAGEMENT);
+      expect(await documents.history(scope, ids.ALL_MEMBERS)).toHaveLength(2);
+      expect(()=>JSON.stringify(visible)).not.toThrow();
+    }
+  });
+  it('serializes replacement versions and atomically archives the published predecessor', async () => {
+    const draft = await documents.createDraft(societyA, owner, documentInput(societyA));
+    await documents.publish(societyA, owner, draft.id as string);
+    const replacementInput = documentInput(societyA);
+    const attempts = await Promise.allSettled([documents.createReplacementDraft(societyA, owner, draft.id as string, replacementInput), documents.createReplacementDraft(societyA, owner, draft.id as string, replacementInput)]);
+    expect(attempts.filter(row=>row.status==='fulfilled')).toHaveLength(1);
+    const result = attempts.find(row=>row.status==='fulfilled')!;
+    if (result.status!=='fulfilled') throw new Error('Expected replacement');
+    const id = result.value.id as string;
+    await documents.publish(societyA, owner, id);
+    expect(await documents.getManagementDocument(societyA,draft.id as string)).toMatchObject({ status: 'ARCHIVED', supersededByDocumentId: id });
+    await expect(documents.getPublishedDocumentForUser(societyA,tenant,draft.id as string)).rejects.toThrow('not found');
+    expect(await documents.getPublishedDocumentForUser(societyA,tenant,id)).toMatchObject({ status:'PUBLISHED' });
+    await documents.archive(societyA,owner,id);
+    expect(await documents.archive(societyA,owner,id)).toMatchObject({ status:'ARCHIVED' });
+  });
+  it('rolls back actual document, knowledge and archive mutations when audit persistence fails', async () => {
+    const failing = new DocumentsService({withTenantContext:(scope:string,run:(tx:Prisma.TransactionClient)=>Promise<unknown>)=>runtime.withTenantContext(scope,tx=>run(new Proxy(tx,{get(target,key){
+      if(key==='$executeRaw')return async(sql:Prisma.Sql)=>{const value=await target.$executeRaw(sql);if(sql.text.includes('INSERT INTO "SocietyDocumentEvent"'))throw new Error('Document audit rollback');return value;};
+      const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+    }})))} as never);
+    const input=documentInput(societyA);
+    await expect(failing.createDraft(societyA,owner,input)).rejects.toThrow('Document audit rollback');
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "SocietyDocument" WHERE "storageKey"=${input.storageKey}`)).toEqual([]);
+    const draft=await documents.createDraft(societyA,owner,input);await documents.publish(societyA,owner,draft.id as string);
+    await expect(failing.archive(societyA,owner,draft.id as string)).rejects.toThrow('Document audit rollback');
+    expect(await documents.getPublishedDocumentForUser(societyA,tenant,draft.id as string)).toMatchObject({status:'PUBLISHED'});
+  });
+  it('denies unverified or expired owner access and malformed property parents', async () => {
+    const unit=await lifecycleMutationUnit();
+    await fixture.unitOwnership.create({data:{societyId:societyA,unitId:unit,userId:tenant,verified:false,active:true,effectiveFrom:new Date(Date.now()-86_400_000)}});
+    const draft=await documents.createDraft(societyA,owner,documentInput(societyA,'PROPERTY_OWNER_ONLY',unit));await documents.publish(societyA,owner,draft.id as string);
+    await expect(documents.getPublishedDocumentForUser(societyA,tenant,draft.id as string)).rejects.toThrow('not found');
+    await fixture.unitOwnership.updateMany({where:{societyId:societyA,unitId:unit,userId:tenant},data:{verified:true,effectiveTo:new Date(Date.now()-1_000)}});
+    await expect(documents.getPublishedDocumentForUser(societyA,tenant,draft.id as string)).rejects.toThrow('not found');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "SocietyDocument" SET "unitId"=${unitB}::uuid WHERE "id"=${draft.id as string}::uuid`);
+    await expect(documents.getManagementDocument(societyA,draft.id as string)).rejects.toThrow('not found');
+    await expect(documents.getPublishedDocumentForUser(societyA,owner,draft.id as string)).rejects.toThrow('not found');
+    await expect(documents.createDraft(societyA,owner,documentInput(societyA,'PROPERTY_OWNER_ONLY',unitB))).rejects.toThrow('Unit is not in current society');
   });
 
 });

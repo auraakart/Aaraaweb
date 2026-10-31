@@ -2639,11 +2639,13 @@
       "id": "V5.11",
       "name": "Occupancy, isolation and experience hardening",
       "status": "IN_DEVELOPMENT",
-      "currentSlice": "V5.11.2",
+      "currentSlice": "V5.11.3",
       "baselineSha": "8232a65e807870202667c452c00b39529e031fc3",
       "evidence": [
         "docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md",
-        "docs/V5.11.2-OCCUPANCY-MUTATION-INTEGRITY.md"
+        "docs/V5.11.2-OCCUPANCY-MUTATION-INTEGRITY.md",
+        "docs/V5.11.3-OCCUPANCY-WORKER-CAPABILITY.md",
+        "docs/V5.11.3-PRIVATE-DOCUMENT-ISOLATION.md"
       ],
       "slices": [
         {
@@ -2657,12 +2659,15 @@
         {
           "id": "V5.11.2",
           "name": "Move-in/out transaction and audit integrity",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1553,
+          "mergeSha": "569a3547421e726c7212c71221b81c3db314f1fa",
+          "ciRun": 41183644839
         },
         {
           "id": "V5.11.3",
           "name": "Scheduled worker and private-file isolation",
-          "status": "PLANNED"
+          "status": "SELECTED_WORKER_DOCUMENT_SOURCE_PENDING_PROTECTED_CI"
         },
         {
           "id": "V5.11.4",

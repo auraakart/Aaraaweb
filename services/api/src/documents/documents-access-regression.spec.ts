@@ -1,6 +1,11 @@
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { DocumentsService } from './documents.service';
+function scoped(prisma: unknown) {
+  const p=prisma as { $transaction?: (run: (tx: unknown) => Promise<unknown>) => Promise<unknown> };
+  return { withTenantContext: vi.fn(async (_scope: string, run: (tx: unknown) => Promise<unknown>) => p.$transaction ? p.$transaction(run) : run(prisma)) } as never;
+}
+
 
 function sqlText(call: unknown): string {
   return ((call as { strings?: readonly string[] }).strings ?? []).join('?');
@@ -17,7 +22,7 @@ describe('DocumentsService authorization regression', () => {
 
   it('scopes management document lookup by both document and current society', async () => {
     const queryRaw = vi.fn().mockResolvedValue([]);
-    const service = new DocumentsService({ $queryRaw: queryRaw } as never);
+    const service = new DocumentsService(scoped({ $queryRaw: queryRaw }));
 
     await expect(service.getManagementDocument(societyId, documentId)).rejects.toBeInstanceOf(NotFoundException);
 
@@ -29,7 +34,7 @@ describe('DocumentsService authorization regression', () => {
 
   it('authorizes published download lookup with tenant, user, status and audience ownership checks', async () => {
     const queryRaw = vi.fn().mockResolvedValue([]);
-    const service = new DocumentsService({ $queryRaw: queryRaw } as never);
+    const service = new DocumentsService(scoped({ $queryRaw: queryRaw }));
 
     await expect(service.getPublishedDocumentForUser(societyId, userId, documentId)).rejects.toBeInstanceOf(NotFoundException);
 

@@ -1,6 +1,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { DocumentsService } from './documents.service';
+function scoped(prisma: unknown) {
+  const p=prisma as { $transaction?: (run: (tx: unknown) => Promise<unknown>) => Promise<unknown> };
+  return { withTenantContext: vi.fn(async (_scope: string, run: (tx: unknown) => Promise<unknown>) => p.$transaction ? p.$transaction(run) : run(prisma)) } as never;
+}
+
 
 function sqlText(call: unknown): string {
   return ((call as { strings?: readonly string[] }).strings ?? []).join('?');
@@ -15,7 +20,7 @@ describe('DocumentsService supersession', () => {
   it('rejects replacement when the source document is not published', async () => {
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:oldId,societyId,status:'DRAFT',version:1}]),$executeRaw:vi.fn()};
     const prisma={$transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx))};
-    const service=new DocumentsService(prisma as never);
+    const service=new DocumentsService(scoped(prisma));
 
     await expect(service.createReplacementDraft(societyId,actorId,oldId,{
       storageKey:`societies/${societyId}/documents/replacement.pdf`,
@@ -33,7 +38,7 @@ describe('DocumentsService supersession', () => {
       $executeRaw:vi.fn().mockResolvedValue(1),
     };
     const prisma={$transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx))};
-    const service=new DocumentsService(prisma as never);
+    const service=new DocumentsService(scoped(prisma));
     const result=await service.createReplacementDraft(societyId,actorId,oldId,{
       storageKey:`societies/${societyId}/documents/replacement.pdf`,
       fileName:'replacement.pdf',mimeType:'application/pdf',sizeBytes:120,description:'Updated policy',
@@ -52,7 +57,7 @@ describe('DocumentsService supersession', () => {
       $executeRaw:vi.fn(),
     };
     const prisma={$transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx))};
-    const service=new DocumentsService(prisma as never);
+    const service=new DocumentsService(scoped(prisma));
 
     await expect(service.createReplacementDraft(societyId,actorId,oldId,{
       storageKey:`societies/${societyId}/documents/replacement.pdf`,
@@ -72,7 +77,7 @@ describe('DocumentsService supersession', () => {
       $executeRaw:vi.fn().mockResolvedValue(2),
     };
     const prisma={$transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx))};
-    const service=new DocumentsService(prisma as never);
+    const service=new DocumentsService(scoped(prisma));
     const result=await service.publish(societyId,actorId,newId);
 
     expect(result).toMatchObject({id:newId,status:'PUBLISHED'});
@@ -85,7 +90,7 @@ describe('DocumentsService supersession', () => {
   it('fails closed when replacement source is outside the current society', async () => {
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([]),$executeRaw:vi.fn()};
     const prisma={$transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx))};
-    const service=new DocumentsService(prisma as never);
+    const service=new DocumentsService(scoped(prisma));
     await expect(service.createReplacementDraft(societyId,actorId,oldId,{
       storageKey:`societies/${societyId}/documents/replacement.pdf`,
       fileName:'replacement.pdf',mimeType:'application/pdf',sizeBytes:100,

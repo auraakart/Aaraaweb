@@ -1,6 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { DocumentsService } from './documents.service';
+function scoped(prisma: unknown) {
+  const p=prisma as { $transaction?: (run: (tx: unknown) => Promise<unknown>) => Promise<unknown> };
+  return { withTenantContext: vi.fn(async (_scope: string, run: (tx: unknown) => Promise<unknown>) => p.$transaction ? p.$transaction(run) : run(prisma)) } as never;
+}
+
 
 describe('DocumentsService', () => {
   const societyId = '11111111-1111-4111-8111-111111111111';
@@ -17,7 +22,7 @@ describe('DocumentsService', () => {
 
   it('rejects cross-society property document unit', async () => {
     const prisma = { unit: { findFirst: vi.fn().mockResolvedValue(null) } } as never;
-    const service = new DocumentsService(prisma);
+    const service = new DocumentsService(scoped(prisma));
     await expect(service.createDraft(
       societyId,
       '22222222-2222-4222-8222-222222222222',
@@ -31,7 +36,7 @@ describe('DocumentsService', () => {
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
     const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)), unit: { findFirst: vi.fn() } } as never;
-    const service = new DocumentsService(prisma);
+    const service = new DocumentsService(scoped(prisma));
     const result = await service.createDraft(
       societyId,
       '22222222-2222-4222-8222-222222222222',

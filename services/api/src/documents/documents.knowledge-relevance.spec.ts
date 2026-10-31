@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DocumentsService } from './documents.service';
+function scoped(prisma: unknown) {
+  const p=prisma as { $transaction?: (run: (tx: unknown) => Promise<unknown>) => Promise<unknown> };
+  return { withTenantContext: vi.fn(async (_scope: string, run: (tx: unknown) => Promise<unknown>) => p.$transaction ? p.$transaction(run) : run(prisma)) } as never;
+}
+
 
 describe('DocumentsService society knowledge relevance',()=>{
   it('filters generic intent terms, rejects weak long-query matches, and ranks by distinctive-term coverage',async()=>{
@@ -20,7 +25,7 @@ describe('DocumentsService society knowledge relevance',()=>{
         contentText:'Use the parking permit process for overnight vehicle access.',contentHash:'partial',
       },
     ])};
-    const service=new DocumentsService(prisma as never);
+    const service=new DocumentsService(scoped(prisma));
 
     const result=await service.searchKnowledgeForUser(
       '11111111-1111-4111-8111-111111111111',
@@ -51,7 +56,7 @@ describe('DocumentsService society knowledge relevance',()=>{
       publishedAt:new Date('2026-09-29T10:00:00Z'),
       contentText:'Society policy and community rules.',contentHash:'policy',
     }])};
-    const service=new DocumentsService(prisma as never);
+    const service=new DocumentsService(scoped(prisma));
 
     const result=await service.searchKnowledgeForUser('society-1','user-1','society policy rules');
 
