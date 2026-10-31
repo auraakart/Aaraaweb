@@ -50,7 +50,7 @@ describe('OccupancyLifecycleService boundaries', () => {
       },
     };
     const prisma = { $transaction: vi.fn().mockImplementation(async (callback: (value: typeof tx) => unknown) => callback(tx)) };
-    const service = new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
+    const service = new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(tx)) } as never);
     await service.complete(row.societyId, '66666666-6666-6666-6666-666666666666', row.id);
     expect(tx.unitOccupancy.update).toHaveBeenCalledWith({
       where: { id: occupancy.id },

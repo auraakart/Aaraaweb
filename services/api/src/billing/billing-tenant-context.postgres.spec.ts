@@ -101,6 +101,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
       { table: 'User', column: 'status', type: 'UserStatus', defaultValue: 'ACTIVE' },
       { table: 'UnitOccupancy', column: 'relation', type: 'UnitRelation' },
+      { table: 'OccupancyLifecycleRequest', column: 'relation', type: 'UnitRelation' },
       { table: 'SocietyMembership', column: 'role', type: 'MembershipRole' },
       { table: 'HouseholdVehicle', column: 'vehicleType', type: 'VehicleType' },
       { table: 'Society', column: 'status', type: 'SocietyStatus', defaultValue: 'ACTIVE' },
@@ -2448,6 +2449,74 @@ database('Billing transactions under a non-owner RLS role', () => {
     }
     expect((await lifecycle.selfContext(societyA, tenant)).occupancies).toEqual(expect.arrayContaining([expect.objectContaining({ unitId: unitA })]));
     expect(await lifecycle.selfContext(societyA, randomUUID())).toEqual({ occupancies: [], ownedUnitIds: [], ownedUnits: [] });
+  });
+  async function lifecycleMutationUnit(scope = societyA) {
+    const id = randomUUID();
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "Unit" ("id","societyId","buildingId","number") VALUES (${id}::uuid,${scope}::uuid,${scope === societyA ? buildingA : buildingB}::uuid,${id})`);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "UnitOwnership" ("id","societyId","unitId","userId","verified","active","effectiveFrom","updatedAt") VALUES (${randomUUID()}::uuid,${scope}::uuid,${id}::uuid,${owner}::uuid,true,true,CURRENT_TIMESTAMP-INTERVAL '1 day',CURRENT_TIMESTAMP)`);
+    return id;
+  }
+  const moveInput = (unitId: string) => ({ unitId, userId: tenant, relation: 'TENANT' as const, effectiveAt: new Date(Date.now() - 60_000) });
+  async function readyLifecycle(scope: string, id: string) {
+    for (const item of (await lifecycle.get(scope, id)).checklist as Array<{ id: string }>) await lifecycle.setChecklistItem(scope, owner, id, item.id, true);
+  }
+  it('runs move-in/out, review, document and checklist lifecycles atomically in both tenant scopes', async () => {
+    for (const scope of [societyA, societyB]) {
+      const unit = await lifecycleMutationUnit(scope), foreign = scope === societyA ? societyB : societyA;
+      const request = await lifecycle.requestOwnerMoveIn(scope, owner, moveInput(unit));
+      await expect(lifecycle.review(foreign, owner, request.id, true)).rejects.toThrow('not found');
+      await lifecycle.review(scope, owner, request.id, true);
+      await expect(lifecycle.complete(scope, owner, request.id)).rejects.toThrow('checklist');
+      await readyLifecycle(scope, request.id);
+      await lifecycle.addDocument(scope, owner, request.id, ' ID ', ' private-ref ');
+      const detail = await lifecycle.get(scope, request.id), document = (detail.documents as Array<{ id: string }>)[0];
+      await expect(lifecycle.verifyDocument(foreign, owner, request.id, document.id)).rejects.toThrow('not found');
+      await lifecycle.verifyDocument(scope, owner, request.id, document.id);
+      const attempts = await Promise.allSettled([lifecycle.complete(scope, owner, request.id), lifecycle.complete(scope, owner, request.id)]);
+      expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      const occupancy = await fixture.unitOccupancy.findFirstOrThrow({ where: { societyId: scope, unitId: unit, userId: tenant, active: true } });
+      const out = await lifecycle.requestMyMoveOut(scope, tenant, { occupancyId: occupancy.id, effectiveAt: new Date() });
+      await lifecycle.review(scope, owner, out.id, true); await readyLifecycle(scope, out.id); await lifecycle.complete(scope, owner, out.id);
+      expect(await fixture.unitOccupancy.findUniqueOrThrow({ where: { id: occupancy.id } })).toMatchObject({ active: false, primaryGateContact: false, gateApprovalEnabled: false, gateNotificationEnabled: false });
+      expect((await lifecycle.get(scope, request.id)).documents).toEqual([expect.objectContaining({ kind: 'ID', fileReference: 'private-ref', verifiedByUserId: owner })]);
+    }
+  });
+  it('serializes duplicate occupancy requests and competing reviewers under restricted roles', async () => {
+    const unit = await lifecycleMutationUnit();
+    const attempts = await Promise.allSettled([lifecycle.requestOwnerMoveIn(societyA, owner, moveInput(unit)), lifecycle.requestOwnerMoveIn(societyA, owner, moveInput(unit))]);
+    expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const request = attempts.find(result => result.status === 'fulfilled')!;
+    if (request.status !== 'fulfilled') throw new Error('Expected one request');
+    const reviews = await Promise.allSettled([lifecycle.review(societyA, owner, request.value.id, true), lifecycle.review(societyA, tenant, request.value.id, false)]);
+    expect(reviews.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect((await fixture.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`SELECT COUNT(*) AS count FROM "OccupancyLifecycleEvent" WHERE "requestId"=${request.value.id}::uuid AND "eventType" IN ('APPROVED','REJECTED')`))[0].count).toBe(1n);
+  });
+  it('rolls back actual request/checklist and review writes when audit persistence fails', async () => {
+    const unit = await lifecycleMutationUnit();
+    const failing = new OccupancyLifecycleService({ withTenantContext: (scope: string, run: (tx: Prisma.TransactionClient) => Promise<unknown>) => runtime.withTenantContext(scope, tx => run(new Proxy(tx, { get(target, key) {
+      if (key === '$executeRaw') return async (sql: Prisma.Sql) => { const value = await target.$executeRaw(sql); if (sql.text.includes('INSERT INTO "OccupancyLifecycleEvent"')) throw new Error('Audit write rollback'); return value; };
+      const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+    } }))) } as never);
+    await expect(failing.requestOwnerMoveIn(societyA, owner, moveInput(unit))).rejects.toThrow('Audit write rollback');
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "OccupancyLifecycleRequest" WHERE "unitId"=${unit}::uuid`)).toEqual([]);
+    const request = await lifecycle.requestOwnerMoveIn(societyA, owner, moveInput(unit));
+    await expect(failing.review(societyA, owner, request.id, true)).rejects.toThrow('Audit write rollback');
+    expect((await lifecycle.get(societyA, request.id)).status).toBe('REQUESTED');
+    expect((await lifecycle.get(societyA, request.id)).events).toHaveLength(1);
+    await lifecycle.review(societyA, owner, request.id, true); await readyLifecycle(societyA, request.id);
+    await expect(failing.complete(societyA, owner, request.id)).rejects.toThrow('Audit write rollback');
+    expect(await fixture.unitOccupancy.findMany({ where: { societyId: societyA, unitId: unit, userId: tenant } })).toEqual([]);
+    expect((await lifecycle.get(societyA, request.id)).status).toBe('APPROVED');
+  });
+  it('denies expired ownership, malformed request parents and unrelated self move-outs', async () => {
+    const unit = await lifecycleMutationUnit();
+    await fixture.unitOwnership.updateMany({ where: { societyId: societyA, unitId: unit }, data: { effectiveTo: new Date(Date.now() - 1_000) } });
+    await expect(lifecycle.requestOwnerMoveIn(societyA, owner, moveInput(unit))).rejects.toThrow('Verified active ownership');
+    const malformed = await lifecycleReadFixture(societyA, unitB);
+    await expect(lifecycle.review(societyA, owner, malformed, true)).rejects.toThrow('not found');
+    await expect(lifecycle.addDocument(societyA, owner, malformed, 'ID', 'ref')).rejects.toThrow('not found');
+    const occupancy = await fixture.unitOccupancy.findFirstOrThrow({ where: { societyId: societyA, unitId: unitA, userId: tenant, active: true } });
+    await expect(lifecycle.requestMyMoveOut(societyA, owner, { occupancyId: occupancy.id, effectiveAt: new Date() })).rejects.toThrow('Your active occupancy');
   });
 
 });

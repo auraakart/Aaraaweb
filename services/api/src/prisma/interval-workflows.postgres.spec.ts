@@ -1,3 +1,4 @@
+import { OccupancyLifecycleService } from '../households/occupancy-lifecycle.service';
 import { HouseholdChangeRequestService } from '../households/household-change-request.service';
 import { HouseholdService } from '../households/household.service';
 import { ParkingAdminController } from '../households/parking-admin.controller';
@@ -603,4 +604,21 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     `);
     expect(stored).toEqual({ minutes: 10, lastError: 'fixture storage outage', deletedAt: null });
   });
+  databaseTest('preserves real migrated occupancy request, checklist, approval and gate-revocation lifecycle', async db => {
+    const service = new OccupancyLifecycleService(db);
+    const building = await db.building.findFirstOrThrow({ where: { societyId } });
+    const unit = await db.unit.create({ data: { societyId, buildingId: building.id, number: randomUUID() } });
+    await db.unitOwnership.create({ data: { societyId, unitId: unit.id, userId, verified: true } });
+    const request = await service.requestOwnerMoveIn(societyId, userId, { unitId: unit.id, userId, relation: 'OWNER', effectiveAt: new Date(Date.now() - 1_000) });
+    await service.review(societyId, userId, request.id, true);
+    for (const item of (await service.get(societyId, request.id)).checklist as Array<{ id: string }>) await service.setChecklistItem(societyId, userId, request.id, item.id, true);
+    const completed = await service.complete(societyId, userId, request.id);
+    expect(completed.status).toBe('COMPLETED');
+    const out = await service.requestMyMoveOut(societyId, userId, { occupancyId: completed.occupancyId!, effectiveAt: new Date() });
+    await service.review(societyId, userId, out.id, true);
+    for (const item of (await service.get(societyId, out.id)).checklist as Array<{ id: string }>) await service.setChecklistItem(societyId, userId, out.id, item.id, true);
+    await service.complete(societyId, userId, out.id);
+    expect(await db.unitOccupancy.findUniqueOrThrow({ where: { id: completed.occupancyId! } })).toMatchObject({ active: false, gateApprovalEnabled: false, gateNotificationEnabled: false, primaryGateContact: false });
+  });
+
 });
