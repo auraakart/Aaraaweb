@@ -2638,7 +2638,7 @@
     {
       "id": "V5.11",
       "name": "Occupancy, isolation and experience hardening",
-      "status": "IN_DEVELOPMENT",
+      "status": "SELECTED_SOURCE_ACCEPTED_EXTERNAL_GATES_OPEN",
       "currentSlice": "V5.11.6",
       "baselineSha": "8232a65e807870202667c452c00b39529e031fc3",
       "evidence": [
@@ -2693,7 +2693,14 @@
         {
           "id": "V5.11.6",
           "name": "Consolidated client security and white-label validation",
-          "status": "PLANNED"
+          "status": "CONSOLIDATED_SOURCE_VALIDATION_ACCEPTED_EXTERNAL_GATES_OPEN",
+          "evidence": [
+            "docs/V5.12-TENANT-AND-EXPERIENCE-CLOSURE.md"
+          ],
+          "continuesIn": "V5.12.6",
+          "pullRequest": 1559,
+          "mergeSha": "7a803244a9d2f32f4e53e6fcb3e8e5563287436c",
+          "ciRun": 41223073848
         }
       ],
       "limitations": [
@@ -2705,8 +2712,8 @@
     {
       "id": "V5.12",
       "name": "Tenant boundaries, maintainability and experience closure",
-      "status": "IN_DEVELOPMENT",
-      "currentSlice": "V5.12.1",
+      "status": "ENGINEERING_SOURCE_ACCEPTED_EXTERNAL_GATES_OPEN",
+      "currentSlice": "V5.12.6",
       "baselineSha": "64a81059912fc06eb655bed435c079be70de59fc",
       "evidence": [
         "docs/V5.12-TENANT-AND-EXPERIENCE-CLOSURE.md"
@@ -2715,7 +2722,74 @@
         "Productionization, policy activation, live providers and physical-device testing remain on hold.",
         "Independent white-label worker/artifact acceptance remains open under #1380.",
         "Develop integration only; no staging/main promotion until consolidated release approval."
-      ]
+      ],
+      "slices": [
+        {
+          "id": "V5.12.1",
+          "name": "Accepted form checkpoint and consolidated next cycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1556,
+          "mergeSha": "64a81059912fc06eb655bed435c079be70de59fc",
+          "ciRun": 41186518267
+        },
+        {
+          "id": "V5.12.2",
+          "name": "Helpdesk and SLA selected tenant clients",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1557,
+          "mergeSha": "be68db0add26df9ab014e4a0833894b20528d8bd",
+          "ciRun": 41220842678,
+          "testedTree": "eb3aaa67193fe26f74c0362a8ee42450ccd958ec"
+        },
+        {
+          "id": "V5.12.3",
+          "name": "Amenities selected clients and bounded deposit worker",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1558,
+          "mergeSha": "a860956b31a16aea436b12e3a873148cbd4631e0",
+          "ciRun": 41222097446,
+          "testedTree": "903864acbe3ffd473235e3d2f4d5ebcd4051cd01"
+        },
+        {
+          "id": "V5.12.4",
+          "name": "Bounded dispute evidence extraction",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1559,
+          "mergeSha": "7a803244a9d2f32f4e53e6fcb3e8e5563287436c",
+          "ciRun": 41223073848,
+          "testedTree": "76afb74f5e59eebb18e68b5774581bfd22fd3659"
+        },
+        {
+          "id": "V5.12.5",
+          "name": "Home notice identity and recovery validation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1559,
+          "mergeSha": "7a803244a9d2f32f4e53e6fcb3e8e5563287436c",
+          "ciRun": 41223073848,
+          "testedTree": "76afb74f5e59eebb18e68b5774581bfd22fd3659"
+        },
+        {
+          "id": "V5.12.6",
+          "name": "Selective dependencies and consolidated source evidence",
+          "status": "MERGED_PROTECTED_CI_PASSED_EXTERNAL_GATES_OPEN",
+          "pullRequest": 1559,
+          "mergeSha": "7a803244a9d2f32f4e53e6fcb3e8e5563287436c",
+          "ciRun": 41223073848,
+          "testedTree": "76afb74f5e59eebb18e68b5774581bfd22fd3659"
+        }
+      ],
+      "acceptedSourceSha": "7a803244a9d2f32f4e53e6fcb3e8e5563287436c",
+      "scopedAcceptance": {
+        "status": "COMPLETED_NONPRODUCTION_SELECTED_SOURCE",
+        "ciRun": 41223073848,
+        "testedHead": "7db76b6f020dc1bbcebc4e9fc2a623ef349ad131",
+        "testedTree": "76afb74f5e59eebb18e68b5774581bfd22fd3659",
+        "limitations": [
+          "Hosted runtime role/grant/policy acceptance remains open under #212.",
+          "Independent Partner A/B worker, signing/artifact and physical-device acceptance remain open under #1380.",
+          "Productionization and staging/main promotion are excluded."
+        ]
+      }
     }
   ]
 }
