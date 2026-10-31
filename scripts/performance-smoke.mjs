@@ -1,12 +1,19 @@
 import { performance } from 'node:perf_hooks';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { operationalPerformance } from './lib/operational-performance-contract.mjs';
 import { pathToFileURL } from 'node:url';
 
 const base=(process.env.AARAAGATE_PERF_BASE_URL??'http://127.0.0.1:3000').replace(/\/$/,'');
 const accessToken=process.env.AARAAGATE_PERF_ACCESS_TOKEN??'aaraagate-perf-access-token-local-ci';
 const output=process.env.AARAAGATE_PERF_OUTPUT??'/tmp/aaraagate-performance-summary.json';
 
-const scenarios=[
+const operationsHeaders={Authorization:`Bearer ${process.env.AARAAGATE_PERF_OPERATIONS_ACCESS_TOKEN??operationalPerformance.accessToken}`};
+
+export const scenarios=[
+  {name:'occupancy-list-5k',path:'/api/v1/occupancy-lifecycle',requests:24,concurrency:4,warmup:4,p95Ms:2500,minRps:1.5,headers:operationsHeaders},
+  {name:'occupancy-readiness-5k',path:`/api/v1/occupancy-lifecycle/${operationalPerformance.requestId}/readiness`,requests:24,concurrency:4,warmup:4,p95Ms:2500,minRps:1.5,headers:operationsHeaders},
+  {name:'document-management-2k',path:'/api/v1/documents/management',requests:24,concurrency:4,warmup:4,p95Ms:2500,minRps:1.5,headers:operationsHeaders},
+  {name:'document-published-2k',path:'/api/v1/documents/published',requests:24,concurrency:4,warmup:4,p95Ms:2500,minRps:1.5,headers:operationsHeaders},
   {name:'health-live',path:'/api/v1/health/live',requests:160,concurrency:16,warmup:16,p95Ms:400,minRps:20,headers:{}},
   {name:'health-ready',path:'/api/v1/health/ready',requests:120,concurrency:12,warmup:12,p95Ms:750,minRps:10,headers:{}},
   {name:'auth-contexts',path:'/api/v1/auth/contexts',requests:160,concurrency:16,warmup:16,p95Ms:900,minRps:10,headers:{Authorization:`Bearer ${accessToken}`}},
@@ -91,22 +98,53 @@ export async function runScenario(scenario,{baseUrl=base,requestTimeoutMs=10000}
   return {summary,problems};
 }
 
-export async function runBenchmark({baseUrl=base,outputPath=output,benchmarkScenarios=scenarios,requestTimeoutMs=10000}={}){
+export async function runBenchmark({baseUrl=base,outputPath=output,benchmarkScenarios=scenarios,requestTimeoutMs=10000,queryPlanPath=null,rateBudget=null,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),quotaClock=()=>performance.now()}={}){
   const results=[];
   const failures=[];
+  const cooldowns=[];
+  let budgetUsed=0,windowStarted=quotaClock();
+  if(rateBudget&&(!Number.isSafeInteger(rateBudget.limit)||rateBudget.limit<1||!Number.isFinite(rateBudget.windowMs)||rateBudget.windowMs<1))throw new Error('Invalid benchmark rate budget');
   for(const scenario of benchmarkScenarios){
+    // All current authenticated scenarios share the API's per-client bucket.
+    // Wait outside measured traffic instead of disabling quotas or retrying 429s.
+    const usesApiBucket=scenario.path.startsWith('/api/v1/')&&!scenario.path.startsWith('/api/v1/health');
+    if(rateBudget&&usesApiBucket){
+      const cost=scenario.warmup+scenario.requests;
+      if(cost>rateBudget.limit)throw new Error('A measured scenario exceeds the benchmark rate budget');
+      if(quotaClock()-windowStarted>=rateBudget.windowMs){budgetUsed=0;windowStarted=quotaClock();}
+      if(budgetUsed+cost>rateBudget.limit){
+        const waitMs=Math.max(0,rateBudget.windowMs-(quotaClock()-windowStarted))+50;
+        cooldowns.push({beforeScenario:scenario.name,waitMs:Math.ceil(waitMs)});
+        console.log(JSON.stringify({benchmarkCooldown:true,beforeScenario:scenario.name,waitMs:Math.ceil(waitMs)}));
+        await pause(waitMs);budgetUsed=0;windowStarted=quotaClock();
+      }
+      if(budgetUsed===0)windowStarted=quotaClock();
+      budgetUsed+=cost;
+    }
     const result=await runScenario(scenario,{baseUrl,requestTimeoutMs});
     results.push(result.summary);
     for(const problem of result.problems)failures.push(`${scenario.name}: ${problem}`);
     console.log(JSON.stringify(result.summary));
   }
 
+  let operationalQueryEvidence=null;
+  if(queryPlanPath){
+    try{
+      const plans=JSON.parse(await readFile(queryPlanPath,'utf8'));
+      if(!Number.isSafeInteger(plans.requestCount)||plans.requestCount<1||!Number.isSafeInteger(plans.documentCount)||plans.documentCount<1||!Array.isArray(plans.requestPlan)||!plans.requestPlan.length||!Array.isArray(plans.documentPlan)||!plans.documentPlan.length)throw new Error('Invalid query evidence');
+      operationalQueryEvidence=plans;
+    }catch{
+      failures.push('operational-query-evidence: required query plans are missing or invalid');
+    }
+  }
   const evidence={
     generatedAt:new Date().toISOString(),
     baseUrl,
     environment:'repository-ci-production-mode',
     claimBoundary:'Regression evidence only; not a production capacity or SLA certification.',
     scenarios:results,
+    ...(rateBudget?{rateLimitPacing:{...rateBudget,cooldowns}}:{}),
+    ...(queryPlanPath?{operationalQueryEvidence}:{}),
     passed:failures.length===0,
     failures,
   };
@@ -121,6 +159,6 @@ export async function runBenchmark({baseUrl=base,outputPath=output,benchmarkScen
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
-  const evidence=await runBenchmark();
+  const evidence=await runBenchmark({queryPlanPath:process.env.AARAAGATE_PERF_QUERY_PLAN_OUTPUT??'/tmp/aaraagate-operational-query-plans.json',rateBudget:{limit:300,windowMs:60_000}});
   if(!evidence.passed)process.exitCode=1;
 }

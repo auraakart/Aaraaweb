@@ -1,3 +1,4 @@
+import { seedOperationalPerformance } from './operational-performance-fixture.mjs';
 import { createHash } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 
@@ -130,8 +131,9 @@ try{
     await prisma.$executeRawUnsafe('ALTER TABLE "ReceivableAllocation" ENABLE TRIGGER USER');
   }
 
+  const operational=await seedOperationalPerformance(prisma,ids);
   console.log(JSON.stringify({
-    performanceSeed:true,societyId:ids.society,paymentCount,allocationCount:paymentCount,
+    operational,performanceSeed:true,societyId:ids.society,paymentCount,allocationCount:paymentCount,
     reversalCount:Math.min(10000,paymentCount),refundCount:Math.min(10000,paymentCount),
     boundary:'Synthetic repository-CI scale evidence only; not production accounting or capacity evidence.',
   }));

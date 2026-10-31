@@ -200,7 +200,7 @@ jobs:
 
           # Reuse the canonical API database/build for benchmark and finance changes.
           # Other develop slices do not pay for the 100k-row benchmark.
-          if grep -Eq '^(scripts/performance-smoke.*\.mjs|services/api/scripts/performance-seed\.mjs|services/api/src/accounting/|\.github/workflows/performance-regression\.yml)' /tmp/aaraagate-changed-files.txt; then
+          if grep -Eq '^(scripts/performance-smoke.*\.mjs|services/api/scripts/(performance-seed|operational-performance-fixture)\.mjs|scripts/lib/operational-performance-contract\.mjs|services/api/src/accounting/|\.github/workflows/performance-regression\.yml)' /tmp/aaraagate-changed-files.txt; then
             echo "run_performance=true" >> "$GITHUB_OUTPUT"
           fi
 
