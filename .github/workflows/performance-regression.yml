@@ -6,6 +6,7 @@ on:
     paths:
       - 'services/api/**'
       - 'scripts/performance-smoke*.mjs'
+      - 'scripts/lib/operational-performance-contract.mjs'
       - '.github/workflows/performance-regression.yml'
       - 'docs/PERFORMANCE-REGRESSION-EVIDENCE.md'
   schedule:

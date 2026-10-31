@@ -2639,13 +2639,14 @@
       "id": "V5.11",
       "name": "Occupancy, isolation and experience hardening",
       "status": "IN_DEVELOPMENT",
-      "currentSlice": "V5.11.3",
+      "currentSlice": "V5.11.4",
       "baselineSha": "8232a65e807870202667c452c00b39529e031fc3",
       "evidence": [
         "docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md",
         "docs/V5.11.2-OCCUPANCY-MUTATION-INTEGRITY.md",
         "docs/V5.11.3-OCCUPANCY-WORKER-CAPABILITY.md",
-        "docs/V5.11.3-PRIVATE-DOCUMENT-ISOLATION.md"
+        "docs/V5.11.3-PRIVATE-DOCUMENT-ISOLATION.md",
+        "docs/V5.11.4-MEASURED-PERFORMANCE-BASELINE.md"
       ],
       "slices": [
         {
@@ -2667,12 +2668,15 @@
         {
           "id": "V5.11.3",
           "name": "Scheduled worker and private-file isolation",
-          "status": "SELECTED_WORKER_DOCUMENT_SOURCE_PENDING_PROTECTED_CI"
+          "status": "SELECTED_WORKER_DOCUMENT_SOURCE_MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1554,
+          "mergeSha": "687cce3c57c60894e9dee29a81a052c92f609ac2",
+          "ciRun": 41184501550
         },
         {
           "id": "V5.11.4",
           "name": "Measured query and transaction performance",
-          "status": "PLANNED"
+          "status": "BASELINE_IMPLEMENTED_PENDING_PROTECTED_MEASUREMENTS"
         },
         {
           "id": "V5.11.5",
