@@ -1,3 +1,5 @@
+import { HelpdeskService } from '../helpdesk/helpdesk.service';
+import { HelpdeskSlaService } from '../helpdesk/helpdesk-sla.service';
 import { DocumentsService } from '../documents/documents.service';
 import { OccupancyLifecycleService } from '../households/occupancy-lifecycle.service';
 import { HouseholdChangeRequestService } from '../households/household-change-request.service';
@@ -71,7 +73,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
@@ -120,6 +122,7 @@ database('Billing transactions under a non-owner RLS role', () => {
         WHERE n.nspname='public' AND t.typname=${type} ORDER BY e.enumsortorder`);
       definitions.push(`CREATE TYPE "${type}" AS ENUM (${labels.map(({ label }) => "'" + label.replaceAll("'", "''") + "'").join(',')})`);
     }
+    definitions.push('CREATE SEQUENCE "HelpdeskTicket_number_seq" AS BIGINT NO CYCLE');
     for (const table of tables) {
       definitions.push(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`);
       for (const { column, type, defaultValue } of enumColumns.filter(entry => entry.table === table)) {
@@ -137,6 +140,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     executeDdl(definitions.join(';\n') + ';', fixtureUrl.toString());
     executeDdl(`GRANT USAGE ON SCHEMA "${schema}" TO "${role}"`);
     executeDdl(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schema}" TO "${role}"`, fixtureUrl.toString());
+    executeDdl(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA "${schema}" TO "${role}"`, fixtureUrl.toString());
     // Exercise the migrated capability with a non-owner, NOBYPASSRLS owner.
     // Its only global policy and column grants apply to this isolated schema.
     executeDdl(`CREATE ROLE "${lookupOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
@@ -236,6 +240,69 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (claimsOwnerCreated) executeDdl(`DROP ROLE "${claimsOwner}"`);
     if (accountingOwnerCreated) executeDdl(`DROP ROLE "${accountingOwner}"`);
     if (occupancyOwnerCreated) executeDdl(`DROP ROLE "${occupancyOwner}"`);
+  });
+
+
+  const helpdesk = new HelpdeskService(runtime);
+  const helpdeskSla = new HelpdeskSlaService(runtime);
+  const helpdeskUnits = new Set<string>(), helpdeskTickets = new Set<string>(), helpdeskPolicies = new Set<string>();
+  afterEach(async () => {
+    for (const ticketId of helpdeskTickets) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskActivity" WHERE "ticketId"=${ticketId}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskSlaEvent" WHERE "ticketId"=${ticketId}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskTicket" WHERE "id"=${ticketId}::uuid`);
+    }
+    for (const unitId of helpdeskUnits) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UnitOccupancy" WHERE "unitId"=${unitId}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "Unit" WHERE "id"=${unitId}::uuid`);
+    }
+    for (const id of helpdeskPolicies) await fixture.$executeRaw(Prisma.sql`DELETE FROM "HelpdeskSlaPolicy" WHERE "id"=${id}::uuid`);
+    helpdeskTickets.clear(); helpdeskUnits.clear(); helpdeskPolicies.clear();
+  });
+  async function helpdeskComplaint(scope = societyA) {
+    const unitId = randomUUID(); helpdeskUnits.add(unitId);
+    await fixture.unit.create({ data: { id: unitId, societyId: scope, buildingId: scope === societyA ? buildingA : buildingB, number: unitId } });
+    await fixture.unitOccupancy.create({ data: { societyId: scope, unitId, userId: tenant, relation: 'TENANT', effectiveFrom: new Date(Date.now() - 86400000) } });
+    const created = await helpdesk.createMine(scope, tenant, { unitId, idempotencyKey: randomUUID(), title: 'Kitchen water leak', description: 'Water is leaking below the kitchen sink' });
+    helpdeskTickets.add(created.id); return created;
+  }
+  for (const scope of [societyA, societyB]) {
+    it(`isolates Helpdesk read, comment and review history in ${scope}`, async () => {
+      const ticket = await helpdeskComplaint(scope);
+      expect(await helpdesk.listMine(scope, tenant)).toEqual(expect.arrayContaining([expect.objectContaining({ id: ticket.id })]));
+      await helpdesk.addComment(scope, tenant, ticket.id, 'Please provide an update', false, randomUUID());
+      const history = await helpdesk.activitiesMine(scope, tenant, ticket.id) as Array<{type: string}>;
+      expect(history.some(row => row.type === 'COMMENT')).toBe(true);
+      const foreign = scope === societyA ? societyB : societyA;
+      await expect(helpdesk.activitiesReview(foreign, ticket.id)).rejects.toThrow('not found');
+      await expect(helpdesk.updateStatus(foreign, owner, ticket.id, 'IN_PROGRESS')).rejects.toThrow('not found');
+      expect(await runtime.$queryRaw<Array<{id: string}>>(Prisma.sql`SELECT "id" FROM "HelpdeskTicket" WHERE "id"=${ticket.id}::uuid`)).toEqual([]);
+    });
+    it(`keeps Helpdesk SLA policies, tracking and history scoped in ${scope}`, async () => {
+      const ticket = await helpdeskComplaint(scope);
+      const policy = await helpdeskSla.upsertPolicy(scope, owner, { priority: 'NORMAL', firstResponseMinutes: 5, resolutionMinutes: 60, escalationAfterMinutes: 10 });
+      helpdeskPolicies.add(String(policy.id));
+      expect(await helpdeskSla.listPolicies(scope)).toEqual(expect.arrayContaining([expect.objectContaining({ societyId: scope })]));
+      await helpdeskSla.applyPolicy(scope, owner, ticket.id);
+      expect(await helpdeskSla.readiness(scope, ticket.id)).toMatchObject({ computedSlaState: 'ON_TRACK', policy: expect.objectContaining({ firstResponseMinutes: 5 }) });
+      expect(await helpdeskSla.history(scope, ticket.id)).toEqual(expect.arrayContaining([expect.objectContaining({ ticketId: ticket.id, societyId: scope })]));
+      await expect(helpdeskSla.readiness(scope === societyA ? societyB : societyA, ticket.id)).rejects.toThrow('not found');
+    });
+  }
+  it('rejects a Helpdesk parent unit from another society', async () => {
+    await expect(helpdesk.createMine(societyA, tenant, { unitId: unitB, idempotencyKey: randomUUID(), title: 'Foreign unit', description: 'Invalid cross society unit' })).rejects.toThrow('Unit not found');
+    const id = randomUUID(); helpdeskTickets.add(id);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "HelpdeskTicket" ("id","societyId","unitId","createdById","title","description") VALUES (${id}::uuid,${societyA}::uuid,${unitB}::uuid,${tenant}::uuid,'Malformed parent','Cross society parent')`);
+    await expect(helpdesk.activitiesReview(societyA, id)).rejects.toThrow('not found');
+  });
+  it('rolls a Helpdesk transition back if its activity insert is denied', async () => {
+    const ticket = await helpdeskComplaint(societyA);
+    executeDdl(`REVOKE INSERT ON "${schema}"."HelpdeskActivity" FROM "${role}"`, fixtureUrl.toString());
+    try {
+      await expect(helpdesk.updateStatus(societyA, owner, ticket.id, 'IN_PROGRESS')).rejects.toThrow();
+      const [after] = await fixture.$queryRaw<Array<{status: string}>>(Prisma.sql`SELECT "status" FROM "HelpdeskTicket" WHERE "id"=${ticket.id}::uuid`);
+      expect(after.status).toBe('OPEN');
+    } finally { executeDdl(`GRANT INSERT ON "${schema}"."HelpdeskActivity" TO "${role}"`, fixtureUrl.toString()); }
   });
 
   async function invoice(societyId = societyA, unitId = unitA) {

@@ -1,3 +1,4 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { describe, expect, it, vi } from 'vitest';
 import { HelpdeskSlaService } from './helpdesk-sla.service';
 
@@ -17,7 +18,7 @@ describe('HelpdeskSlaService readiness', () => {
           automaticEscalationEnabled:true,escalationTargetUserId:'user-2',escalationTargetName:'Manager',
         }]),
     };
-    const service=new HelpdeskSlaService(prisma as never);
+    const service=new HelpdeskSlaService(tenantPrisma(prisma) as never);
     const result=await service.readiness('society-1','ticket-1');
 
     expect(result).toEqual(expect.objectContaining({
@@ -43,7 +44,7 @@ describe('HelpdeskSlaService readiness', () => {
         }])
         .mockResolvedValueOnce([]),
     };
-    const service=new HelpdeskSlaService(prisma as never);
+    const service=new HelpdeskSlaService(tenantPrisma(prisma) as never);
     const result=await service.readiness('society-1','ticket-1');
     expect(result.blockers).toContain('SLA_UNTRACKED');
     expect(result.policy).toBeNull();
@@ -61,7 +62,7 @@ describe('HelpdeskSlaService readiness', () => {
         }])
         .mockResolvedValueOnce([]),
     };
-    const service=new HelpdeskSlaService(prisma as never);
+    const service=new HelpdeskSlaService(tenantPrisma(prisma) as never);
     const result=await service.readiness('society-1','ticket-1');
     expect(result.blockers).toEqual([]);
     expect(result.nextActions.join(' ')).toContain('closure evidence');

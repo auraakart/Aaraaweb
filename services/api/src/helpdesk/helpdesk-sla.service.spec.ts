@@ -1,3 +1,4 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { HelpdeskSlaService } from './helpdesk-sla.service';
@@ -6,7 +7,7 @@ describe('HelpdeskSlaService', () => {
 
   it('orders the queue from the authoritative SLA expression instead of a select alias', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new HelpdeskSlaService(prisma as never);
+    const service = new HelpdeskSlaService(tenantPrisma(prisma) as never);
     await service.listQueue('11111111-1111-4111-8111-111111111111');
 
     const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
@@ -17,22 +18,22 @@ describe('HelpdeskSlaService', () => {
   });
 
   it('rejects invalid policy ordering', async () => {
-    const service = new HelpdeskSlaService({} as never);
+    const service = new HelpdeskSlaService(tenantPrisma({}) as never);
     await expect(service.upsertPolicy('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',{
       priority:'HIGH', firstResponseMinutes:120, resolutionMinutes:60, escalationAfterMinutes:30,
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('requires a target when automatic escalation is enabled', async () => {
-    const service = new HelpdeskSlaService({} as never);
+    const service = new HelpdeskSlaService(tenantPrisma({}) as never);
     await expect(service.upsertPolicy('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',{
       priority:'HIGH', firstResponseMinutes:30, resolutionMinutes:60, escalationAfterMinutes:15, automaticEscalationEnabled:true,
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects configured automatic target outside current society', async () => {
-    const prisma = { societyMembership: { findFirst: vi.fn().mockResolvedValue(null) } } as never;
-    const service = new HelpdeskSlaService(prisma);
+    const prisma = { societyMembership: { findFirst: vi.fn().mockResolvedValue(null) } };
+    const service = new HelpdeskSlaService(tenantPrisma(prisma) as never);
     await expect(service.upsertPolicy('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',{
       priority:'HIGH', firstResponseMinutes:30, resolutionMinutes:60, escalationAfterMinutes:15,
       automaticEscalationEnabled:true, escalationTargetUserId:'44444444-4444-4444-8444-444444444444',
@@ -40,8 +41,8 @@ describe('HelpdeskSlaService', () => {
   });
 
   it('rejects escalation target outside current society', async () => {
-    const prisma = { societyMembership: { findFirst: vi.fn().mockResolvedValue(null) } } as never;
-    const service = new HelpdeskSlaService(prisma);
+    const prisma = { societyMembership: { findFirst: vi.fn().mockResolvedValue(null) } };
+    const service = new HelpdeskSlaService(tenantPrisma(prisma) as never);
     await expect(service.escalate(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444',
     )).rejects.toBeInstanceOf(BadRequestException);
@@ -55,8 +56,8 @@ describe('HelpdeskSlaService', () => {
     const prisma = {
       societyMembership: { findFirst: vi.fn().mockResolvedValue({ id:'membership' }) },
       $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)),
-    } as never;
-    const service = new HelpdeskSlaService(prisma);
+    };
+    const service = new HelpdeskSlaService(tenantPrisma({...tx,societyMembership:prisma.societyMembership}) as never);
     const result = await service.escalate(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444','Escalate now',
     );
@@ -66,8 +67,7 @@ describe('HelpdeskSlaService', () => {
 
   it('rejects policy application to unknown ticket', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)) } as never;
-    const service = new HelpdeskSlaService(prisma);
+    const service = new HelpdeskSlaService(tenantPrisma(tx) as never);
     await expect(service.applyPolicy(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
     )).rejects.toBeInstanceOf(NotFoundException);
@@ -83,8 +83,7 @@ describe('HelpdeskSlaService', () => {
         .mockResolvedValueOnce([{ state:'RESOLUTION_BREACHED' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)) } as never;
-    const service = new HelpdeskSlaService(prisma);
+    const service = new HelpdeskSlaService(tenantPrisma(tx) as never);
 
     await expect(service.evaluate(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
@@ -103,8 +102,7 @@ describe('HelpdeskSlaService', () => {
         .mockResolvedValueOnce([{ state:'MET' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)) } as never;
-    const service = new HelpdeskSlaService(prisma);
+    const service = new HelpdeskSlaService(tenantPrisma(tx) as never);
 
     await expect(service.evaluate(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
@@ -119,8 +117,7 @@ describe('HelpdeskSlaService', () => {
         .mockResolvedValueOnce([{ id:'ticket', slaState:'RESOLUTION_BREACHED' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)) } as never;
-    const service = new HelpdeskSlaService(prisma);
+    const service = new HelpdeskSlaService(tenantPrisma(tx) as never);
 
     await expect(service.applyPolicy(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
@@ -134,7 +131,7 @@ describe('HelpdeskSlaService', () => {
 describe('Helpdesk ticket reference search', () => {
   it('filters inside the society scope before applying the queue limit and binds search input', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new HelpdeskSlaService(prisma as never);
+    const service = new HelpdeskSlaService(tenantPrisma(prisma) as never);
     await service.listQueue('11111111-1111-1111-1111-111111111111', 'HD-2026-000123');
     const query = prisma.$queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
     expect(query.sql).toContain('ht."ticketNumber" ILIKE');
@@ -146,7 +143,7 @@ describe('Helpdesk ticket reference search', () => {
 
   it('treats SQL wildcard characters as literal text and rejects oversized searches', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const service = new HelpdeskSlaService(prisma as never);
+    const service = new HelpdeskSlaService(tenantPrisma(prisma) as never);
     await service.listQueue('11111111-1111-1111-1111-111111111111', '%_');
     const query = prisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
     expect(query.values).toContain('%\\%\\_%');

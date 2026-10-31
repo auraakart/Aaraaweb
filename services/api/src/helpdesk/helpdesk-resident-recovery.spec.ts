@@ -1,3 +1,4 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { describe, expect, it, vi } from 'vitest';
 import { HelpdeskService } from './helpdesk.service';
 
@@ -11,7 +12,7 @@ describe('HelpdeskService resident recovery context', () => {
       id:'ticket-1',unitId:'unit-1',buildingName:'A Block',unitNumber:'101',
       status:'IN_PROGRESS',computedSlaState:'ON_TRACK',
     }]);
-    const service=new HelpdeskService({$queryRaw:queryRaw} as never);
+    const service=new HelpdeskService(tenantPrisma({$queryRaw:queryRaw}) as never);
 
     const rows=await service.listMine('society-1','user-1');
     expect(rows).toHaveLength(1);

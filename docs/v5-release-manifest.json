@@ -2639,7 +2639,7 @@
       "id": "V5.11",
       "name": "Occupancy, isolation and experience hardening",
       "status": "IN_DEVELOPMENT",
-      "currentSlice": "V5.11.5",
+      "currentSlice": "V5.11.6",
       "baselineSha": "8232a65e807870202667c452c00b39529e031fc3",
       "evidence": [
         "docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md",
@@ -2685,7 +2685,10 @@
         {
           "id": "V5.11.5",
           "name": "Resident Guard Admin experience refinement",
-          "status": "SELECTED_FORMS_IMPLEMENTED_PENDING_PROTECTED_FLUTTER"
+          "status": "SELECTED_FORMS_MERGED_PROTECTED_CI_AND_RENDERED_REVIEW_PASSED",
+          "pullRequest": 1556,
+          "mergeSha": "64a81059912fc06eb655bed435c079be70de59fc",
+          "ciRun": 41186518267
         },
         {
           "id": "V5.11.6",
@@ -2697,6 +2700,21 @@
         "Productionization and physical-device acceptance remain on hold.",
         "Hosted role/grant/policy activation and independent worker/artifact acceptance remain separate open gates.",
         "Develop integration only; staging/main use consolidated release governance."
+      ]
+    },
+    {
+      "id": "V5.12",
+      "name": "Tenant boundaries, maintainability and experience closure",
+      "status": "IN_DEVELOPMENT",
+      "currentSlice": "V5.12.1",
+      "baselineSha": "64a81059912fc06eb655bed435c079be70de59fc",
+      "evidence": [
+        "docs/V5.12-TENANT-AND-EXPERIENCE-CLOSURE.md"
+      ],
+      "limitations": [
+        "Productionization, policy activation, live providers and physical-device testing remain on hold.",
+        "Independent white-label worker/artifact acceptance remains open under #1380.",
+        "Develop integration only; no staging/main promotion until consolidated release approval."
       ]
     }
   ]

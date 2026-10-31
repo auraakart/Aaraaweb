@@ -1,3 +1,4 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { describe,expect,it,vi } from 'vitest';
 import { HelpdeskService } from './helpdesk.service';
 
@@ -14,7 +15,7 @@ describe('V4.70 helpdesk triage intelligence',()=>{
         {userId:'u1',name:'Asha',phone:'+911',openTickets:1},
         {userId:'u2',name:'Bala',phone:'+912',openTickets:3},
       ])};
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma(prisma) as never);
     const result=await service.triageIntelligence('society-1','ticket-1');
     expect(result.suggestedCategory).toBe('PLUMBING');
     expect(result.classificationSignals).toContain('KEYWORD:WATER');
@@ -37,7 +38,7 @@ describe('V4.70 helpdesk triage intelligence',()=>{
         {userId:'u1',name:'Asha',phone:'+911',openTickets:0},
         {userId:'u2',name:'Bala',phone:'+912',openTickets:0},
       ])};
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma(prisma) as never);
     const result=await service.triageIntelligence('society-1','ticket-2');
     expect(result.assignment.recommendedAssignee).toBeNull();
     expect(result.classificationSignals).toEqual(['EXISTING_CATEGORY_RETAINED']);

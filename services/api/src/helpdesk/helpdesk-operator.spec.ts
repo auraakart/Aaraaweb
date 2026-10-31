@@ -1,3 +1,4 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { HelpdeskService } from './helpdesk.service';
@@ -5,14 +6,14 @@ import { HelpdeskService } from './helpdesk.service';
 describe('HelpdeskService reviewer context and assignment', () => {
   it('returns active society members as reviewer context', async () => {
     const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'u1',name:'Reviewer',phone:'+919000000001'}])};
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma(prisma) as never);
     await expect(service.reviewContext('society-1')).resolves.toEqual([{id:'u1',name:'Reviewer',phone:'+919000000001'}]);
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('rejects assignment to a user outside the active society membership', async () => {
     const prisma={societyMembership:{findFirst:vi.fn().mockResolvedValue(null)}};
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma(prisma) as never);
     await expect(service.assign('society-1','actor-1','ticket-1','user-2')).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -22,7 +23,7 @@ describe('HelpdeskService reviewer context and assignment', () => {
       societyMembership:{findFirst:vi.fn().mockResolvedValue({id:'membership-1'})},
       $transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx)),
     };
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
     await expect(service.assign('society-1','actor-1','ticket-1','user-2')).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -37,7 +38,7 @@ describe('HelpdeskService reviewer context and assignment', () => {
       societyMembership:{findFirst:vi.fn().mockResolvedValue({id:'membership-1'})},
       $transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx)),
     };
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
     await expect(service.assign('society-1','actor-1','ticket-1','user-2')).resolves.toEqual(updated);
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
   });
@@ -49,7 +50,7 @@ describe('HelpdeskService reviewer context and assignment', () => {
       societyMembership:{findFirst:vi.fn().mockResolvedValue({id:'membership-1'})},
       $transaction:vi.fn(async(cb:(client:unknown)=>unknown)=>cb(tx)),
     };
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma({...prisma,...tx}) as never);
     await expect(service.assign('society-1','actor-1','ticket-1','user-2')).rejects.toThrow('Resolved or closed tickets cannot be reassigned');
   });
 });

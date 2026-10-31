@@ -1,9 +1,10 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { describe,expect,it,vi } from 'vitest';
 import { HelpdeskService } from './helpdesk.service';
 
 describe('V4.71 helpdesk facility-asset linkage',()=>{
   it('rejects foreign QR payloads and ambiguous codes without accepting client scope',async()=>{
-    const query=vi.fn().mockResolvedValue([]),service=new HelpdeskService({$queryRaw:query} as never);
+    const query=vi.fn().mockResolvedValue([]),service=new HelpdeskService(tenantPrisma({$queryRaw:query}) as never);
     const society='11111111-1111-4111-8111-111111111111',foreign='22222222-2222-4222-8222-222222222222';
     await expect(service.resolveResidentAsset(society,'user','unit',`AG-ASSET:${foreign}:${foreign}`)).rejects.toThrow('not found');
     expect(query).not.toHaveBeenCalled();
@@ -23,7 +24,7 @@ describe('V4.71 helpdesk facility-asset linkage',()=>{
       }])
       .mockResolvedValueOnce([{recurringCount:3,latestSimilarAt:new Date('2026-09-27T08:00:00Z')}])
       .mockResolvedValueOnce([{userId:'u1',name:'Asha',phone:'+911',openTickets:1}])};
-    const service=new HelpdeskService(prisma as never);
+    const service=new HelpdeskService(tenantPrisma(prisma) as never);
     const result=await service.triageIntelligence('society-1','ticket-1');
     expect(result.asset).toMatchObject({id:'asset-1',code:'LIFT-A'});
     expect(result.recurring).toMatchObject({scope:'SAME_ASSET',similarLast90Days:3,sameAssetSimilarLast90Days:3,sameUnitSimilarLast90Days:0});
@@ -32,8 +33,7 @@ describe('V4.71 helpdesk facility-asset linkage',()=>{
 
   it('rejects a cross-society or retired asset before changing the ticket',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{id:'ticket-1',status:'OPEN',assetId:null}]).mockResolvedValueOnce([]);
-    const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof queryRaw})=>Promise<unknown>)=>cb({$queryRaw:queryRaw}));
-    const service=new HelpdeskService({$transaction:transaction} as never);
+    const service=new HelpdeskService(tenantPrisma({$queryRaw:queryRaw}) as never);
     await expect(service.linkAsset('society-1','actor-1','ticket-1','asset-other')).rejects.toThrow('facility asset');
   });
 });
