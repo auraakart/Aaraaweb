@@ -1,3 +1,4 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { ConflictException } from '@nestjs/common';
 import { describe,expect,it,vi } from 'vitest';
 import { AmenitiesService } from './amenities.service';
@@ -10,7 +11,7 @@ const unit='44444444-4444-4444-8444-444444444444';
 describe('V4.70 amenity competitive policy',()=>{
   it('blocks overlapping bookings across amenities in the same conflict group',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
-    const txQueryRaw=vi.fn()
+    const txQueryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id:amenityId,societyId:society,code:'BADMINTON_A',name:'Badminton A',description:null,location:null,schedule:{},
@@ -18,7 +19,7 @@ describe('V4.70 amenity competitive policy',()=>{
       }])
       .mockResolvedValueOnce([{count:1}]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as never);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:queryRaw,$transaction:transaction},$queryRaw:txQueryRaw}) as never);
     await expect(service.createBooking(society,user,amenityId,{
       unitId:unit,startsAt:'2099-01-01T10:00:00.000Z',endsAt:'2099-01-01T11:00:00.000Z',
     })).rejects.toBeInstanceOf(ConflictException);
@@ -27,7 +28,7 @@ describe('V4.70 amenity competitive policy',()=>{
   it('uses the configured IST time-band fee while preserving base fee outside the band',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
     const booking={id:'55555555-5555-4555-8555-555555555555',status:'CONFIRMED',feePaise:75000};
-    const txQueryRaw=vi.fn()
+    const txQueryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id:amenityId,societyId:society,code:'HALL',name:'Hall',description:null,location:null,schedule:{},
@@ -37,7 +38,7 @@ describe('V4.70 amenity competitive policy',()=>{
       .mockResolvedValueOnce([{count:0}])
       .mockResolvedValueOnce([booking]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as never);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:queryRaw,$transaction:transaction},$queryRaw:txQueryRaw}) as never);
     const result=await service.createBooking(society,user,amenityId,{
       unitId:unit,
       // 13:30Z = 19:00 IST, inside the 18:00-21:00 band.

@@ -1,3 +1,5 @@
+import { AmenitiesService } from '../amenities/amenities.service';
+import { AmenityDepositExpiryWorker } from '../amenities/amenity-deposit-expiry.worker';
 import { HelpdeskService } from '../helpdesk/helpdesk.service';
 import { HelpdeskSlaService } from '../helpdesk/helpdesk-sla.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -55,6 +57,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const claimsOwner = `${role}_claims`;
   const accountingOwner = `${role}_accounting`;
   const occupancyOwner = `${role}_occupancy`;
+  const amenityOwner = `${role}_amenity`;
   const password = randomUUID();
   const base = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost/aaraagate_test');
   const fixtureUrl = new URL(base);
@@ -74,12 +77,12 @@ database('Billing transactions under a non-owner RLS role', () => {
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
   const tables = ['HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
-    'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
+    'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'AmenityWaitlistEntry', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
     'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdChangeRequest', 'HouseholdVehicle', 'EmergencyContact', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
-  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false, occupancyOwnerCreated = false;
+  let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false, occupancyOwnerCreated = false, amenityOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
     execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'execute', '--stdin', '--url', url], {
@@ -97,7 +100,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     // A domain preserves the migrated public enum while resolving the existing
     // webhook SQL cast inside this isolated schema. The ORM-filter enum below
     // additionally needs matching local column and parameter types.
-    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType']
+    const definitions: string[] = ['AmenityBookingStatus', 'PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType']
       .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
     // Prisma binds both written enum values and filters to its configured
     // schema. Copy migrated labels and align the isolated ORM enum columns,
@@ -209,6 +212,22 @@ database('Billing transactions under a non-owner RLS role', () => {
       CREATE POLICY occupancy_discovery ON "${schema}"."Building" FOR SELECT TO "${occupancyOwner}" USING (true);
       ALTER FUNCTION "${schema}".aaraagate_due_occupancy_lifecycle(integer) OWNER TO "${occupancyOwner}";
       REVOKE CREATE ON SCHEMA "${schema}" FROM "${occupancyOwner}";`);
+    executeDdl(`CREATE ROLE "${amenityOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+    amenityOwnerCreated = true;
+    const amenityMigration = readFileSync(join(__dirname,
+      '../../prisma/migrations/20261031180000_v512_amenity_expiry_capability/migration.sql'), 'utf8');
+    executeDdl(amenityMigration.replaceAll('public.', `"${schema}".`), fixtureUrl.toString());
+    executeDdl(`GRANT USAGE, CREATE ON SCHEMA "${schema}" TO "${amenityOwner}";
+      GRANT SELECT ("id","societyId","amenityId","unitId","status","depositStatus","depositPaise","depositDueAt") ON "${schema}"."AmenityBooking" TO "${amenityOwner}";
+      GRANT SELECT ("id","societyId") ON "${schema}"."Amenity" TO "${amenityOwner}";
+      GRANT SELECT ("id","societyId","buildingId") ON "${schema}"."Unit" TO "${amenityOwner}";
+      GRANT SELECT ("id","societyId") ON "${schema}"."Building" TO "${amenityOwner}";
+      CREATE POLICY amenity_discovery ON "${schema}"."AmenityBooking" FOR SELECT TO "${amenityOwner}" USING (true);
+      CREATE POLICY amenity_discovery ON "${schema}"."Amenity" FOR SELECT TO "${amenityOwner}" USING (true);
+      CREATE POLICY amenity_discovery ON "${schema}"."Unit" FOR SELECT TO "${amenityOwner}" USING (true);
+      CREATE POLICY amenity_discovery ON "${schema}"."Building" FOR SELECT TO "${amenityOwner}" USING (true);
+      ALTER FUNCTION "${schema}".aaraagate_due_amenity_deposits(integer) OWNER TO "${amenityOwner}";
+      REVOKE CREATE ON SCHEMA "${schema}" FROM "${amenityOwner}";`);
     for (const user of [owner, tenant]) await fixture.$executeRaw(Prisma.sql`
       INSERT INTO "User" ("id","phone","updatedAt") VALUES (${user}::uuid,${`rls-${user}`},CURRENT_TIMESTAMP)`);
     for (const society of [societyA, societyB]) await fixture.$executeRaw(Prisma.sql`
@@ -240,8 +259,92 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (claimsOwnerCreated) executeDdl(`DROP ROLE "${claimsOwner}"`);
     if (accountingOwnerCreated) executeDdl(`DROP ROLE "${accountingOwner}"`);
     if (occupancyOwnerCreated) executeDdl(`DROP ROLE "${occupancyOwner}"`);
+    if (amenityOwnerCreated) executeDdl(`DROP ROLE "${amenityOwner}"`);
   });
 
+
+  const amenities = new AmenitiesService(runtime);
+  const amenityIds = new Set<string>();
+  const amenityWindow = { startsAt: '2099-01-01T10:00:00.000Z', endsAt: '2099-01-01T11:00:00.000Z' };
+  afterEach(async () => {
+    for (const id of amenityIds) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "AmenityWaitlistEntry" WHERE "amenityId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "AmenityBooking" WHERE "amenityId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "Amenity" WHERE "id"=${id}::uuid`);
+    }
+    amenityIds.clear();
+  });
+  async function amenityFixture(scope = societyA, rules: Record<string, unknown> = {}) {
+    const result = await amenities.createAmenity(scope, { code: 'POOL-'+randomUUID(), name: 'Pool', slotMinutes: 60, maxConcurrentBookings: 1, bookingRules: rules }) as { id: string };
+    amenityIds.add(result.id); return result.id;
+  }
+  it('isolates Amenities resident, management and analytics reads in both selected societies', async () => {
+    for (const [scope, unit, foreign] of [[societyA, unitA, societyB], [societyB, unitB, societyA]]) {
+      const id = await amenityFixture(scope);
+      const booking = await amenities.createBooking(scope, owner, id, { unitId: unit, ...amenityWindow, idempotencyKey: randomUUID() }) as { id: string };
+      expect(await amenities.listAvailable(scope)).toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      expect(await amenities.listMine(scope, owner, unit)).toEqual(expect.arrayContaining([expect.objectContaining({ id: booking.id })]));
+      expect(await amenities.listManage(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      expect(await amenities.listBookingsManage(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: booking.id })]));
+      expect((await amenities.analytics(scope)).summary.bookingCount).toBeGreaterThanOrEqual(1);
+      await expect(amenities.approve(foreign, owner, booking.id)).rejects.toThrow('not found');
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "AmenityBooking"`)).toEqual([]);
+  });
+  it('keeps capacity and idempotent retry serialization inside the tenant transaction', async () => {
+    const id = await amenityFixture(), key = randomUUID();
+    const input = { unitId: unitA, ...amenityWindow, idempotencyKey: key };
+    const [first, replay] = await Promise.all([amenities.createBooking(societyA, owner, id, input), amenities.createBooking(societyA, owner, id, input)]) as Array<{ id: string }>;
+    expect(first.id).toBe(replay.id);
+    await expect(amenities.createBooking(societyA, owner, id, { ...input, idempotencyKey: randomUUID() })).rejects.toThrow('no longer available');
+    await expect(amenities.createBooking(societyB, owner, id, { ...input, unitId: unitB })).rejects.toThrow('Amenity not found');
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "AmenityBooking" WHERE "amenityId"=${id}::uuid`)).toHaveLength(1);
+  });
+  it('denies resident bookings and waitlist reads with foreign or malformed unit parents', async () => {
+    const id = await amenityFixture();
+    const malformed = randomUUID(); helpdeskUnits.add(malformed);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "Unit" ("id","societyId","buildingId","number") VALUES (${malformed}::uuid,${societyA}::uuid,${buildingB}::uuid,${malformed})`);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "UnitOccupancy" ("id","societyId","unitId","userId","relation","active","effectiveFrom","updatedAt") VALUES (${randomUUID()}::uuid,${societyA}::uuid,${malformed}::uuid,${tenant}::uuid,'TENANT',true,CURRENT_TIMESTAMP-INTERVAL '1 day',CURRENT_TIMESTAMP)`);
+    for (const unitId of [unitB, malformed]) {
+      await expect(amenities.createBooking(societyA, tenant, id, { unitId, ...amenityWindow })).rejects.toThrow('Unit is outside');
+      await expect(amenities.listWaitlistMine(societyA, tenant, unitId)).rejects.toThrow('Unit is outside');
+    }
+  });
+  it('expires only past unpaid deposits through the explicit, bounded non-owner capability', async () => {
+    await expect(amenities.expireUnpaidDeposits()).rejects.toThrow('permission denied');
+    executeDdl(`GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_due_amenity_deposits(integer) TO "${role}"`);
+    try {
+      const due: string[] = [], captured: string[] = [];
+      for (const [scope, unit] of [[societyA, unitA], [societyB, unitB]]) {
+        const id = await amenityFixture(scope, { refundableDepositPaise: 10000, depositPaymentWindowMinutes: 30 });
+        for (const isCaptured of [false, true]) {
+          const start = isCaptured ? '2099-01-02T10:00:00.000Z' : amenityWindow.startsAt;
+          const booking = await amenities.createBooking(scope, owner, id, { unitId: unit, startsAt: start, endsAt: isCaptured ? '2099-01-02T11:00:00.000Z' : amenityWindow.endsAt }) as { id: string };
+          await fixture.$executeRaw(Prisma.sql`UPDATE "AmenityBooking" SET "depositDueAt"=CURRENT_TIMESTAMP-INTERVAL '1 hour',"depositStatus"=${isCaptured ? 'CAPTURED' : 'PAYMENT_REQUIRED'} WHERE "id"=${booking.id}::uuid`);
+          (isCaptured ? captured : due).push(booking.id);
+        }
+      }
+      const routes = await runtime.$queryRaw<Array<{ id: string; societyId: string }>>(Prisma.sql`SELECT * FROM aaraagate_due_amenity_deposits(200)`);
+      expect(routes.map(r=>r.id).sort()).toEqual(due.sort()); expect(Object.keys(routes[0]).sort()).toEqual(['id','societyId']);
+      expect(await runtime.$queryRaw(Prisma.sql`SELECT * FROM aaraagate_due_amenity_deposits(201)`)).toEqual([]);
+      expect(await amenities.expireUnpaidDeposits()).toMatchObject({ expired: 2 });
+      expect(await amenities.expireUnpaidDeposits()).toMatchObject({ expired: 0 });
+      for (const id of captured) expect(await fixture.$queryRaw(Prisma.sql`SELECT "status","depositStatus" FROM "AmenityBooking" WHERE "id"=${id}::uuid`)).toEqual([{ status: 'CONFIRMED', depositStatus: 'CAPTURED' }]);
+      expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "AmenityBooking"`)).toEqual([]);
+    } finally { executeDdl(`REVOKE EXECUTE ON FUNCTION "${schema}".aaraagate_due_amenity_deposits(integer) FROM "${role}"`); }
+  });
+  it('rolls back a deposit expiry when promotion fails and clears pooled society context', async () => {
+    const id = await amenityFixture(societyA, { refundableDepositPaise: 10000, depositPaymentWindowMinutes: 30 });
+    const booking = await amenities.createBooking(societyA, owner, id, { unitId: unitA, ...amenityWindow }) as { id: string };
+    await fixture.$executeRaw(Prisma.sql`UPDATE "AmenityBooking" SET "depositDueAt"=CURRENT_TIMESTAMP-INTERVAL '1 hour' WHERE "id"=${booking.id}::uuid`);
+    executeDdl(`GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_due_amenity_deposits(integer) TO "${role}"`);
+    try {
+      const worker = new AmenityDepositExpiryWorker(runtime, async () => { throw new Error('Promotion rollback'); });
+      await expect(worker.run()).rejects.toThrow('Promotion rollback');
+      expect(await fixture.$queryRaw(Prisma.sql`SELECT "status","depositStatus" FROM "AmenityBooking" WHERE "id"=${booking.id}::uuid`)).toEqual([{ status: 'CONFIRMED', depositStatus: 'PAYMENT_REQUIRED' }]);
+      expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "AmenityBooking"`)).toEqual([]);
+    } finally { executeDdl(`REVOKE EXECUTE ON FUNCTION "${schema}".aaraagate_due_amenity_deposits(integer) FROM "${role}"`); }
+  });
 
   const helpdesk = new HelpdeskService(runtime);
   const helpdeskSla = new HelpdeskSlaService(runtime);

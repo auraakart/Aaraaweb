@@ -33,20 +33,18 @@ export class AmenityBookingCreator {
     amenityId: string,
     input: { unitId: string; startsAt: string; endsAt: string; idempotencyKey?: string; guestCount?: number },
   ) {
-    await this.assertUnitAccess(societyId, userId, input.unitId);
-    const startsAt = new Date(input.startsAt);
-    const endsAt = new Date(input.endsAt);
-    if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || startsAt >= endsAt) {
-      throw new BadRequestException('A valid booking window is required');
-    }
-    const now = Date.now();
-    if (startsAt.getTime() <= now) throw new BadRequestException('Amenity bookings must start in the future');
-
-    const idempotencyKey = input.idempotencyKey?.trim() || null;
-    const guestCount = input.guestCount ?? 0;
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.assertUnitAccess(tx, societyId, userId, input.unitId);
+      const startsAt = new Date(input.startsAt);
+      const endsAt = new Date(input.endsAt);
+      if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || startsAt >= endsAt) {
+        throw new BadRequestException('A valid booking window is required');
+      }
+      const now = Date.now();
+      if (startsAt.getTime() <= now) throw new BadRequestException('Amenity bookings must start in the future');
+      const idempotencyKey = input.idempotencyKey?.trim() || null;
+      const guestCount = input.guestCount ?? 0;
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
-
       if (idempotencyKey) {
         const existing = await tx.$queryRaw<Array<{ id: string; amenityId: string; unitId: string; startsAt: Date; endsAt: Date; guestCount:number }>>`
           SELECT "id","amenityId","unitId","startsAt","endsAt","guestCount"
@@ -70,7 +68,6 @@ export class AmenityBookingCreator {
           return Array.isArray(replay) ? replay[0] : replay;
         }
       }
-
       const amenities = await tx.$queryRaw<AmenityRow[]>`
         SELECT "id", "societyId", "code", "name", "description", "location", "schedule",
                "bookingRules", "feePaise", "currency", "requiresApproval", "slotMinutes",
@@ -81,12 +78,10 @@ export class AmenityBookingCreator {
       `;
       const amenity = amenities[0];
       if (!amenity) throw new NotFoundException('Amenity not found');
-
       const durationMinutes = (endsAt.getTime() - startsAt.getTime()) / 60000;
       if (durationMinutes !== amenity.slotMinutes) {
         throw new BadRequestException(`Booking duration must be exactly ${amenity.slotMinutes} minutes`);
       }
-
       const rules = this.policy.parseBookingRules(amenity.bookingRules);
       this.policy.validateGuestCount(rules, guestCount);
       this.policy.assertScheduleWindowOpen(amenity.schedule,startsAt,endsAt);
@@ -98,7 +93,6 @@ export class AmenityBookingCreator {
       if (rules.maxAdvanceDays !== undefined && minutesUntilStart > rules.maxAdvanceDays * 24 * 60) {
         throw new BadRequestException(`Amenity cannot be booked more than ${rules.maxAdvanceDays} days in advance`);
       }
-
       if (rules.maxFutureBookingsPerUnit !== undefined) {
         const futureRows = await tx.$queryRaw<CountRow[]>`
           SELECT COUNT(*)::int AS "count"
@@ -113,7 +107,6 @@ export class AmenityBookingCreator {
           throw new ConflictException('Unit has reached the future booking limit for this amenity');
         }
       }
-
       if (rules.maxBookingsPerDayPerUnit !== undefined) {
         const dailyRows = await tx.$queryRaw<CountRow[]>`
           SELECT COUNT(*)::int AS "count"
@@ -128,7 +121,6 @@ export class AmenityBookingCreator {
           throw new ConflictException('Unit has reached the daily booking limit for this amenity');
         }
       }
-
       if ((rules.cooldownMinutes ?? 0) > 0) {
         const cooldownRows = await tx.$queryRaw<CountRow[]>`
           SELECT COUNT(*)::int AS "count"
@@ -144,7 +136,6 @@ export class AmenityBookingCreator {
           throw new ConflictException(`Unit must keep at least ${rules.cooldownMinutes} minutes between bookings for this amenity`);
         }
       }
-
       if (rules.conflictGroup) {
         const groupedConflicts = await tx.$queryRaw<CountRow[]>`
           SELECT COUNT(*)::int AS "count"
@@ -162,7 +153,6 @@ export class AmenityBookingCreator {
           throw new ConflictException(`Unit already has an overlapping booking in amenity conflict group ${rules.conflictGroup}`);
         }
       }
-
       const overlaps = await tx.$queryRaw<CountRow[]>`
         SELECT COUNT(*)::int AS "count"
         FROM "AmenityBooking"
@@ -176,7 +166,6 @@ export class AmenityBookingCreator {
       if (activeOverlapCount >= amenity.maxConcurrentBookings) {
         throw new ConflictException('Amenity slot is no longer available');
       }
-
       const status = amenity.requiresApproval ? 'PENDING' : 'CONFIRMED';
       const bookingFeePaise = this.policy.resolveBookingFee(amenity.feePaise, rules, startsAt);
       const depositPaise=rules.refundableDepositPaise??0;
@@ -254,10 +243,11 @@ export class AmenityBookingCreator {
     const until=state.restrictedUntil?.toISOString().slice(0,10)??'the configured pause period';
     throw new ConflictException(`New bookings for this amenity are paused until ${until} after repeated no-shows`);
   }
-  private async assertUnitAccess(societyId: string, userId: string, unitId: string) {
-    const rows = await this.prisma.$queryRaw<{ allowed: boolean }[]>`
+  private async assertUnitAccess(tx: Prisma.TransactionClient, societyId: string, userId: string, unitId: string) {
+    const rows = await tx.$queryRaw<{ allowed: boolean }[]>`
       SELECT true AS "allowed"
       FROM "Unit" u
+      JOIN "Building" parent ON parent."id"=u."buildingId" AND parent."societyId"=u."societyId"
       WHERE u."id" = ${unitId}::uuid
         AND u."societyId" = ${societyId}::uuid
         AND (

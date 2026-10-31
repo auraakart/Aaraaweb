@@ -1,6 +1,6 @@
+import { tenantPrisma } from '../test-support/tenant-prisma';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../prisma/prisma.service';
 import { AmenitiesService } from './amenities.service';
 
 const society='11111111-1111-4111-8111-111111111111';
@@ -18,7 +18,7 @@ describe('V4.12 amenity waitlist',()=>{
   it('allows a property-scoped resident to join only when capacity is exhausted',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
     const startsAt=new Date(Date.now()+24*60*60*1000),endsAt=new Date(startsAt.getTime()+60*60*1000);
-    const txQuery=vi.fn()
+    const txQuery=vi.fn().mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([amenityRow])
       .mockResolvedValueOnce([{count:0}])
@@ -26,7 +26,7 @@ describe('V4.12 amenity waitlist',()=>{
       .mockResolvedValueOnce([{id:'66666666-6666-4666-8666-666666666666',joinedAt:new Date(),status:'WAITING'}])
       .mockResolvedValueOnce([{position:2}]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQuery })=>Promise<unknown>)=>cb({$queryRaw:txQuery}));
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as unknown as PrismaService);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:queryRaw,$transaction:transaction},$queryRaw:txQuery}) as never);
     await expect(service.joinWaitlist(society,user,amenity,{unitId:unit,startsAt:startsAt.toISOString(),endsAt:endsAt.toISOString()}))
       .resolves.toMatchObject({status:'WAITING',position:2});
   });
@@ -34,13 +34,13 @@ describe('V4.12 amenity waitlist',()=>{
   it('refuses waitlist entry while the slot can still be booked normally',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
     const startsAt=new Date(Date.now()+24*60*60*1000),endsAt=new Date(startsAt.getTime()+60*60*1000);
-    const txQuery=vi.fn()
+    const txQuery=vi.fn().mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([amenityRow])
       .mockResolvedValueOnce([{count:0}])
       .mockResolvedValueOnce([{count:0}]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQuery })=>Promise<unknown>)=>cb({$queryRaw:txQuery}));
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as unknown as PrismaService);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:queryRaw,$transaction:transaction},$queryRaw:txQuery}) as never);
     await expect(service.joinWaitlist(society,user,amenity,{unitId:unit,startsAt:startsAt.toISOString(),endsAt:endsAt.toISOString()}))
       .rejects.toBeInstanceOf(ConflictException);
   });
@@ -59,7 +59,7 @@ describe('V4.12 amenity waitlist',()=>{
       .mockResolvedValueOnce([{id:'77777777-7777-4777-8777-777777777777'}])
       .mockResolvedValueOnce([]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQuery })=>Promise<unknown>)=>cb({$queryRaw:txQuery}));
-    const service=new AmenitiesService({$queryRaw:vi.fn(),$transaction:transaction} as unknown as PrismaService);
+    const service=new AmenitiesService(tenantPrisma({...{$queryRaw:vi.fn(),$transaction:transaction},$queryRaw:txQuery}) as never);
     await expect(service.cancelMine(society,user,booking)).resolves.toEqual(cancelled);
     const promotionSql=(txQuery.mock.calls[6][0] as readonly string[]).join(' ');
     expect(promotionSql).toContain('INSERT INTO "AmenityBooking"');
@@ -69,7 +69,7 @@ describe('V4.12 amenity waitlist',()=>{
 
   it('lets only the owning resident cancel an active waitlist entry',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([]);
-    const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:vi.fn()} as unknown as PrismaService);
+    const service=new AmenitiesService(tenantPrisma({$queryRaw:queryRaw,$transaction:vi.fn()}) as never);
     await expect(service.cancelWaitlistMine(society,user,'66666666-6666-4666-8666-666666666666'))
       .rejects.toBeInstanceOf(NotFoundException);
     const sql=(queryRaw.mock.calls[0][0] as readonly string[]).join(' ');

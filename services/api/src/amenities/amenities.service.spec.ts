@@ -5,10 +5,10 @@ import { AmenitiesService } from './amenities.service';
 
 describe('AmenitiesService', () => {
   const queryRaw = vi.fn();
-  const transaction = vi.fn();
+  const transaction = vi.fn((_scope: string, callback: (tx: { $queryRaw: typeof queryRaw }) => Promise<unknown>) => callback({ $queryRaw: queryRaw }));
   const prisma = {
     $queryRaw: queryRaw,
-    $transaction: transaction,
+    withTenantContext: transaction,
   } as unknown as PrismaService;
 
   let service: AmenitiesService;
@@ -29,13 +29,12 @@ describe('AmenitiesService', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(transaction).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledTimes(1);
   });
 
   it('rejects an overlapping booking when configured capacity is exhausted', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
 
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id: '33333333-3333-4333-8333-333333333333',
@@ -55,7 +54,7 @@ describe('AmenitiesService', () => {
       }])
       .mockResolvedValueOnce([{ count: 1 }]);
 
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) =>
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) =>
       callback({ $queryRaw: txQueryRaw }),
     );
 
@@ -69,10 +68,9 @@ describe('AmenitiesService', () => {
   });
 
   it('auto-confirms an available booking when approval is not required', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
 
     const booking = { id: '55555555-5555-4555-8555-555555555555', status: 'CONFIRMED', feePaise: 0 };
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id: '33333333-3333-4333-8333-333333333333',
@@ -93,7 +91,7 @@ describe('AmenitiesService', () => {
       .mockResolvedValueOnce([{ count: 0 }])
       .mockResolvedValueOnce([booking]);
 
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) =>
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) =>
       callback({ $queryRaw: txQueryRaw }),
     );
 
@@ -107,16 +105,15 @@ describe('AmenitiesService', () => {
   });
 
   it('returns the existing booking for an exact idempotent retry', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
     const start = new Date('2099-01-01T10:00:00.000Z');
     const end = new Date('2099-01-01T11:00:00.000Z');
     const existing = { id: '55555555-5555-4555-8555-555555555555', amenityId: '33333333-3333-4333-8333-333333333333', unitId: '44444444-4444-4444-8444-444444444444', startsAt: start, endsAt: end };
     const replay = { ...existing, status: 'CONFIRMED', idempotencyKey: 'amenity-retry-1' };
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([existing])
       .mockResolvedValueOnce([replay]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.createBooking(
       '11111111-1111-4111-8111-111111111111',
@@ -124,12 +121,11 @@ describe('AmenitiesService', () => {
       existing.amenityId,
       { unitId: existing.unitId, startsAt: start.toISOString(), endsAt: end.toISOString(), idempotencyKey: 'amenity-retry-1' },
     )).resolves.toEqual(replay);
-    expect(txQueryRaw).toHaveBeenCalledTimes(3);
+    expect(txQueryRaw).toHaveBeenCalledTimes(4);
   });
 
   it('rejects reuse of an idempotency key for another booking payload', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id: '55555555-5555-4555-8555-555555555555',
@@ -138,7 +134,7 @@ describe('AmenitiesService', () => {
         startsAt: new Date('2099-01-01T10:00:00.000Z'),
         endsAt: new Date('2099-01-01T11:00:00.000Z'),
       }]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.createBooking(
       '11111111-1111-4111-8111-111111111111',
@@ -158,7 +154,7 @@ describe('AmenitiesService', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([revoked]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.revoke(
       '11111111-1111-4111-8111-111111111111',
@@ -172,17 +168,16 @@ describe('AmenitiesService', () => {
   });
 
   it('enforces minimum booking lead time', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
     const start = new Date(Date.now() + 60 * 60 * 1000);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id: '33333333-3333-4333-8333-333333333333', societyId: '11111111-1111-4111-8111-111111111111', code: 'COURT', name: 'Court',
         description: null, location: null, schedule: {}, bookingRules: { minAdvanceMinutes: 120 }, feePaise: 0, currency: 'INR',
         requiresApproval: false, slotMinutes: 60, maxConcurrentBookings: 1, active: true,
       }]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.createBooking(
       '11111111-1111-4111-8111-111111111111',
@@ -193,10 +188,9 @@ describe('AmenitiesService', () => {
   });
 
   it('enforces per-unit future booking limits', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
     const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id: '33333333-3333-4333-8333-333333333333', societyId: '11111111-1111-4111-8111-111111111111', code: 'HALL', name: 'Hall',
@@ -204,7 +198,7 @@ describe('AmenitiesService', () => {
         requiresApproval: false, slotMinutes: 60, maxConcurrentBookings: 1, active: true,
       }])
       .mockResolvedValueOnce([{ count: 1 }]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.createBooking(
       '11111111-1111-4111-8111-111111111111',
@@ -217,7 +211,7 @@ describe('AmenitiesService', () => {
   it('enforces cancellation cutoffs', async () => {
     const start = new Date(Date.now() + 30 * 60 * 1000);
     const txQueryRaw = vi.fn().mockResolvedValueOnce([{ startsAt: start, bookingRules: { cancellationCutoffMinutes: 60 } }]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.cancelMine(
       '11111111-1111-4111-8111-111111111111',
@@ -248,7 +242,7 @@ describe('AmenitiesService', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([existing])
       .mockResolvedValueOnce([{ count: 1 }]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.updateAmenity(
       existing.societyId,
@@ -286,7 +280,7 @@ describe('AmenitiesService', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([existing])
       .mockResolvedValueOnce([updated]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.updateAmenity(
       existing.societyId,
@@ -305,10 +299,9 @@ describe('AmenitiesService', () => {
   });
 
   it('enforces a per-unit daily amenity booking limit', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
     const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id: '33333333-3333-4333-8333-333333333333', societyId: '11111111-1111-4111-8111-111111111111', code: 'COURT', name: 'Court',
@@ -316,7 +309,7 @@ describe('AmenitiesService', () => {
         requiresApproval: false, slotMinutes: 60, maxConcurrentBookings: 2, active: true,
       }])
       .mockResolvedValueOnce([{ count: 1 }]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.createBooking(
       '11111111-1111-4111-8111-111111111111',
@@ -327,10 +320,9 @@ describe('AmenitiesService', () => {
   });
 
   it('enforces cooldown time between bookings by the same unit', async () => {
-    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
     const start = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
-    const txQueryRaw = vi.fn()
+    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ allowed: true }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
         id: '33333333-3333-4333-8333-333333333333', societyId: '11111111-1111-4111-8111-111111111111', code: 'GYM', name: 'Gym',
@@ -338,7 +330,7 @@ describe('AmenitiesService', () => {
         requiresApproval: false, slotMinutes: 60, maxConcurrentBookings: 5, active: true,
       }])
       .mockResolvedValueOnce([{ count: 1 }]);
-    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+    transaction.mockImplementationOnce(async (_scope: string, callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.createBooking(
       '11111111-1111-4111-8111-111111111111',

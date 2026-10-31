@@ -8,6 +8,7 @@ const bundles = {
     'services/api/src/amenities/amenity-booking-creator.ts',
     'services/api/src/amenities/amenity-policy.engine.ts',
     'services/api/src/amenities/amenity-analytics.query.ts',
+    'services/api/src/amenities/amenity-deposit-expiry.worker.ts',
   ],
   billing: [
     'services/api/src/billing/billing.service.ts',
