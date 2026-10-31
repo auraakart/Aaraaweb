@@ -8,8 +8,10 @@ class ResidentHomeHighlight {
     required this.subtitle,
     required this.priority,
     required this.urgency,
+    this.sourceId,
   });
 
+  final String? sourceId;
   final ResidentHomeHighlightKind kind;
   final String title;
   final String subtitle;
@@ -170,6 +172,7 @@ class ResidentHomeHighlights {
       final pendingAcknowledgement = requiresAcknowledgement && !acknowledged;
       items.add(ResidentHomeHighlight(
         kind: ResidentHomeHighlightKind.notice,
+        sourceId: notice['id']?.toString(),
         title: notice['title']?.toString() ?? 'Society notice',
         subtitle: pendingAcknowledgement
             ? 'Acknowledgement requested'

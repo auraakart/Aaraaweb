@@ -68,6 +68,16 @@ class HomeScreen extends StatelessWidget {
       notices: showNotices ? controller.notices : const [],
       tickets: showHelpdesk ? controller.helpdeskTickets : const [],
     );
+    // Deduplicate only notices actually rendered in the inbox. A notice that
+    // falls below its three-item limit must remain discoverable in Community.
+    final highlightedNoticeIds = highlights
+        .where((item) => item.kind == ResidentHomeHighlightKind.notice)
+        .map((item) => item.sourceId)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final communityNotices = controller.notices.where((notice) =>
+        !highlightedNoticeIds.contains(notice['id']?.toString())).toList(growable: false);
     final actionableHighlights = highlights
         .where((item) => item.urgency != ResidentHomeUrgency.info)
         .toList(growable: false);
@@ -282,7 +292,7 @@ class HomeScreen extends StatelessWidget {
             ],
             // Empty Community and Gate history remain available in their tabs:
             // do not repeat large placeholder panels on the resident dashboard.
-            if (showNotices && controller.notices.isNotEmpty) ...[
+            if (showNotices && communityNotices.isNotEmpty) ...[
               SizedBox(height: compact ? AaraagateTokens.space4 : AaraagateTokens.space6),
               PremiumSectionHeader(
                 title: strings.text('navCommunity'),
@@ -294,7 +304,7 @@ class HomeScreen extends StatelessWidget {
               ),
               SizedBox(height: compact ? AaraagateTokens.space2 : AaraagateTokens.space3),
               _CommunityPreview(
-                notice: controller.notices.first,
+                notice: communityNotices.first,
                 onTap: onOpenNotices,
               ),
             ],

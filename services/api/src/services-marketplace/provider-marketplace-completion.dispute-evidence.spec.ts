@@ -75,4 +75,22 @@ describe('V4.90.18.7 scoped service dispute evidence',()=>{
       .toMatchObject({id:'e'});
     expect(sql(tx.$queryRaw.mock.calls[2][0])).toContain('INSERT INTO "ConsumerServiceDisputeEvidence"');
   });
+  it('denies missing platform cases before returning any evidence',async()=>{
+    const prisma={$queryRaw:vi.fn().mockResolvedValue([])};
+    await expect(service(prisma).listPlatformDisputeEvidence('missing')).rejects.toThrow('Service dispute not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+  it('returns platform review evidence without exposing actor identifiers',async()=>{
+    const evidence={id:'e',disputeId:'d',actorType:'RESIDENT',note:'Repair still leaks',reference:null};
+    const prisma={$queryRaw:vi.fn().mockResolvedValueOnce([{id:'d'}]).mockResolvedValueOnce([evidence])};
+    expect(await service(prisma).listPlatformDisputeEvidence('d')).toEqual([evidence]);
+    const query=sql(prisma.$queryRaw.mock.calls[1][0]);
+    expect(query).not.toContain('actorUserId'); expect(query).toContain('LIMIT 100');
+  });
+  it('rejects oversized references before beginning evidence mutation',async()=>{
+    const prisma={$transaction:vi.fn()};
+    await expect(service(prisma).addDisputeEvidence('u','d','RESIDENT','Repair still leaks','key-123456','x'.repeat(401),'b')).rejects.toThrow('at most 400');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
 });
