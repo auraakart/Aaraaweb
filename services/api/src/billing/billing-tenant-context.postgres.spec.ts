@@ -91,13 +91,14 @@ database('Billing transactions under a non-owner RLS role', () => {
     // A domain preserves the migrated public enum while resolving the existing
     // webhook SQL cast inside this isolated schema. The ORM-filter enum below
     // additionally needs matching local column and parameter types.
-    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType', 'UnitRelation']
+    const definitions: string[] = ['PaymentStatus', 'PaymentReconciliationStatus', 'GatewayOperationType', 'GatewayOperationStatus', 'AuditEventType']
       .map(type => `CREATE DOMAIN "${type}" AS public."${type}"`);
     // Prisma binds both written enum values and filters to its configured
     // schema. Copy migrated labels and align the isolated ORM enum columns,
     // retaining every migrated default, check and index.
     const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
       { table: 'User', column: 'status', type: 'UserStatus', defaultValue: 'ACTIVE' },
+      { table: 'UnitOccupancy', column: 'relation', type: 'UnitRelation' },
       { table: 'SocietyMembership', column: 'role', type: 'MembershipRole' },
       { table: 'HouseholdVehicle', column: 'vehicleType', type: 'VehicleType' },
       { table: 'Society', column: 'status', type: 'SocietyStatus', defaultValue: 'ACTIVE' },
