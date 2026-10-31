@@ -12,74 +12,76 @@ type LifecycleRow={id:string;societyId:string;unitId:string;userId:string;occupa
 export class OccupancyLifecycleService{
   constructor(private readonly prisma:PrismaService){}
 
-  list(societyId:string){return this.prisma.$queryRaw(Prisma.sql`
+  list(societyId:string){return this.prisma.withTenantContext(societyId,tx=>tx.$queryRaw(Prisma.sql`
     SELECT r."id",r."unitId",r."userId",r."occupancyId",r."kind",r."relation",r."status",r."effectiveAt",r."reason",
            r."requestedByUserId",r."reviewedByUserId",r."reviewedAt",r."completedAt",r."createdAt",r."updatedAt"
-    FROM "OccupancyLifecycleRequest" r WHERE r."societyId"=${societyId}::uuid ORDER BY r."createdAt" DESC LIMIT 250
-  `);}
+    FROM "OccupancyLifecycleRequest" r WHERE r."societyId"=${societyId}::uuid AND EXISTS (SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" WHERE u."id"=r."unitId" AND u."societyId"=${societyId}::uuid AND b."societyId"=${societyId}::uuid) ORDER BY r."createdAt" DESC LIMIT 250
+  `));}
 
-  listMine(societyId:string,userId:string){return this.prisma.$queryRaw(Prisma.sql`
+  listMine(societyId:string,userId:string){return this.prisma.withTenantContext(societyId,tx=>tx.$queryRaw(Prisma.sql`
     SELECT r."id",r."unitId",r."userId",r."occupancyId",r."kind",r."relation",r."status",r."effectiveAt",r."reason",
            r."requestedByUserId",r."reviewedAt",r."completedAt",r."createdAt",r."updatedAt"
     FROM "OccupancyLifecycleRequest" r
-    WHERE r."societyId"=${societyId}::uuid AND (r."requestedByUserId"=${userId}::uuid OR r."userId"=${userId}::uuid)
+    WHERE r."societyId"=${societyId}::uuid AND EXISTS (SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" WHERE u."id"=r."unitId" AND u."societyId"=${societyId}::uuid AND b."societyId"=${societyId}::uuid) AND (r."requestedByUserId"=${userId}::uuid OR r."userId"=${userId}::uuid)
     ORDER BY r."createdAt" DESC LIMIT 100
-  `);}
+  `));}
 
-  async operatorContext(societyId:string){const now=new Date();const [units,occupancies]=await Promise.all([
-    this.prisma.unit.findMany({where:{building:{societyId}},select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}},orderBy:{number:'asc'}}),
-    this.prisma.unitOccupancy.findMany({where:{societyId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},select:{id:true,relation:true,effectiveFrom:true,user:{select:{id:true,name:true,phone:true,status:true}},unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},orderBy:{createdAt:'desc'}})
-  ]);return {units,occupancies};}
+  operatorContext(societyId:string){return this.prisma.withTenantContext(societyId,async tx=>{const now=new Date();const [units,occupancies]=await Promise.all([
+    tx.unit.findMany({where:{societyId,building:{societyId}},select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}},orderBy:{number:'asc'}}),
+    tx.unitOccupancy.findMany({where:{societyId,unit:{societyId,building:{societyId}},active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},select:{id:true,relation:true,effectiveFrom:true,user:{select:{id:true,name:true,phone:true,status:true}},unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},orderBy:{createdAt:'desc'}})
+  ]);return {units,occupancies};});}
 
-  async selfContext(societyId:string,userId:string){const now=new Date();const [occupancies,ownerships]=await Promise.all([
-    this.prisma.unitOccupancy.findMany({
-      where:{societyId,userId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
+  selfContext(societyId:string,userId:string){return this.prisma.withTenantContext(societyId,async tx=>{const now=new Date();const [occupancies,ownerships]=await Promise.all([
+    tx.unitOccupancy.findMany({
+      where:{societyId,unit:{societyId,building:{societyId}},userId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
       select:{id:true,unitId:true,relation:true,effectiveFrom:true,unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},
       orderBy:{createdAt:'asc'}
     }),
-    this.prisma.unitOwnership.findMany({
-      where:{societyId,userId,active:true,verified:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
+    tx.unitOwnership.findMany({
+      where:{societyId,unit:{societyId,building:{societyId}},userId,active:true,verified:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
       select:{unitId:true,ownershipBps:true,unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},
       orderBy:{createdAt:'asc'}
     })
-  ]);return {occupancies,ownedUnitIds:ownerships.map(item=>item.unitId),ownedUnits:ownerships};}
+  ]);return {occupancies,ownedUnitIds:ownerships.map(item=>item.unitId),ownedUnits:ownerships};});}
 
-  async get(societyId:string,id:string){const rows=await this.prisma.$queryRaw<LifecycleRow[]>(Prisma.sql`
-    SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1
+  get(societyId:string,id:string){return this.prisma.withTenantContext(societyId,tx=>this.detail(tx,societyId,id));}
+
+  private async detail(tx:Prisma.TransactionClient,societyId:string,id:string){const rows=await tx.$queryRaw<LifecycleRow[]>(Prisma.sql`
+    SELECT r.* FROM "OccupancyLifecycleRequest" r WHERE r."societyId"=${societyId}::uuid AND r."id"=${id}::uuid AND EXISTS (SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" WHERE u."id"=r."unitId" AND u."societyId"=${societyId}::uuid AND b."societyId"=${societyId}::uuid) LIMIT 1
   `);if(!rows.length)throw new NotFoundException('Occupancy lifecycle request not found');const [events,checklist,documents]=await Promise.all([
-    this.prisma.$queryRaw(Prisma.sql`SELECT "id","eventType","actorUserId","note","createdAt" FROM "OccupancyLifecycleEvent" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`),
-    this.prisma.$queryRaw(Prisma.sql`SELECT "id","code","label","required","completedAt","completedByUserId","note","createdAt","updatedAt" FROM "OccupancyLifecycleChecklistItem" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`),
-    this.prisma.$queryRaw(Prisma.sql`SELECT "id","kind","fileReference","uploadedByUserId","verifiedAt","verifiedByUserId","note","createdAt" FROM "OccupancyLifecycleDocument" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`)
+    tx.$queryRaw(Prisma.sql`SELECT "id","eventType","actorUserId","note","createdAt" FROM "OccupancyLifecycleEvent" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`),
+    tx.$queryRaw(Prisma.sql`SELECT "id","code","label","required","completedAt","completedByUserId","note","createdAt","updatedAt" FROM "OccupancyLifecycleChecklistItem" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`),
+    tx.$queryRaw(Prisma.sql`SELECT "id","kind","fileReference","uploadedByUserId","verifiedAt","verifiedByUserId","note","createdAt" FROM "OccupancyLifecycleDocument" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`)
   ]);return {...rows[0],events,checklist,documents};}
 
-  async readiness(societyId:string,id:string){
-    const rows=await this.prisma.$queryRaw<LifecycleRow[]>(Prisma.sql`
-      SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1
+  readiness(societyId:string,id:string){return this.prisma.withTenantContext(societyId,async tx=>{
+    const rows=await tx.$queryRaw<LifecycleRow[]>(Prisma.sql`
+      SELECT r.* FROM "OccupancyLifecycleRequest" r WHERE r."societyId"=${societyId}::uuid AND r."id"=${id}::uuid AND EXISTS (SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" WHERE u."id"=r."unitId" AND u."societyId"=${societyId}::uuid AND b."societyId"=${societyId}::uuid) LIMIT 1
     `);
     const row=rows[0];
     if(!row)throw new NotFoundException('Occupancy lifecycle request not found');
     const [checklist,documents,household,currentOccupancy]=await Promise.all([
-      this.prisma.$queryRaw<Array<{total:bigint;required:bigint;completedRequired:bigint}>>(Prisma.sql`
+      tx.$queryRaw<Array<{total:bigint;required:bigint;completedRequired:bigint}>>(Prisma.sql`
         SELECT COUNT(*)::bigint AS "total",
                COUNT(*) FILTER (WHERE "required"=true)::bigint AS "required",
                COUNT(*) FILTER (WHERE "required"=true AND "completedAt" IS NOT NULL)::bigint AS "completedRequired"
         FROM "OccupancyLifecycleChecklistItem"
         WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid
       `),
-      this.prisma.$queryRaw<Array<{total:bigint;verified:bigint}>>(Prisma.sql`
+      tx.$queryRaw<Array<{total:bigint;verified:bigint}>>(Prisma.sql`
         SELECT COUNT(*)::bigint AS "total",
                COUNT(*) FILTER (WHERE "verifiedAt" IS NOT NULL)::bigint AS "verified"
         FROM "OccupancyLifecycleDocument"
         WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid
       `),
-      this.prisma.household.findFirst({where:{societyId,unitId:row.unitId},select:{id:true}}),
-      this.prisma.unitOccupancy.findFirst({where:{societyId,unitId:row.unitId,userId:row.userId,active:true},select:{id:true,primaryGateContact:true,gateApprovalEnabled:true,gateNotificationEnabled:true}})
+      tx.household.findFirst({where:{societyId,unitId:row.unitId,unit:{societyId,building:{societyId}}},select:{id:true}}),
+      tx.unitOccupancy.findFirst({where:{societyId,unit:{societyId,building:{societyId}},unitId:row.unitId,userId:row.userId,active:true},select:{id:true,primaryGateContact:true,gateApprovalEnabled:true,gateNotificationEnabled:true}})
     ]);
     const householdId=household?.id;
     const [activeVehicles,activeWorkforce,activeParkingAllocations]=householdId?await Promise.all([
-      this.prisma.householdVehicle.count({where:{societyId,householdId,active:true}}),
-      this.prisma.workforceAssignment.count({where:{societyId,householdId,active:true}}),
-      this.prisma.$queryRaw<Array<{count:bigint}>>(Prisma.sql`
+      tx.householdVehicle.count({where:{societyId,householdId,active:true}}),
+      tx.workforceAssignment.count({where:{societyId,householdId,active:true}}),
+      tx.$queryRaw<Array<{count:bigint}>>(Prisma.sql`
         SELECT COUNT(*)::bigint AS "count" FROM "ParkingAllocation"
         WHERE "societyId"=${societyId}::uuid AND "householdId"=${householdId}::uuid AND "endedAt" IS NULL
       `)
@@ -102,11 +104,11 @@ export class OccupancyLifecycleService{
       },
       boundary:'Operational readiness evidence only; this does not determine legal, police-verification, rental-policy or ownership validity.'
     };
-  }
+  });}
 
-  async getMine(societyId:string,userId:string,id:string){const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
-    SELECT "id" FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid AND ("requestedByUserId"=${userId}::uuid OR "userId"=${userId}::uuid) LIMIT 1
-  `);if(!rows.length)throw new NotFoundException('Occupancy lifecycle request not found');return this.get(societyId,id);}
+  getMine(societyId:string,userId:string,id:string){return this.prisma.withTenantContext(societyId,async tx=>{const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+    SELECT r."id" FROM "OccupancyLifecycleRequest" r WHERE r."societyId"=${societyId}::uuid AND r."id"=${id}::uuid AND EXISTS (SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" WHERE u."id"=r."unitId" AND u."societyId"=${societyId}::uuid AND b."societyId"=${societyId}::uuid) AND (r."requestedByUserId"=${userId}::uuid OR r."userId"=${userId}::uuid) LIMIT 1
+  `);if(!rows.length)throw new NotFoundException('Occupancy lifecycle request not found');return this.detail(tx,societyId,id);});}
 
   async requestMoveIn(societyId:string,actorUserId:string,input:CreateMoveIn){if(input.relation===UnitRelation.FAMILY_MEMBER)throw new BadRequestException('Family members use the household-member lifecycle');return this.prisma.$transaction(async tx=>{
     await this.assertUnitAndUser(tx,societyId,input.unitId,input.userId);

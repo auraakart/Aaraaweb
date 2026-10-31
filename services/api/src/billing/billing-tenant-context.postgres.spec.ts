@@ -1,3 +1,4 @@
+import { OccupancyLifecycleService } from '../households/occupancy-lifecycle.service';
 import { HouseholdChangeRequestService } from '../households/household-change-request.service';
 import { HouseholdService } from '../households/household.service';
 import { ParkingAdminController } from '../households/parking-admin.controller';
@@ -68,7 +69,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
@@ -2399,4 +2400,54 @@ database('Billing transactions under a non-owner RLS role', () => {
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     expect(isolation).toEqual([{ transaction_isolation: 'repeatable read' }]);
   });
+  const lifecycle = new OccupancyLifecycleService(runtime);
+  async function lifecycleReadFixture(scope = societyA, unit = unitA) {
+    const id = randomUUID();
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "OccupancyLifecycleRequest"
+      ("id","societyId","unitId","userId","kind","relation","status","effectiveAt","requestedByUserId")
+      VALUES (${id}::uuid,${scope}::uuid,${unit}::uuid,${tenant}::uuid,'MOVE_IN','TENANT','COMPLETED',CURRENT_TIMESTAMP,${owner}::uuid)`);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "OccupancyLifecycleEvent" ("societyId","requestId","eventType","actorUserId") VALUES (${scope}::uuid,${id}::uuid,'REQUESTED',${owner}::uuid)`);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "OccupancyLifecycleChecklistItem" ("societyId","requestId","code","label") VALUES (${scope}::uuid,${id}::uuid,'IDENTITY','Identity')`);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "OccupancyLifecycleDocument" ("societyId","requestId","kind","fileReference","uploadedByUserId") VALUES (${scope}::uuid,${id}::uuid,'IDENTITY','private-reference',${owner}::uuid)`);
+    return id;
+  }
+  it('isolates lifecycle lists, resident authority, details and children under the restricted role', async () => {
+    for (const [scope, unit, foreign] of [[societyA, unitA, societyB], [societyB, unitB, societyA]]) {
+      const id = await lifecycleReadFixture(scope, unit);
+      expect(await lifecycle.list(scope)).toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      expect(await lifecycle.list(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      expect(await lifecycle.listMine(scope, tenant)).toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      expect(await lifecycle.listMine(scope, randomUUID())).toEqual([]);
+      const detail = await lifecycle.getMine(scope, tenant, id);
+      expect(detail).toMatchObject({ id, events: [expect.objectContaining({ eventType: 'REQUESTED' })], checklist: [expect.objectContaining({ code: 'IDENTITY' })], documents: [expect.objectContaining({ fileReference: 'private-reference' })] });
+      await expect(lifecycle.getMine(scope, randomUUID(), id)).rejects.toThrow('not found');
+      await expect(lifecycle.get(foreign, id)).rejects.toThrow('not found');
+      await expect(lifecycle.readiness(foreign, id)).rejects.toThrow('not found');
+      expect(await lifecycle.readiness(scope, id)).toMatchObject({ checklist: { total: 1, required: 1, completedRequired: 0, mandatoryReady: false }, documents: { total: 1, verified: 0 } });
+    }
+  });
+  it('excludes foreign and malformed unit/building parents from lifecycle reads', async () => {
+    const foreign = await lifecycleReadFixture(societyA, unitB), malformedUnit = randomUUID();
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "Unit" ("id","societyId","buildingId","number") VALUES (${malformedUnit}::uuid,${societyA}::uuid,${buildingB}::uuid,'malformed-lifecycle')`);
+    const malformed = await lifecycleReadFixture(societyA, malformedUnit);
+    for (const id of [foreign, malformed]) {
+      expect(await lifecycle.list(societyA)).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      expect(await lifecycle.listMine(societyA, tenant)).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      await expect(lifecycle.get(societyA, id)).rejects.toThrow('not found');
+      await expect(lifecycle.getMine(societyA, tenant, id)).rejects.toThrow('not found');
+      await expect(lifecycle.readiness(societyA, id)).rejects.toThrow('not found');
+    }
+    expect((await lifecycle.operatorContext(societyA)).units.map(row => row.id)).not.toContain(malformedUnit);
+  });
+  it('returns current verified ownership and occupancy labels through scoped context clients', async () => {
+    for (const [scope, unit] of [[societyA, unitA], [societyB, unitB]]) {
+      expect((await lifecycle.selfContext(scope, owner)).ownedUnitIds).toContain(unit);
+      const context = await lifecycle.operatorContext(scope);
+      expect(context.units).toEqual(expect.arrayContaining([expect.objectContaining({ id: unit })]));
+      expect(context.units.map(row => row.id)).not.toContain(scope === societyA ? unitB : unitA);
+    }
+    expect((await lifecycle.selfContext(societyA, tenant)).occupancies).toEqual(expect.arrayContaining([expect.objectContaining({ unitId: unitA })]));
+    expect(await lifecycle.selfContext(societyA, randomUUID())).toEqual({ occupancies: [], ownedUnitIds: [], ownedUnits: [] });
+  });
+
 });

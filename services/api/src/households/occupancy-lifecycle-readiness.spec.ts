@@ -23,7 +23,7 @@ describe('OccupancyLifecycleService readiness evidence', () => {
       householdVehicle:{count:vi.fn().mockResolvedValue(2)},
       workforceAssignment:{count:vi.fn().mockResolvedValue(1)},
     };
-    const service=new OccupancyLifecycleService(prisma as never);
+    const service=new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     const result=await service.readiness(row.societyId,row.id);
     expect(result).toEqual(expect.objectContaining({
       requestId:row.id,
@@ -38,7 +38,7 @@ describe('OccupancyLifecycleService readiness evidence', () => {
       }),
     }));
     expect(prisma.household.findFirst).toHaveBeenCalledWith({
-      where:{societyId:row.societyId,unitId:row.unitId},
+      where:{societyId:row.societyId,unitId:row.unitId,unit:{societyId:row.societyId,building:{societyId:row.societyId}}},
       select:{id:true},
     });
   });
@@ -62,7 +62,7 @@ describe('OccupancyLifecycleService readiness evidence', () => {
       householdVehicle:{count:vi.fn()},
       workforceAssignment:{count:vi.fn()},
     };
-    const service=new OccupancyLifecycleService(prisma as never);
+    const service=new OccupancyLifecycleService({ ...prisma, withTenantContext: vi.fn(async (_scope, run) => run(prisma)) } as never);
     const result=await service.readiness(row.societyId,row.id);
     expect(result.handover).toEqual({
       activeVehicles:0,

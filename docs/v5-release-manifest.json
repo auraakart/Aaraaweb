@@ -2634,6 +2634,53 @@
           "Independent partner worker/artifact/device and physical language/accessibility acceptance remain open."
         ]
       }
+    },
+    {
+      "id": "V5.11",
+      "name": "Occupancy, isolation and experience hardening",
+      "status": "IN_DEVELOPMENT",
+      "currentSlice": "V5.11.1",
+      "baselineSha": "8232a65e807870202667c452c00b39529e031fc3",
+      "evidence": [
+        "docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md"
+      ],
+      "slices": [
+        {
+          "id": "V5.11.1",
+          "name": "Occupancy tenant read/detail/context boundaries",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI"
+        },
+        {
+          "id": "V5.11.2",
+          "name": "Move-in/out transaction and audit integrity",
+          "status": "PLANNED"
+        },
+        {
+          "id": "V5.11.3",
+          "name": "Scheduled worker and private-file isolation",
+          "status": "PLANNED"
+        },
+        {
+          "id": "V5.11.4",
+          "name": "Measured query and transaction performance",
+          "status": "PLANNED"
+        },
+        {
+          "id": "V5.11.5",
+          "name": "Resident Guard Admin experience refinement",
+          "status": "PLANNED"
+        },
+        {
+          "id": "V5.11.6",
+          "name": "Consolidated client security and white-label validation",
+          "status": "PLANNED"
+        }
+      ],
+      "limitations": [
+        "Productionization and physical-device acceptance remain on hold.",
+        "Hosted role/grant/policy activation and independent worker/artifact acceptance remain separate open gates.",
+        "Develop integration only; staging/main use consolidated release governance."
+      ]
     }
   ]
 }
