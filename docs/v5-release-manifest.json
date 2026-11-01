@@ -2794,7 +2794,7 @@
     {
       "id": "V5.13",
       "name": "Attendance correctness and bounded tenant/experience hardening",
-      "status": "IN_PROGRESS",
+      "status": "COMPLETED_NONPRODUCTION_SELECTED_SOURCE",
       "currentSlice": "V5.13.6",
       "scopeDocument": "docs/V5.13-ATTENDANCE-AND-BOUNDARY-HARDENING.md",
       "slices": [
@@ -2828,19 +2828,43 @@
         {
           "id": "V5.13.4",
           "name": "Compact Helpdesk and maintenance extraction",
-          "status": "PENDING_PROTECTED_CI"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1562,
+          "mergeSha": "e9be1ea7398f7923aa8c1caaaa338ecd1243ecef",
+          "ciRun": 41299594683,
+          "testedTree": "14cb4755fe25e54aacc05d396ba251499f5d8981"
         },
         {
           "id": "V5.13.5",
           "name": "Selective dependency acceptance",
-          "status": "PENDING_PROTECTED_CI"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1562,
+          "mergeSha": "e9be1ea7398f7923aa8c1caaaa338ecd1243ecef",
+          "ciRun": 41299594683,
+          "testedTree": "14cb4755fe25e54aacc05d396ba251499f5d8981"
         },
         {
           "id": "V5.13.6",
           "name": "Source evidence reconciliation",
-          "status": "IN_PROGRESS"
+          "status": "MERGED_PROTECTED_CI_PASSED_EXTERNAL_GATES_OPEN",
+          "pullRequest": 1562,
+          "mergeSha": "e9be1ea7398f7923aa8c1caaaa338ecd1243ecef",
+          "ciRun": 41299594683,
+          "testedTree": "14cb4755fe25e54aacc05d396ba251499f5d8981"
         }
-      ]
+      ],
+      "acceptedSourceSha": "e9be1ea7398f7923aa8c1caaaa338ecd1243ecef",
+      "scopedAcceptance": {
+        "status": "COMPLETED_NONPRODUCTION_SELECTED_SOURCE",
+        "ciRun": 41299594683,
+        "testedHead": "4d482cde59e7bf65e40ab6bd5e40c88124d18a02",
+        "testedTree": "14cb4755fe25e54aacc05d396ba251499f5d8981",
+        "limitations": [
+          "Remaining workforce/utilities/reporting/push paths retain their bounded tenant rollout backlog.",
+          "Hosted roles/grants/policies and independent Partner A/B worker/signing/artifact/device acceptance remain open under #212/#1380.",
+          "Productionization and staging/main promotion are excluded."
+        ]
+      }
     }
   ]
 }
