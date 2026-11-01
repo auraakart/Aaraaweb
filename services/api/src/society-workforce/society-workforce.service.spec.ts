@@ -23,6 +23,8 @@ function setup() {
       create: vi.fn(),
       update: vi.fn(),
     },
+    $queryRaw: vi.fn(async () => [{ id: "worker-a" }]),
+    withTenantContext: vi.fn(async (_society: string, cb: (tx: unknown) => unknown) => cb(prisma)),
     $transaction: vi.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
   };
   return { prisma, service: new SocietyWorkforceService(prisma as unknown as PrismaService) };
@@ -64,7 +66,7 @@ describe('SocietyWorkforceService', () => {
         societyId: 'society-a',
         active: true,
         verification: SocietyWorkerVerificationStatus.VERIFIED,
-        gateAccesses: { some: { societyId: 'society-a', gateId: 'gate-a', active: true } },
+        gateAccesses: { some: expect.objectContaining({ societyId: 'society-a', gateId: 'gate-a', active: true }) },
       }),
     }));
   });
@@ -74,7 +76,8 @@ describe('SocietyWorkforceService', () => {
     prisma.societyWorkerAttendance.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
-    vi.spyOn(service, 'gateEligible').mockResolvedValue([{ id: 'worker-a' }] as never);
+    prisma.gate.count.mockResolvedValue(1);
+    prisma.societyWorker.findMany.mockResolvedValue([{ id: 'worker-a', schedule: {}, attendances: [] }]);
     prisma.societyWorkerAttendance.create.mockResolvedValue({ id: 'attendance-a', workerId: 'worker-a' });
 
     const result = await service.checkIn(
@@ -100,7 +103,8 @@ describe('SocietyWorkforceService', () => {
   it('rejects check-in when the worker is not eligible at the selected gate', async () => {
     const { prisma, service } = setup();
     prisma.societyWorkerAttendance.findFirst.mockResolvedValueOnce(null);
-    vi.spyOn(service, 'gateEligible').mockResolvedValue([]);
+    prisma.gate.count.mockResolvedValue(1);
+    prisma.societyWorker.findMany.mockResolvedValue([]);
 
     await expect(service.checkIn(
       'society-a',

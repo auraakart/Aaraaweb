@@ -3,6 +3,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'src/society-workforce/society-workforce.service.spec.ts',
+      'src/society-workforce/society-workforce-context.spec.ts',
+      'src/reliability/cors-policy.http.spec.ts',
       'src/amenities/*.spec.ts',
       'src/services-marketplace/provider-marketplace-completion.dispute-evidence.spec.ts',
       'src/helpdesk/helpdesk-context.regression.spec.ts',
@@ -88,6 +91,8 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/society-workforce/society-workforce.service.ts',
+        'src/reliability/cors-policy.ts',
         'src/services-marketplace/service-dispute-evidence.ts',
         'src/amenities/amenities.service.ts',
         'src/amenities/amenity-booking-creator.ts',
@@ -134,6 +139,8 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/society-workforce/society-workforce.service.ts': { statements: 80, branches: 60, functions: 95, lines: 90 },
+        'src/reliability/cors-policy.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/services-marketplace/service-dispute-evidence.ts': { statements: 95, branches: 85, functions: 100, lines: 100 },
         'src/amenities/amenities.service.ts': { statements: 75, branches: 60, functions: 90, lines: 80 },
         'src/amenities/amenity-booking-creator.ts': { statements: 90, branches: 70, functions: 100, lines: 95 },

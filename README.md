@@ -58,6 +58,8 @@ Society Branding and Partner White Label development uses this shared repository
 
 ## Current development cycle
 
+[V5.13 attendance and boundary hardening](docs/V5.13-ATTENDANCE-AND-BOUNDARY-HARDENING.md) consolidates the 1 November health review. Package/API/Admin identity is 5.13.0; Resident/Guard build is 51300. Attendance atomicity, CORS compatibility and society-workforce tenant clients are candidates awaiting protected acceptance. The sequence then covers compact Helpdesk/maintenance, selective dependencies and evidence reconciliation. External holds and staging/main governance remain in force.
+
 [V5.12 tenant boundaries and experience closure](docs/V5.12-TENANT-AND-EXPERIENCE-CLOSURE.md) consolidates the 31 October health recommendations. Package/API/Admin identity is 5.12.0; Resident/Guard build is 51200. Accepted source changes include Helpdesk and Amenities tenant clients, bounded worker/dispute-evidence extraction, Home notice identity deduplication, a selected Node type patch and evidence reconciliation (PRs #1557–#1559 / final CI 41223073848). Hosted policy, independent worker/artifact and physical-device acceptance remain open. A version label is not a published APK.
 
 [V5.11 occupancy and experience hardening](docs/V5.11-OCCUPANCY-AND-EXPERIENCE-HARDENING.md) has accepted occupancy read/mutation, worker/private-file, performance-baseline and compact Resident form source slices. Consolidated acceptance continues in V5.12; hosted isolation, independent Partner A/B worker/artifact and physical-device acceptance remain open. [V5.10 health hardening](docs/V5.10-HEALTH-HARDENING.md) is historical accepted engineering evidence.
