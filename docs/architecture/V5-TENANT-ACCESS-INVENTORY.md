@@ -13,7 +13,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Coverage | Count |
 | --- | ---: |
 | Tables, including SQL-only tables | 287 |
-| API runtime/script source files | 461 |
+| API runtime/script source files | 462 |
 | Migration SQL files | 225 |
 | Database access sites | 2479 |
 | Raw SQL / ORM sites | 1730 / 749 |

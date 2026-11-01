@@ -32,7 +32,7 @@ function disposableDatabase() {
         FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid JOIN pg_namespace n ON n.oid=t.typnamespace
         WHERE n.nspname='public' AND t.typname='${type}';
         EXECUTE format('CREATE TYPE %I.%I AS ENUM (%s)', '${schema}', '${type}', labels);
-      END $copy_enum$;
+      END; $copy_enum$;
       ALTER TABLE "${schema}"."${table}" ALTER COLUMN "${column}" DROP DEFAULT;
       ALTER TABLE "${schema}"."${table}" ALTER COLUMN "${column}" TYPE "${schema}"."${type}" USING "${column}"::text::"${schema}"."${type}";
       GRANT USAGE ON TYPE "${schema}"."${type}" TO "${role}";`);
@@ -61,6 +61,22 @@ function disposableDatabase() {
   it('recovers simultaneous same-key retries without raw unique errors', async () => {
     const rows = await Promise.all([checkIn('same-key-in-0001'), checkIn('same-key-in-0001')]); expect(rows[0].id).toBe(rows[1].id);
   });
+  it('serializes a reused action key across different workers without leaking P2002', async () => {
+    const other = await owner.societyWorker.create({ data: { societyId: a, name: 'Other staff', phone: `other-${wa}`, role: 'Gardener', department: 'Grounds', verification: 'VERIFIED', createdByUserId: actor } });
+    await owner.societyWorkerGateAccess.create({ data: { societyId: a, workerId: other.id, gateId: ga } });
+    const results = await Promise.allSettled([checkIn('shared-worker-key-0001'), service.checkIn(a, ga, other.id, actor, 'shared-worker-key-0001')]);
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+    const failed = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+    expect(failed.reason.message).toContain('another attendance action');
+    expect(failed.reason.code).not.toBe('P2002');
+  });
+  it('serializes suspension with gate entry and preserves the winning authority state', async () => {
+    const results = await Promise.allSettled([service.suspend(a, wa, actor, 'Reviewed suspension'), checkIn('suspension-entry-0001')]);
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+    const worker = await owner.societyWorker.findUniqueOrThrow({ where: { id: wa } });
+    const count = await owner.societyWorkerAttendance.count({ where: { societyId: a, workerId: wa, checkedOutAt: null } });
+    expect(count).toBe(worker.active ? 1 : 0);
+  });
   it('serializes checkout and preserves the first action on a late retry', async () => {
     await checkIn('checkout-entry-0001');
     const results = await Promise.allSettled([checkOut('checkout-key-0001'), checkOut('checkout-key-0002')]);
@@ -80,6 +96,7 @@ function disposableDatabase() {
   it('filters malformed nested parents and denies absent context', async () => {
     await owner.societyWorkerAttendance.create({ data: { societyId: a, workerId: wa, gateId: gb, checkedInAt: new Date(), checkInByUserId: actor, checkInKey: 'malformed-parent-0001' } });
     expect(await service.attendance(a)).toEqual([]);
+    await expect(checkIn('malformed-open-entry')).rejects.toThrow('already checked in');
     expect(await runtime.societyWorker.findMany()).toEqual([]);
     expect((await service.list(a))[0].attendances).toEqual([]);
   });

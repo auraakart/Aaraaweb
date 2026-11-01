@@ -91,6 +91,7 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/amenities/amenity-blackout-assessment.ts',
         'src/society-workforce/society-workforce.service.ts',
         'src/reliability/cors-policy.ts',
         'src/services-marketplace/service-dispute-evidence.ts',
@@ -139,6 +140,7 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/amenities/amenity-blackout-assessment.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/society-workforce/society-workforce.service.ts': { statements: 80, branches: 60, functions: 95, lines: 90 },
         'src/reliability/cors-policy.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/services-marketplace/service-dispute-evidence.ts': { statements: 95, branches: 85, functions: 100, lines: 100 },

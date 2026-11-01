@@ -2795,38 +2795,50 @@
       "id": "V5.13",
       "name": "Attendance correctness and bounded tenant/experience hardening",
       "status": "IN_PROGRESS",
-      "currentSlice": "V5.13.3",
+      "currentSlice": "V5.13.6",
       "scopeDocument": "docs/V5.13-ATTENDANCE-AND-BOUNDARY-HARDENING.md",
       "slices": [
         {
           "id": "V5.13.1",
           "name": "Attendance atomicity and migrated integrity",
-          "status": "PENDING_PROTECTED_CI"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1561,
+          "mergeSha": "cf6b24a89c15c7eba18cd4406a46d61cf951ffe3",
+          "ciRun": 41298198358,
+          "testedTree": "24787e8aed37a9719fccb65bd2dd1780e999277e"
         },
         {
           "id": "V5.13.2",
           "name": "CORS idempotency header",
-          "status": "PENDING_PROTECTED_CI"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1561,
+          "mergeSha": "cf6b24a89c15c7eba18cd4406a46d61cf951ffe3",
+          "ciRun": 41298198358,
+          "testedTree": "24787e8aed37a9719fccb65bd2dd1780e999277e"
         },
         {
           "id": "V5.13.3",
           "name": "Society workforce selected-client boundaries",
-          "status": "PENDING_PROTECTED_CI"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1561,
+          "mergeSha": "cf6b24a89c15c7eba18cd4406a46d61cf951ffe3",
+          "ciRun": 41298198358,
+          "testedTree": "24787e8aed37a9719fccb65bd2dd1780e999277e"
         },
         {
           "id": "V5.13.4",
           "name": "Compact Helpdesk and maintenance extraction",
-          "status": "PLANNED"
+          "status": "PENDING_PROTECTED_CI"
         },
         {
           "id": "V5.13.5",
           "name": "Selective dependency acceptance",
-          "status": "PLANNED"
+          "status": "PENDING_PROTECTED_CI"
         },
         {
           "id": "V5.13.6",
           "name": "Source evidence reconciliation",
-          "status": "PLANNED"
+          "status": "IN_PROGRESS"
         }
       ]
     }

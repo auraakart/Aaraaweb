@@ -1,3 +1,4 @@
+import { requireComplexityCeiling } from './lib/complexity-budgets.mjs';
 import { requireCoverageFloor } from './lib/coverage-thresholds.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -50,13 +51,13 @@ const resident = read('apps/resident/lib/data/resident_data_controller.dart');
 assert.ok(resident.includes('_guestInvites.run('));
 
 const complexity = read('scripts/check-complexity-boundaries.mjs');
-for (const token of [
-  "['services/api/src/amenities/amenities.service.ts', 1050]",
-  "['services/api/src/ai-operations/ai-assistant.service.ts', 580]",
-  "['services/api/src/billing/billing.service.ts', 425]",
-  "['apps/resident/lib/data/resident_data_controller.dart', 850]",
-  "['apps/guard/lib/screens/guard_operations_screen.dart', 360]",
-]) assert.ok(complexity.includes(token), 'Complexity budget missing: ' + token);
+for (const [file, maximum] of [
+  ['services/api/src/amenities/amenities.service.ts', 930],
+  ['services/api/src/ai-operations/ai-assistant.service.ts', 580],
+  ['services/api/src/billing/billing.service.ts', 425],
+  ['apps/resident/lib/data/resident_data_controller.dart', 850],
+  ['apps/guard/lib/screens/guard_operations_screen.dart', 360],
+]) requireComplexityCeiling(complexity, file, maximum);
 
 const flutterCoverage = read('scripts/check-flutter-risk-coverage.mjs');
 assert.ok(flutterCoverage.includes("'lib/data/resident_data_controller.dart': 42"));

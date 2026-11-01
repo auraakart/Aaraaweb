@@ -40,3 +40,33 @@ String helpdeskDisplayLabel(String raw) {
       .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
       .join(' ');
 }
+
+AaraagateStatusTone helpdeskSlaTone(String state) {
+  switch (state.toUpperCase()) {
+    case 'MET':
+      return AaraagateStatusTone.success;
+    case 'RESPONSE_BREACHED':
+    case 'RESOLUTION_BREACHED':
+      return AaraagateStatusTone.danger;
+    case 'ON_TRACK':
+      return AaraagateStatusTone.info;
+    default:
+      return AaraagateStatusTone.neutral;
+  }
+}
+
+AaraagateStatusTone helpdeskStatusTone(String status) {
+  switch (status.toUpperCase()) {
+    case 'RESOLVED':
+    case 'CLOSED':
+      return AaraagateStatusTone.success;
+    case 'IN_PROGRESS':
+    case 'ASSIGNED':
+      return AaraagateStatusTone.info;
+    case 'CANCELLED':
+    case 'REJECTED':
+      return AaraagateStatusTone.danger;
+    default:
+      return AaraagateStatusTone.warning;
+  }
+}

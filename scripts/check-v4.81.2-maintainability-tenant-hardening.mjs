@@ -1,3 +1,4 @@
+import { requireComplexityCeiling } from './lib/complexity-budgets.mjs';
 import { requireCoverageFloor } from './lib/coverage-thresholds.mjs';
 import assert from 'node:assert/strict';
 import { readContractBundle } from './lib/source-contract-bundles.mjs';
@@ -70,13 +71,13 @@ for (const path of [
 }
 
 const complexity = read('scripts/check-complexity-boundaries.mjs');
-for (const token of [
-  "amenities/amenities.service.ts', 1050",
-  "ai-operations/ai-assistant.service.ts', 580",
-  "billing/billing.service.ts', 425",
-  "resident_data_controller.dart', 850",
-  "guard_operations_screen.dart', 360",
-]) assert.ok(complexity.includes(token), 'Tightened complexity budget missing: ' + token);
+for (const [file, maximum] of [
+  ['services/api/src/amenities/amenities.service.ts', 930],
+  ['services/api/src/ai-operations/ai-assistant.service.ts', 580],
+  ['services/api/src/billing/billing.service.ts', 425],
+  ['apps/resident/lib/data/resident_data_controller.dart', 850],
+  ['apps/guard/lib/screens/guard_operations_screen.dart', 360],
+]) requireComplexityCeiling(complexity, file, maximum);
 
 const tenantIntegration = read('services/api/src/prisma/prisma.tenant-context.integration.spec.ts');
 for (const token of ['current_setting', 'insideA', 'insideB', 'afterA', 'afterB', 'not-a-society-uuid']) {

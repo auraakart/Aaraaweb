@@ -325,7 +325,7 @@ jobs:
       - name: Test performance benchmark failure handling
         run: node --test scripts/performance-smoke.test.mjs
       - name: Test dependency audit failure handling
-        run: node --test scripts/check-dependency-risk-budget.test.mjs
+        run: node --test scripts/check-dependency-risk-budget.test.mjs scripts/complexity-budgets.test.mjs
       - name: Check V4.81.1 tenant isolation and observability readiness
         run: |
           node --test scripts/tenant-index-contract.test.mjs
@@ -757,6 +757,7 @@ jobs:
           test/gate_screen_test.dart
           test/billing_screen_test.dart
           test/privacy_data_screen_test.dart
+          test/helpdesk_ticket_readability_test.dart
           test/home_action_inbox_dedup_test.dart
           test/community_poll_participation_test.dart
           test/amenities_screen_test.dart
