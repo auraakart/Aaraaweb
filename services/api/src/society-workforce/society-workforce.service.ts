@@ -516,7 +516,7 @@ export class SocietyWorkforceService {
 
       const eligible = await this.gateEligibleOnClient(tx, societyId, gateId, undefined, now);
       if (!eligible.some((worker) => worker.id === workerId)) throw new BadRequestException('Society worker is not eligible at this gate now');
-      const open = await tx.societyWorkerAttendance.findFirst({ where: { societyId, workerId, checkedOutAt: null, worker: { is: { societyId } }, gate: { is: { societyId } } } });
+      const open = await tx.societyWorkerAttendance.findFirst({ where: { societyId, workerId, checkedOutAt: null } });
       if (open) throw new BadRequestException('Society worker is already checked in');
 
       return tx.societyWorkerAttendance.create({

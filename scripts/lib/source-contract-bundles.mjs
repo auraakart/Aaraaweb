@@ -9,6 +9,7 @@ const bundles = {
     'services/api/src/amenities/amenity-policy.engine.ts',
     'services/api/src/amenities/amenity-analytics.query.ts',
     'services/api/src/amenities/amenity-deposit-expiry.worker.ts',
+    'services/api/src/amenities/amenity-blackout-assessment.ts',
   ],
   billing: [
     'services/api/src/billing/billing.service.ts',
