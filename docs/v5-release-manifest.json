@@ -2790,6 +2790,45 @@
           "Productionization and staging/main promotion are excluded."
         ]
       }
+    },
+    {
+      "id": "V5.13",
+      "name": "Attendance correctness and bounded tenant/experience hardening",
+      "status": "IN_PROGRESS",
+      "currentSlice": "V5.13.3",
+      "scopeDocument": "docs/V5.13-ATTENDANCE-AND-BOUNDARY-HARDENING.md",
+      "slices": [
+        {
+          "id": "V5.13.1",
+          "name": "Attendance atomicity and migrated integrity",
+          "status": "PENDING_PROTECTED_CI"
+        },
+        {
+          "id": "V5.13.2",
+          "name": "CORS idempotency header",
+          "status": "PENDING_PROTECTED_CI"
+        },
+        {
+          "id": "V5.13.3",
+          "name": "Society workforce selected-client boundaries",
+          "status": "PENDING_PROTECTED_CI"
+        },
+        {
+          "id": "V5.13.4",
+          "name": "Compact Helpdesk and maintenance extraction",
+          "status": "PLANNED"
+        },
+        {
+          "id": "V5.13.5",
+          "name": "Selective dependency acceptance",
+          "status": "PLANNED"
+        },
+        {
+          "id": "V5.13.6",
+          "name": "Source evidence reconciliation",
+          "status": "PLANNED"
+        }
+      ]
     }
   ]
 }
