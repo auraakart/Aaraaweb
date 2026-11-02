@@ -2869,21 +2869,28 @@
     {
       "id": "V5.14",
       "name": "Household workforce tenant and gate boundaries",
-      "status": "IN_PROGRESS_NONPRODUCTION",
+      "status": "COMPLETED_NONPRODUCTION_SELECTED_SOURCE",
       "currentSlice": "V5.14.1",
       "scopeDocument": "docs/V5.14-HOUSEHOLD-WORKFORCE-BOUNDARIES.md",
       "slices": [
         {
           "id": "V5.14.1",
           "name": "Scoped household reads, serializable gate attendance and exact JSON totals",
-          "status": "CANDIDATE_VALIDATION_IN_PROGRESS"
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1564,
+          "mergeSha": "c478bcf990b9a6b68a197e4518cc8fa07214f064",
+          "ciRun": 41387490116,
+          "testedHead": "630d60d02caa875d301aa6fbba8ccf07fb113509",
+          "testedTree": "5c48cb2511aa18004d04f3f72a9fe5f371d284b3"
         }
       ],
       "limitations": [
         "Remaining utilities, reports, notifications and workforce subservices require their own bounded tenant rollout.",
         "Hosted roles/grants/policies and independent artifacts/device acceptance remain open under #212/#1380.",
         "Productionization and staging/main promotion are excluded."
-      ]
+      ],
+      "acceptedSourceSha": "c478bcf990b9a6b68a197e4518cc8fa07214f064",
+      "nextUnblockedSequence": "Utilities tenant-client and parent-boundary assessment, then reports, notifications and remaining workforce subservices"
     }
   ]
 }
