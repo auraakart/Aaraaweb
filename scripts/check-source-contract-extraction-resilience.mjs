@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const hotspotPaths = [
+  'services/api/src/workforce/workforce.service.ts',
   'services/api/src/amenities/amenities.service.ts',
   'services/api/src/billing/billing.service.ts',
   'services/api/src/ai-operations/ai-assistant.service.ts',
@@ -40,6 +41,7 @@ assert.deepEqual(
 
 const bundles = fs.readFileSync('scripts/lib/source-contract-bundles.mjs', 'utf8');
 for (const path of [
+  'services/api/src/workforce/workforce-gate-attendance.ts',
   'services/api/src/amenities/amenity-booking-creator.ts',
   'services/api/src/ai-operations/ai-society-insights.ts',
   'services/api/src/billing/payment-order.service.ts',

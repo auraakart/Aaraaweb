@@ -51,7 +51,7 @@ assert.ok(workforceLoading.includes('final results = await Future.wait([reposito
 assert.ok(workforceLoading.includes('final payments = await repository.workforcePayments();'),'Optional staff payment enrichment must remain explicit.');
 assert.ok(workforceLoading.includes('Household staff remains authoritative even when optional private payment history is unavailable.'),'Optional staff payment failure must fail soft without blanking workforce state.');
 
-const workforce=read('services/api/src/workforce/workforce.service.ts');
+const workforce=readContractBundle('workforce');
 for(const token of [
   'async attendanceMine(',
   'WORKFORCE_ATTENDANCE',

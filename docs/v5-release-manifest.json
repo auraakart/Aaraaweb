@@ -2865,6 +2865,25 @@
           "Productionization and staging/main promotion are excluded."
         ]
       }
+    },
+    {
+      "id": "V5.14",
+      "name": "Household workforce tenant and gate boundaries",
+      "status": "IN_PROGRESS_NONPRODUCTION",
+      "currentSlice": "V5.14.1",
+      "scopeDocument": "docs/V5.14-HOUSEHOLD-WORKFORCE-BOUNDARIES.md",
+      "slices": [
+        {
+          "id": "V5.14.1",
+          "name": "Scoped household reads, serializable gate attendance and exact JSON totals",
+          "status": "CANDIDATE_VALIDATION_IN_PROGRESS"
+        }
+      ],
+      "limitations": [
+        "Remaining utilities, reports, notifications and workforce subservices require their own bounded tenant rollout.",
+        "Hosted roles/grants/policies and independent artifacts/device acceptance remain open under #212/#1380.",
+        "Productionization and staging/main promotion are excluded."
+      ]
     }
   ]
 }

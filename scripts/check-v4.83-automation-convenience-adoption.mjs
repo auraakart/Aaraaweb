@@ -42,7 +42,7 @@ for(const token of [
 assert.ok(finance.includes('automaticPosting:false'),'Finance intake must remain non-posting');
 assert.ok(finance.includes('humanReviewRequired:true'),'Finance intake must retain human review');
 
-const workforce=read('services/api/src/workforce/workforce.service.ts');
+const workforce=readContractBundle('workforce');
 for(const token of ['expectedScheduleDays','scheduledLeaveDays','scheduledEvidenceGapDays','it is not labelled absence']){
   assert.ok(workforce.includes(token),'V4.83 staff evidence contract missing: '+token);
 }

@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'src/workforce/*.spec.ts',
       'src/society-workforce/society-workforce.service.spec.ts',
       'src/society-workforce/society-workforce-context.spec.ts',
       'src/reliability/cors-policy.http.spec.ts',
@@ -91,6 +92,9 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/workforce/workforce.service.ts',
+        'src/workforce/workforce-gate-attendance.ts',
+        'src/workforce/workforce-parent-scope.ts',
         'src/amenities/amenity-blackout-assessment.ts',
         'src/society-workforce/society-workforce.service.ts',
         'src/reliability/cors-policy.ts',
@@ -140,6 +144,9 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/workforce/workforce.service.ts': { statements: 74, branches: 58, functions: 92, lines: 81 },
+        'src/workforce/workforce-gate-attendance.ts': { statements: 88, branches: 77, functions: 100, lines: 94 },
+        'src/workforce/workforce-parent-scope.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/amenities/amenity-blackout-assessment.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/society-workforce/society-workforce.service.ts': { statements: 80, branches: 60, functions: 95, lines: 90 },
         'src/reliability/cors-policy.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
