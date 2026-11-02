@@ -2891,6 +2891,17 @@
       ],
       "acceptedSourceSha": "c478bcf990b9a6b68a197e4518cc8fa07214f064",
       "nextUnblockedSequence": "Utilities tenant-client and parent-boundary assessment, then reports, notifications and remaining workforce subservices"
+    },
+    {
+      "id": "V5.14.1",
+      "name": "Utility core selected tenant transactions",
+      "status": "IN_PROGRESS_NONPRODUCTION",
+      "currentSlice": "V5.14.1.1",
+      "scopeDocument": "docs/V5.14.1-UTILITY-CORE-CONTEXT.md",
+      "limitations": [
+        "Core meter/reading/tariff service only; charge/invoice, resident, import/integration, reports, notifications and workforce subservices remain separate.",
+        "No hosted policy/grant activation, productionization, live providers, device or staging/main promotion."
+      ]
     }
   ]
 }

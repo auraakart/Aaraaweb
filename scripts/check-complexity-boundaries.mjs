@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
 const budgets = new Map([
+  ['services/api/src/utilities/utilities.service.ts', 500],
   ['services/api/src/workforce/workforce.service.ts', 600],
   ['services/api/src/workforce/workforce-gate-attendance.ts', 320],
   ['services/api/src/workforce/workforce-parent-scope.ts', 30],

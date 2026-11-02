@@ -15,7 +15,7 @@ describe('UtilitiesService', () => {
       $queryRaw: vi.fn().mockResolvedValue([{ id: meterId }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createMeter(societyId, actorId, {
@@ -31,7 +31,7 @@ describe('UtilitiesService', () => {
   });
 
   it('requires reset readings to carry an explanatory note', async () => {
-    const prisma = { $transaction: vi.fn() };
+    const prisma = { withTenantContext: vi.fn() };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createReading(societyId, actorId, {
@@ -40,11 +40,11 @@ describe('UtilitiesService', () => {
       value: 5,
       readingKind: 'RESET',
     })).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();
   });
 
   it('rejects interactive attempts to spoof import or integration evidence', async () => {
-    const prisma = { $transaction: vi.fn() };
+    const prisma = { withTenantContext: vi.fn() };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createReading(societyId, actorId, {
@@ -53,12 +53,12 @@ describe('UtilitiesService', () => {
       value: 5,
       source: 'INTEGRATION',
     })).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();
   });
 
   it('rejects readings for inactive or missing meters', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn() };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createReading(societyId, actorId, {
@@ -76,7 +76,7 @@ describe('UtilitiesService', () => {
         .mockResolvedValueOnce([]),
       $executeRaw: vi.fn(),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createReading(societyId, actorId, {
@@ -94,7 +94,7 @@ describe('UtilitiesService', () => {
         .mockResolvedValueOnce([{ id: readingId }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createReading(societyId, actorId, {
@@ -113,7 +113,7 @@ describe('UtilitiesService', () => {
   });
 
   it('rejects tariff slabs with gaps before opening a transaction', async () => {
-    const prisma = { $transaction: vi.fn() };
+    const prisma = { withTenantContext: vi.fn() };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createTariffPlan(societyId, actorId, {
@@ -126,7 +126,7 @@ describe('UtilitiesService', () => {
         { fromUnit: 12, toUnit: null, ratePaisePerUnit: 750 },
       ],
     })).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();
   });
 
   it('creates an immutable draft tariff with ordered slabs and audit evidence', async () => {
@@ -134,7 +134,7 @@ describe('UtilitiesService', () => {
       $queryRaw: vi.fn().mockResolvedValue([{ id: planId }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.createTariffPlan(societyId, actorId, {
@@ -167,7 +167,7 @@ describe('UtilitiesService', () => {
         .mockResolvedValueOnce([{ id: '66666666-6666-4666-8666-666666666666' }]),
       $executeRaw: vi.fn(),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilitiesService(prisma as unknown as PrismaService);
 
     await expect(service.activateTariffPlan(societyId, actorId, planId)).rejects.toBeInstanceOf(ConflictException);
