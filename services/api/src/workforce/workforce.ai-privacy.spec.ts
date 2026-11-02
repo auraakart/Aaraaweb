@@ -40,4 +40,17 @@ describe('WorkforceService occupant privacy for AI',()=>{
     expect(result.onLeaveCount).toBe(0);
     expect(result.staff).toEqual([expect.objectContaining({name:'Maya',checkedInNow:true})]);
   });
+  it.each([0n, 12500n])('returns exact JSON-safe recorded payment evidence for %s', async total => {
+    const tx = { unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'active' }) }, $queryRaw: vi.fn().mockResolvedValue([{ id: 'staff', recordedPayments30dPaise: total }]) };
+    const service = new WorkforceService({ withTenantContext: vi.fn(async (_scope, operation) => operation(tx)) } as never, {} as never);
+    const result = await service.residentStatusMine('society-a', 'resident-a', 'unit-a');
+    expect(() => JSON.stringify(result)).not.toThrow();
+    expect(result.staff[0].recordedPayments30dPaise).toBe(Number(total));
+  });
+  it('rejects an aggregate that would lose integer precision', async () => {
+    const tx = { unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'active' }) }, $queryRaw: vi.fn().mockResolvedValue([{ recordedPayments30dPaise: BigInt(Number.MAX_SAFE_INTEGER) + 1n }]) };
+    const service = new WorkforceService({ withTenantContext: vi.fn(async (_scope, operation) => operation(tx)) } as never, {} as never);
+    await expect(service.residentStatusMine('society-a', 'resident-a', 'unit-a')).rejects.toThrow('supported precision');
+  });
+
 });

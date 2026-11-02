@@ -1,3 +1,4 @@
+import { workforceFixture } from '../test-support/workforce-fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { AccessService } from '../access/access.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,7 +29,7 @@ function setup(queryResults:unknown[][],currentOccupants:Array<{userId:string}>=
     accessRequest:{findFirst:vi.fn().mockResolvedValue(null)},
     $transaction:vi.fn(async (fn:(client:typeof tx)=>Promise<unknown>)=>fn(tx)),
   };
-  const service=new WorkforceService(prisma as unknown as PrismaService,{} as AccessService);
+  const service=new WorkforceService(workforceFixture(prisma as unknown as PrismaService),{} as AccessService);
   return {service,tx,prisma,request};
 }
 const successRows=()=>[

@@ -1,3 +1,4 @@
+import { WorkforceService } from '../workforce/workforce.service';
 import { AmenitiesService } from '../amenities/amenities.service';
 import { AmenityDepositExpiryWorker } from '../amenities/amenity-deposit-expiry.worker';
 import { HelpdeskService } from '../helpdesk/helpdesk.service';
@@ -76,7 +77,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'AmenityWaitlistEntry', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
@@ -106,6 +107,9 @@ database('Billing transactions under a non-owner RLS role', () => {
     // schema. Copy migrated labels and align the isolated ORM enum columns,
     // retaining every migrated default, check and index.
     const enumColumns: Array<{ table: string; column: string; type: string; defaultValue?: string }> = [
+      { table: 'DomesticWorker', column: 'role', type: 'DomesticWorkerRole' },
+      { table: 'DomesticWorker', column: 'verification', type: 'DomesticWorkerVerificationStatus', defaultValue: 'PENDING' },
+      { table: 'WorkforceAssignment', column: 'status', type: 'WorkforceAssignmentStatus', defaultValue: 'PENDING' },
       { table: 'User', column: 'status', type: 'UserStatus', defaultValue: 'ACTIVE' },
       { table: 'UnitOccupancy', column: 'relation', type: 'UnitRelation' },
       { table: 'OccupancyLifecycleRequest', column: 'relation', type: 'UnitRelation' },
@@ -450,6 +454,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   }
 
   const arrivals = new GateArrivalService(runtime, new EntitlementService(runtime));
+  const workforceIds: Array<{householdId: string; workerId: string; assignmentId: string}> = [];
   const arrivalUnits = new Set<string>(), arrivalGates = new Set<string>(), arrivalUsers = new Set<string>();
   const arrivalFeatures = new Map<string, Prisma.JsonValue>();
   const assignmentMemberships = new Set<string>();
@@ -460,6 +465,14 @@ database('Billing transactions under a non-owner RLS role', () => {
     if (!arrivalUnits.size && !arrivalGates.size && !arrivalUsers.size && !parkingPolicies.size && !parkingViolations.size) return;
     // Only this test's UUID-isolated copied rows. No public immutable evidence.
     const ids = [...arrivalUnits];
+    for (const home of workforceIds) {
+      await fixture.workforcePaymentRecord.deleteMany({ where: { assignmentId: home.assignmentId } });
+      await fixture.workforceLeave.deleteMany({ where: { assignmentId: home.assignmentId } });
+      await fixture.workforceAssignment.deleteMany({ where: { id: home.assignmentId } });
+      await fixture.domesticWorker.deleteMany({ where: { id: home.workerId } });
+      await fixture.household.deleteMany({ where: { id: home.householdId } });
+    }
+    workforceIds.length = 0;
     if (parkingViolations.size) await fixture.$executeRaw(Prisma.sql`DELETE FROM "ParkingViolation" WHERE "id" IN (${Prisma.join([...parkingViolations].map(id => Prisma.sql`${id}::uuid`))})`);
     parkingViolations.clear();
     if (parkingSlots.size) {
@@ -1534,6 +1547,63 @@ database('Billing transactions under a non-owner RLS role', () => {
     expect(await fixture.gate.count({ where: { societyId: societyA, code } })).toBe(0);
     const [context] = await runtime.$queryRaw<Array<{ societyId: string | null }>>(Prisma.sql`SELECT current_setting(${TENANT_CONTEXT_SETTING},true) AS "societyId"`);
     expect([societyA, societyB]).not.toContain(context.societyId);
+  });
+
+  const workforce = new WorkforceService(runtime, new AccessService(runtime, new EntitlementService(runtime)));
+  async function workforceHome(scope = societyA) {
+    const home = await arrivalDestination(scope);
+    await arrivalOccupancy(scope, home.unitId, tenant);
+    const householdId = randomUUID(), workerId = randomUUID(), assignmentId = randomUUID();
+    workforceIds.push({ householdId, workerId, assignmentId });
+    await fixture.household.create({ data: { id: householdId, societyId: scope, unitId: home.unitId } });
+    await fixture.domesticWorker.create({ data: { id: workerId, societyId: scope, name: 'Household worker', phone: workerId, role: 'MAID', verification: 'VERIFIED' } });
+    await fixture.workforceAssignment.create({ data: { id: assignmentId, societyId: scope, householdId, workerId, status: 'APPROVED' } });
+    return { ...home, householdId, workerId, assignmentId };
+  }
+  it('isolates household workforce reads and receipt-backed gate entry/exit in both selected societies', async () => {
+    for (const scope of [societyA, societyB]) {
+      const home = await workforceHome(scope);
+      const foreign = scope === societyA ? societyB : societyA;
+      expect((await workforce.listMine(scope, tenant)).map(row => row.id)).toContain(home.assignmentId);
+      expect((await workforce.listForReview(foreign)).map(row => row.id)).not.toContain(home.assignmentId);
+      await expect(workforce.gateCheckIn(foreign, home.gateId, home.assignmentId, owner, randomUUID())).rejects.toThrow('Gate does not belong');
+      const key = randomUUID();
+      const entered = await workforce.gateCheckIn(scope, home.gateId, home.assignmentId, owner, key);
+      expect(entered.request.status).toBe('CHECKED_IN');
+      expect(entered.residentUserIds).toEqual([tenant]);
+      expect((await workforce.gateCheckIn(scope, home.gateId, home.assignmentId, owner, key)).request.id).toBe(entered.request.id);
+      await expect(workforce.gateCheckIn(scope, home.gateId, home.assignmentId, owner, randomUUID())).rejects.toThrow('already checked in');
+      const exitKey = randomUUID();
+      expect((await workforce.gateCheckOut(scope, home.gateId, home.assignmentId, owner, exitKey)).request.status).toBe('CHECKED_OUT');
+      expect((await workforce.gateCheckOut(scope, home.gateId, home.assignmentId, owner, exitKey)).request.id).toBe(entered.request.id);
+      expect(await fixture.gateMutationReceipt.count({ where: { accessRequestId: entered.request.id } })).toBe(2);
+      expect(await fixture.auditEvent.count({ where: { accessRequestId: entered.request.id } })).toBe(4);
+      expect(await runtime.workforceAssignment.findMany({ where: { id: home.assignmentId } })).toEqual([]);
+      const status = await workforce.residentStatusMine(scope, tenant, home.unitId);
+      expect(() => JSON.stringify(status)).not.toThrow();
+    }
+  });
+  it('rejects malformed cross-society workforce parents even in the isolated legacy fixture', async () => {
+    const home = await workforceHome();
+    await fixture.domesticWorker.update({ where: { id: home.workerId }, data: { societyId: societyB } });
+    expect((await workforce.listMine(societyA, tenant)).map(row => row.id)).not.toContain(home.assignmentId);
+    expect((await workforce.listForReview(societyA)).map(row => row.id)).not.toContain(home.assignmentId);
+    await expect(workforce.gateCheckIn(societyA, home.gateId, home.assignmentId, owner, randomUUID())).rejects.toThrow('Approved workforce assignment not found');
+    await fixture.domesticWorker.update({ where: { id: home.workerId }, data: { societyId: societyA } });
+    await fixture.unit.update({ where: { id: home.unitId }, data: { buildingId: buildingB } });
+    expect((await workforce.listMine(societyA, tenant)).map(row => row.id)).not.toContain(home.assignmentId);
+    await expect(workforce.gateCheckIn(societyA, home.gateId, home.assignmentId, owner, randomUUID())).rejects.toThrow('Approved workforce assignment not found');
+  });
+  it('rolls household workforce entry, receipt and audits back together when evidence insert is denied', async () => {
+    const home = await workforceHome();
+    executeDdl(`REVOKE INSERT ON "${schema}"."AuditEvent" FROM "${role}"`, fixtureUrl.toString());
+    try {
+      await expect(workforce.gateCheckIn(societyA, home.gateId, home.assignmentId, owner, randomUUID())).rejects.toThrow();
+      expect(await fixture.accessRequest.count({ where: { unitId: home.unitId } })).toBe(0);
+      expect(await fixture.gateMutationReceipt.count({ where: { gateId: home.gateId } })).toBe(0);
+    } finally { executeDdl(`GRANT INSERT ON "${schema}"."AuditEvent" TO "${role}"`, fixtureUrl.toString()); }
+    expect((await workforce.gateCheckIn(societyA, home.gateId, home.assignmentId, owner, randomUUID())).request.status).toBe('CHECKED_IN');
+    expect(await runtime.workforceAssignment.findMany({ where: { id: home.assignmentId } })).toEqual([]);
   });
 
   const access = new AccessService(runtime, new EntitlementService(runtime));

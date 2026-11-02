@@ -1,11 +1,9 @@
+import { workforceAssignmentScope, workforceUnitScope } from './workforce-parent-scope';
+import { WorkforceGateAttendance } from './workforce-gate-attendance';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  AccessRequestStatus,
-  AccessSubjectType,
-  AuditEventType,
   DomesticWorkerRole,
   DomesticWorkerVerificationStatus,
-  GateMutationAction,
   Prisma,
   WorkforceAssignmentStatus,
 } from '@prisma/client';
@@ -14,49 +12,54 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WorkforceService {
+  private readonly gateAttendance: WorkforceGateAttendance;
   constructor(
     private readonly prisma: PrismaService,
-    private readonly access: AccessService,
-  ) {}
+    access: AccessService,
+  ) {
+    this.gateAttendance = new WorkforceGateAttendance(prisma, access, (schedule, now) => this.isScheduleAllowed(schedule, now), now => this.indiaDate(now));
+  }
 
   async listMine(societyId: string, userId: string) {
-    const now = new Date();
-    const unitLinks = await this.prisma.unitOccupancy.findMany({
-      where: { societyId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-      select: { unitId: true },
-    });
-    if (!unitLinks.length) return [];
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const now = new Date();
+      const unitLinks = await tx.unitOccupancy.findMany({
+        where: { societyId, userId, unit: { is: workforceUnitScope(societyId) }, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { unitId: true },
+      });
+      if (!unitLinks.length) return [];
 
-    const households = await this.prisma.household.findMany({
-      where: { societyId, unitId: { in: unitLinks.map((link) => link.unitId) } },
-      select: { id: true },
-    });
-    if (!households.length) return [];
+      const households = await tx.household.findMany({
+        where: { societyId, unit: { is: workforceUnitScope(societyId) }, unitId: { in: unitLinks.map((link) => link.unitId) } },
+        select: { id: true },
+      });
+      if (!households.length) return [];
 
-    return this.prisma.workforceAssignment.findMany({
-      where: { societyId, householdId: { in: households.map((household) => household.id) }, active: true },
-      include: {
-        worker: true,
-        household: { include: { unit: { include: { building: true } } } },
-      },
-      orderBy: { createdAt: 'desc' },
+      return tx.workforceAssignment.findMany({
+        where: { ...workforceAssignmentScope(societyId), householdId: { in: households.map((household) => household.id) }, active: true },
+        include: {
+          worker: true,
+          household: { include: { unit: { include: { building: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
     });
   }
 
   async residentStatusMine(societyId: string, userId: string, unitId: string) {
     const now = new Date();
     return this.prisma.withTenantContext(societyId, async tx => {
-    const occupancy = await tx.unitOccupancy.findFirst({
-      where: {
-        societyId, userId, unitId, active: true,
-        effectiveFrom: { lte: now },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
-      },
-      select: { id: true },
-    });
-    if (!occupancy) throw new NotFoundException('Household workforce not found');
+      const occupancy = await tx.unitOccupancy.findFirst({
+        where: {
+          societyId, userId, unitId, unit: { is: workforceUnitScope(societyId) }, active: true,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        select: { id: true },
+      });
+      if (!occupancy) throw new NotFoundException('Household workforce not found');
 
-    const assignments = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      const assignments = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT wa."id",dw."name",dw."role",dw."verification",wa."status",wa."schedule",wa."startDate",wa."endDate",
         EXISTS(
           SELECT 1 FROM "WorkforceLeave" wl
@@ -96,12 +99,17 @@ export class WorkforceService {
       WHERE wa."societyId"=${societyId}::uuid AND h."unitId"=${unitId}::uuid AND wa."active"=TRUE
       ORDER BY dw."name" ASC LIMIT 100
     `);
-    return {
-      activeAssignmentCount: assignments.length,
-      checkedInCount: assignments.filter((item) => item.checkedInNow === true).length,
-      onLeaveCount: assignments.filter((item) => item.onLeaveToday === true).length,
-      staff: assignments,
-    };
+      return {
+        activeAssignmentCount: assignments.length,
+        checkedInCount: assignments.filter((item) => item.checkedInNow === true).length,
+        onLeaveCount: assignments.filter((item) => item.onLeaveToday === true).length,
+        staff: assignments.map(row => {
+          if (typeof row.recordedPayments30dPaise !== 'bigint') return row;
+          const total = Number(row.recordedPayments30dPaise);
+          if (!Number.isSafeInteger(total)) throw new BadRequestException('Recorded staff payment total exceeds supported precision');
+          return { ...row, recordedPayments30dPaise: total };
+        }),
+      };
     });
   }
 
@@ -128,7 +136,7 @@ export class WorkforceService {
 
     return this.prisma.withTenantContext(societyId, async (tx) => {
       // Serialize household workforce mutations and recheck the current occupant.
-      const locked = await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      const locked = await tx.$queryRaw<Array<{ id: string ;}>>(Prisma.sql`
         SELECT "id" FROM "Household"
         WHERE "id"=${input.householdId}::uuid AND "societyId"=${societyId}::uuid
         LIMIT 1 FOR UPDATE
@@ -142,7 +150,7 @@ export class WorkforceService {
       });
 
       return tx.workforceAssignment.upsert({
-        where: { householdId_workerId: { householdId: household.id, workerId: worker.id } },
+        where: { householdId_workerId: { householdId: household.id, workerId: worker.id }, ...workforceAssignmentScope(societyId) },
         create: {
           societyId,
           householdId: household.id,
@@ -165,66 +173,70 @@ export class WorkforceService {
 
   async deactivateMine(societyId: string, userId: string, assignmentId: string) {
     return this.prisma.withTenantContext(societyId, async tx => {
-      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      const locked = await tx.$queryRaw<Array<{ id: string; }>>(Prisma.sql`
         SELECT "id" FROM "WorkforceAssignment"
         WHERE "id"=${assignmentId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
         LIMIT 1 FOR UPDATE
       `);
       if (!locked.length) throw new NotFoundException('Active workforce assignment not found');
-    const assignment = await tx.workforceAssignment.findFirst({
-      where: { id: assignmentId, societyId, active: true },
-      include: { household: true },
-    });
-    if (!assignment) throw new NotFoundException('Active workforce assignment not found');
-    await this.assertOwnHousehold(societyId, userId, assignment.householdId, tx);
+      const assignment = await tx.workforceAssignment.findFirst({
+        where: { id: assignmentId, ...workforceAssignmentScope(societyId), active: true },
+        include: { household: true },
+      });
+      if (!assignment) throw new NotFoundException('Active workforce assignment not found');
+      await this.assertOwnHousehold(societyId, userId, assignment.householdId, tx);
 
-    return tx.workforceAssignment.update({
-      where: { id: assignment.id, societyId },
-      data: { active: false },
-      include: { worker: true },
-    });
+      return tx.workforceAssignment.update({
+        where: { id: assignment.id, societyId },
+        data: { active: false },
+        include: { worker: true },
+      });
     });
   }
 
   listPending(societyId: string) {
-    return this.prisma.workforceAssignment.findMany({
-      where: { societyId, status: WorkforceAssignmentStatus.PENDING, active: true },
-      include: {
-        worker: true,
-        household: { include: { unit: { include: { building: true } } } },
-      },
-      orderBy: { createdAt: 'asc' },
+    return this.prisma.withTenantContext(societyId, async tx => {
+      return tx.workforceAssignment.findMany({
+        where: { ...workforceAssignmentScope(societyId), status: WorkforceAssignmentStatus.PENDING, active: true },
+        include: {
+          worker: true,
+          household: { include: { unit: { include: { building: true } } } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
     });
   }
 
   listForReview(societyId: string) {
-    return this.prisma.workforceAssignment.findMany({
-      where: { societyId, active: true },
-      include: {
-        worker: true,
-        household: { include: { unit: { include: { building: true } } } },
-      },
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 500,
+    return this.prisma.withTenantContext(societyId, async tx => {
+      return tx.workforceAssignment.findMany({
+        where: { ...workforceAssignmentScope(societyId), active: true },
+        include: {
+          worker: true,
+          household: { include: { unit: { include: { building: true } } } },
+        },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: 500,
+      });
     });
   }
 
   async review(societyId: string, assignmentId: string, decision: 'APPROVED' | 'REJECTED') {
     return this.prisma.withTenantContext(societyId, async tx => {
-      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      const locked = await tx.$queryRaw<Array<{ id: string; }>>(Prisma.sql`
         SELECT "id" FROM "WorkforceAssignment"
         WHERE "id"=${assignmentId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
         LIMIT 1 FOR UPDATE
       `);
       if (!locked.length) throw new NotFoundException('Active workforce assignment not found');
-    const assignment = await tx.workforceAssignment.findFirst({
-      where: { id: assignmentId, societyId, active: true },
-      include: { worker: true },
-    });
-    if (!assignment) throw new NotFoundException('Active workforce assignment not found');
-    if (assignment.status !== WorkforceAssignmentStatus.PENDING) {
-      throw new BadRequestException('Only pending workforce assignments can be reviewed');
-    }
+      const assignment = await tx.workforceAssignment.findFirst({
+        where: { id: assignmentId, ...workforceAssignmentScope(societyId), active: true },
+        include: { worker: true },
+      });
+      if (!assignment) throw new NotFoundException('Active workforce assignment not found');
+      if (assignment.status !== WorkforceAssignmentStatus.PENDING) {
+        throw new BadRequestException('Only pending workforce assignments can be reviewed');
+      }
 
       if (decision === 'APPROVED' && assignment.worker.verification !== 'VERIFIED') {
         await tx.domesticWorker.update({ where: { id: assignment.workerId, societyId }, data: { verification: 'VERIFIED' } });
@@ -239,288 +251,69 @@ export class WorkforceService {
 
   async listGateEligible(societyId: string, query?: string, now = new Date()) {
     return this.prisma.withTenantContext(societyId, async tx => {
-    const assignments = await tx.workforceAssignment.findMany({
-      where: {
-        societyId,
-        active: true,
-        status: WorkforceAssignmentStatus.APPROVED,
-        OR: [{ startDate: null }, { startDate: { lte: now } }],
-        AND: [{ OR: [{ endDate: null }, { endDate: { gte: now } }] }],
-      },
-      include: {
-        worker: true,
-        household: { include: { unit: { include: { building: true } } } },
-      },
-      orderBy: { worker: { name: 'asc' } },
-      take: 100,
-    });
-    const normalizedQuery = query?.trim().toLowerCase();
-    return assignments.filter((assignment) => {
-      if (!assignment.worker.active || assignment.worker.verification !== DomesticWorkerVerificationStatus.VERIFIED) return false;
-      if (!this.isScheduleAllowed(assignment.schedule, now)) return false;
-      if (!normalizedQuery) return true;
-      return assignment.worker.name.toLowerCase().includes(normalizedQuery)
-        || assignment.worker.phone.toLowerCase().includes(normalizedQuery);
-    });
-    });
-  }
-
-  async gateCheckIn(
-    societyId: string,
-    gateId: string,
-    assignmentId: string,
-    actorUserId: string,
-    idempotencyKey: string,
-    now = new Date(),
-  ) {
-    const key = this.requireIdempotencyKey(idempotencyKey);
-    await this.assertGate(societyId, gateId);
-
-    const existingReceipt = await this.prisma.gateMutationReceipt.findUnique({
-      where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
-    });
-    if (existingReceipt) {
-      if (existingReceipt.gateId !== gateId || existingReceipt.action !== GateMutationAction.CHECK_IN) {
-        throw new BadRequestException('Idempotency key was already used for a different gate operation');
-      }
-      const request = await this.prisma.accessRequest.findFirst({ where: { id: existingReceipt.accessRequestId, societyId } });
-      if (!request || this.workforceAssignmentId(request.metadata) !== assignmentId) {
-        throw new BadRequestException('Idempotency key was already used for a different workforce assignment');
-      }
-      return { request, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
-    }
-
-    const assignment = await this.prisma.workforceAssignment.findFirst({
-      where: { id: assignmentId, societyId, active: true, status: WorkforceAssignmentStatus.APPROVED },
-      include: {
-        worker: true,
-        household: {
-          include: {
-            unit: {
-              include: {
-                occupancies: {
-                  where: { active: true, gateNotificationEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-                  orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-    if (!assignment) throw new NotFoundException('Approved workforce assignment not found');
-    if (!assignment.worker.active || assignment.worker.verification !== DomesticWorkerVerificationStatus.VERIFIED) {
-      throw new BadRequestException('Domestic worker is not currently verified for gate entry');
-    }
-    if (assignment.startDate && now < assignment.startDate) throw new BadRequestException('Workforce assignment has not started yet');
-    if (assignment.endDate && now > assignment.endDate) throw new BadRequestException('Workforce assignment has expired');
-    if (!this.isScheduleAllowed(assignment.schedule, now)) throw new BadRequestException('Worker is outside the approved schedule');
-
-    const residentUserIds = assignment.household.unit.occupancies.map((occupant) => occupant.userId);
-    const hostUserId = residentUserIds[0];
-    if (!hostUserId) throw new BadRequestException('Destination household does not have an active resident');
-
-    // Successful notifications must use the occupants revalidated inside
-    // the write transaction, not those seen in the preflight read.
-    let authorizedResidentUserIds = residentUserIds;
-    try {
-      const request = await this.prisma.$transaction(async (tx) => {
-        const gates = await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
-          SELECT "id" FROM "Gate"
-          WHERE "id"=${gateId}::uuid AND "societyId"=${societyId}::uuid AND "active"=TRUE
-          LIMIT 1 FOR SHARE
-        `);
-        if (!gates.length) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
-        const currentAssignments = await tx.$queryRaw<Array<{
-          id:string; workerId:string; startDate:Date|null; endDate:Date|null; schedule:Prisma.JsonValue;
-        }>>(Prisma.sql`
-          SELECT wa."id",wa."workerId",wa."startDate",wa."endDate",wa."schedule"
-          FROM "WorkforceAssignment" wa
-          WHERE wa."id"=${assignmentId}::uuid AND wa."societyId"=${societyId}::uuid
-            AND wa."active"=TRUE AND wa."status"='APPROVED'
-          LIMIT 1 FOR UPDATE OF wa
-        `);
-        const currentAssignment = currentAssignments[0];
-        if (!currentAssignment) throw new NotFoundException('Approved workforce assignment not found');
-        if (currentAssignment.startDate && now < currentAssignment.startDate)
-          throw new BadRequestException('Workforce assignment has not started yet');
-        if (currentAssignment.endDate && now > currentAssignment.endDate)
-          throw new BadRequestException('Workforce assignment has expired');
-        if (!this.isScheduleAllowed(currentAssignment.schedule, now))
-          throw new BadRequestException('Worker is outside the approved schedule');
-        const verifiedWorkers = await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
-          SELECT "id" FROM "DomesticWorker"
-          WHERE "id"=${currentAssignment.workerId}::uuid AND "societyId"=${societyId}::uuid
-            AND "active"=TRUE AND "verification"='VERIFIED'
-          LIMIT 1 FOR SHARE
-        `);
-        if (!verifiedWorkers.length)
-          throw new BadRequestException('Domestic worker is not currently verified for gate entry');
-        const currentOccupants = await tx.unitOccupancy.findMany({
-          where: {
-            societyId, unitId: assignment.household.unitId, active:true, gateNotificationEnabled:true,
-            effectiveFrom:{lte:now}, OR:[{effectiveTo:null},{effectiveTo:{gt:now}}],
-          },
-          select:{userId:true},
-          orderBy:[{primaryGateContact:'desc'},{escalationOrder:'asc'},{createdAt:'asc'}],
-        });
-        const currentHost = currentOccupants[0]?.userId;
-        if (!currentHost) throw new BadRequestException('Destination household does not have an active resident');
-        authorizedResidentUserIds = currentOccupants.map(occupant => occupant.userId);
-        const indiaDate = new Date(`${this.indiaDate(now)}T00:00:00.000Z`);
-        const activeLeave = await tx.workforceLeave.findFirst({
-          where: {
-            societyId,
-            assignmentId,
-            active: true,
-            startsOn: { lte: indiaDate },
-            endsOn: { gte: indiaDate },
-          },
-          select: { id: true },
-        });
-        if (activeLeave) throw new BadRequestException('Worker is on approved leave today');
-
-        const activeVisit = await tx.accessRequest.findFirst({
-          where: {
-            societyId,
-            subjectType: AccessSubjectType.DOMESTIC_HELP,
-            status: AccessRequestStatus.CHECKED_IN,
-            metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
-          },
-        });
-        if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
-
-        const created = await tx.accessRequest.create({
-          data: {
-            societyId,
-            unitId: assignment.household.unitId,
-            requestedById: currentHost,
-            subjectType: AccessSubjectType.DOMESTIC_HELP,
-            subjectName: assignment.worker.name,
-            subjectPhone: assignment.worker.phone,
-            purpose: assignment.worker.role,
-            status: AccessRequestStatus.CHECKED_IN,
-            validFrom: now,
-            validUntil: new Date(now.getTime() + 20 * 60 * 60 * 1000),
-            enteredAt: now,
-            metadata: {
-              source: 'WORKFORCE_ATTENDANCE',
-              workforceAssignmentId: assignment.id,
-              domesticWorkerId: assignment.workerId,
-              gateId,
-              createdByGuardId: actorUserId,
-            } as Prisma.InputJsonValue,
-          },
-        });
-        await tx.gateMutationReceipt.create({
-          data: {
-            societyId,
-            gateId,
-            accessRequestId: created.id,
-            actorUserId,
-            idempotencyKey: key,
-            action: GateMutationAction.CHECK_IN,
-          },
-        });
-        await tx.auditEvent.createMany({
-          data: [
-            { societyId, actorUserId, gateId, accessRequestId: created.id, event: AuditEventType.ACCESS_CREATED },
-            { societyId, actorUserId, gateId, accessRequestId: created.id, event: AuditEventType.ACCESS_APPROVED },
-            { societyId, actorUserId, gateId, accessRequestId: created.id, event: AuditEventType.ACCESS_CHECKED_IN },
-          ],
-        });
-        return created;
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-      return { request, residentUserIds: authorizedResidentUserIds };
-    } catch (error) {
-      const receipt = await this.prisma.gateMutationReceipt.findUnique({
-        where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
-      });
-      if (receipt && receipt.gateId === gateId && receipt.action === GateMutationAction.CHECK_IN) {
-        const request = await this.prisma.accessRequest.findFirst({ where: { id: receipt.accessRequestId, societyId } });
-        if (request && this.workforceAssignmentId(request.metadata) === assignmentId) {
-          return { request, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
-        }
-      }
-      const activeVisit = await this.prisma.accessRequest.findFirst({
+      const assignments = await tx.workforceAssignment.findMany({
         where: {
-          societyId,
-          subjectType: AccessSubjectType.DOMESTIC_HELP,
-          status: AccessRequestStatus.CHECKED_IN,
-          metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
+          ...workforceAssignmentScope(societyId),
+          active: true,
+          status: WorkforceAssignmentStatus.APPROVED,
+          OR: [{ startDate: null }, { startDate: { lte: now } }],
+          AND: [{ OR: [{ endDate: null }, { endDate: { gte: now } }] }],
         },
+        include: {
+          worker: true,
+          household: { include: { unit: { include: { building: true } } } },
+        },
+        orderBy: { worker: { name: 'asc' } },
+        take: 100,
       });
-      if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
-      throw error;
-    }
+      const normalizedQuery = query?.trim().toLowerCase();
+      return assignments.filter((assignment) => {
+        if (!assignment.worker.active || assignment.worker.verification !== DomesticWorkerVerificationStatus.VERIFIED) return false;
+        if (!this.isScheduleAllowed(assignment.schedule, now)) return false;
+        if (!normalizedQuery) return true;
+        return assignment.worker.name.toLowerCase().includes(normalizedQuery)
+          || assignment.worker.phone.toLowerCase().includes(normalizedQuery);
+      });
+    });
   }
 
-  async gateCheckOut(
-    societyId: string,
-    gateId: string,
-    assignmentId: string,
-    actorUserId: string,
-    idempotencyKey: string,
-  ) {
-    const key = this.requireIdempotencyKey(idempotencyKey);
-    const existingReceipt = await this.prisma.gateMutationReceipt.findUnique({
-      where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
-    });
-    if (existingReceipt) {
-      if (existingReceipt.gateId !== gateId || existingReceipt.action !== GateMutationAction.CHECK_OUT) {
-        throw new BadRequestException('Idempotency key was already used for a different gate operation');
-      }
-      const request = await this.prisma.accessRequest.findFirst({ where: { id: existingReceipt.accessRequestId, societyId } });
-      if (!request || this.workforceAssignmentId(request.metadata) !== assignmentId) {
-        throw new BadRequestException('Idempotency key was already used for a different workforce assignment');
-      }
-      return { request, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
-    }
+  gateCheckIn(societyId: string, gateId: string, assignmentId: string, actorUserId: string, idempotencyKey: string, now = new Date()) {
+    return this.gateAttendance.gateCheckIn(societyId, gateId, assignmentId, actorUserId, idempotencyKey, now);
+  }
 
-    const request = await this.prisma.accessRequest.findFirst({
-      where: {
-        societyId,
-        subjectType: AccessSubjectType.DOMESTIC_HELP,
-        status: AccessRequestStatus.CHECKED_IN,
-        metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
-      },
-      orderBy: { enteredAt: 'desc' },
-    });
-    if (!request) throw new NotFoundException('Checked-in workforce visit not found');
-
-    const updated = await this.access.checkOutRequest(societyId, gateId, request.id, actorUserId, key);
-    return { request: updated, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
+  gateCheckOut(societyId: string, gateId: string, assignmentId: string, actorUserId: string, idempotencyKey: string) {
+    return this.gateAttendance.gateCheckOut(societyId, gateId, assignmentId, actorUserId, idempotencyKey);
   }
 
   async attendanceMine(societyId: string, userId: string, assignmentId: string, fromInput?: string, toInput?: string) {
     return this.prisma.withTenantContext(societyId, async tx => {
-    const assignment = await tx.workforceAssignment.findFirst({
-      where: { id: assignmentId, societyId },
-      include: { household: true, worker: true },
-    });
-    if (!assignment) throw new NotFoundException('Household staff assignment not found');
-    await this.assertOwnHousehold(societyId, userId, assignment.householdId, tx);
+      const assignment = await tx.workforceAssignment.findFirst({
+        where: { id: assignmentId, ...workforceAssignmentScope(societyId) },
+        include: { household: true, worker: true },
+      });
+      if (!assignment) throw new NotFoundException('Household staff assignment not found');
+      await this.assertOwnHousehold(societyId, userId, assignment.householdId, tx);
 
-    const today = this.indiaDate(new Date());
-    const to = this.parseDateOnly(toInput ?? today, 'to');
-    const fallbackFromDate = new Date(`${to}T00:00:00.000Z`);
-    fallbackFromDate.setUTCDate(fallbackFromDate.getUTCDate() - 29);
-    const from = this.parseDateOnly(fromInput ?? fallbackFromDate.toISOString().slice(0, 10), 'from');
-    const fromDate = new Date(`${from}T00:00:00.000Z`);
-    const toDate = new Date(`${to}T00:00:00.000Z`);
-    if (fromDate > toDate) throw new BadRequestException('Attendance from date must not be after to date');
-    const spanDays = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
-    if (spanDays > 93) throw new BadRequestException('Attendance history is limited to 93 days per request');
+      const today = this.indiaDate(new Date());
+      const to = this.parseDateOnly(toInput ?? today, 'to');
+      const fallbackFromDate = new Date(`${to}T00:00:00.000Z`);
+      fallbackFromDate.setUTCDate(fallbackFromDate.getUTCDate() - 29);
+      const from = this.parseDateOnly(fromInput ?? fallbackFromDate.toISOString().slice(0, 10), 'from');
+      const fromDate = new Date(`${from}T00:00:00.000Z`);
+      const toDate = new Date(`${to}T00:00:00.000Z`);
+      if (fromDate > toDate) throw new BadRequestException('Attendance from date must not be after to date');
+      const spanDays = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
+      if (spanDays > 93) throw new BadRequestException('Attendance history is limited to 93 days per request');
 
-    const [days, leaves] = await Promise.all([
-      tx.$queryRaw<Array<{
-        date: Date;
-        firstEntryAt: Date;
-        lastExitAt: Date | null;
-        visitCount: number;
-        minutesInside: number;
-        openVisit: boolean;
-      }>>(Prisma.sql`
+      const [days, leaves] = await Promise.all([
+        tx.$queryRaw<Array<{
+          date: Date;
+          firstEntryAt: Date;
+          lastExitAt: Date | null;
+          visitCount: number;
+          minutesInside: number;
+          openVisit: boolean;
+        }>>(Prisma.sql`
         SELECT
           (ar."enteredAt" AT TIME ZONE 'Asia/Kolkata')::date AS "date",
           MIN(ar."enteredAt") AS "firstEntryAt",
@@ -542,7 +335,7 @@ export class WorkforceService {
         GROUP BY (ar."enteredAt" AT TIME ZONE 'Asia/Kolkata')::date
         ORDER BY "date" DESC
       `),
-      tx.$queryRaw<Array<{ id: string; startsOn: Date; endsOn: Date; reason: string | null }>>(Prisma.sql`
+        tx.$queryRaw<Array<{ id: string; startsOn: Date; endsOn: Date; reason: string | null; }>>(Prisma.sql`
         SELECT "id","startsOn","endsOn","reason"
         FROM "WorkforceLeave"
         WHERE "societyId"=${societyId}::uuid
@@ -552,48 +345,48 @@ export class WorkforceService {
           AND "endsOn">=${from}::date
         ORDER BY "startsOn" DESC
       `),
-    ]);
+      ]);
 
-    const scheduleDays=this.scheduleDayNames(assignment.schedule);
-    const presentDates=new Set(days.map((day)=>day.date instanceof Date?day.date.toISOString().slice(0,10):String(day.date).slice(0,10)));
-    let expectedScheduleDays=0;
-    let scheduledEvidenceGapDays=0;
-    let scheduledLeaveDays=0;
-    if(scheduleDays.size>0){
-      for(let cursor=new Date(fromDate);cursor<=toDate;cursor=new Date(cursor.getTime()+86_400_000)){
-        const dayName=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][cursor.getUTCDay()];
-        if(!scheduleDays.has(dayName)) continue;
-        expectedScheduleDays+=1;
-        const dateKey=cursor.toISOString().slice(0,10);
-        const onLeave=leaves.some((leave)=>{
-          const starts=leave.startsOn instanceof Date?leave.startsOn.toISOString().slice(0,10):String(leave.startsOn).slice(0,10);
-          const ends=leave.endsOn instanceof Date?leave.endsOn.toISOString().slice(0,10):String(leave.endsOn).slice(0,10);
-          return dateKey>=starts&&dateKey<=ends;
-        });
-        if(onLeave) scheduledLeaveDays+=1;
-        else if(!presentDates.has(dateKey)) scheduledEvidenceGapDays+=1;
+      const scheduleDays = this.scheduleDayNames(assignment.schedule);
+      const presentDates = new Set(days.map((day) => day.date instanceof Date ? day.date.toISOString().slice(0, 10) : String(day.date).slice(0, 10)));
+      let expectedScheduleDays = 0;
+      let scheduledEvidenceGapDays = 0;
+      let scheduledLeaveDays = 0;
+      if (scheduleDays.size > 0) {
+        for (let cursor = new Date(fromDate);cursor <= toDate;cursor = new Date(cursor.getTime() + 86_400_000)) {
+          const dayName = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][cursor.getUTCDay()];
+          if (!scheduleDays.has(dayName)) continue;
+          expectedScheduleDays += 1;
+          const dateKey = cursor.toISOString().slice(0, 10);
+          const onLeave = leaves.some((leave) => {
+            const starts = leave.startsOn instanceof Date ? leave.startsOn.toISOString().slice(0, 10) : String(leave.startsOn).slice(0, 10);
+            const ends = leave.endsOn instanceof Date ? leave.endsOn.toISOString().slice(0, 10) : String(leave.endsOn).slice(0, 10);
+            return dateKey >= starts && dateKey <= ends;
+          });
+          if (onLeave) scheduledLeaveDays += 1;
+          else if (!presentDates.has(dateKey)) scheduledEvidenceGapDays += 1;
+        }
       }
-    }
 
-    return {
-      assignmentId,
-      worker: { id: assignment.workerId, name: assignment.worker.name, role: assignment.worker.role },
-      schedule: assignment.schedule,
-      from,
-      to,
-      summary: {
-        presentDays: days.length,
-        totalVisits: days.reduce((sum, day) => sum + Number(day.visitCount ?? 0), 0),
-        totalMinutesInside: days.reduce((sum, day) => sum + Number(day.minutesInside ?? 0), 0),
-        leavePeriods: leaves.length,
-        expectedScheduleDays,
-        scheduledLeaveDays,
-        scheduledEvidenceGapDays,
-      },
-      days,
-      leaves,
-      boundary: 'Attendance is derived only from authoritative gate check-in/check-out records. A scheduled evidence gap means no gate record was found for an expected workday; it is not labelled absence.',
-    };
+      return {
+        assignmentId,
+        worker: { id: assignment.workerId, name: assignment.worker.name, role: assignment.worker.role },
+        schedule: assignment.schedule,
+        from,
+        to,
+        summary: {
+          presentDays: days.length,
+          totalVisits: days.reduce((sum, day) => sum + Number(day.visitCount ?? 0), 0),
+          totalMinutesInside: days.reduce((sum, day) => sum + Number(day.minutesInside ?? 0), 0),
+          leavePeriods: leaves.length,
+          expectedScheduleDays,
+          scheduledLeaveDays,
+          scheduledEvidenceGapDays,
+        },
+        days,
+        leaves,
+        boundary: 'Attendance is derived only from authoritative gate check-in/check-out records. A scheduled evidence gap means no gate record was found for an expected workday; it is not labelled absence.',
+      };
     });
   }
 
@@ -604,6 +397,8 @@ export class WorkforceService {
       JOIN "WorkforceAssignment" wa ON wa."id"=p."assignmentId" AND wa."societyId"=p."societyId"
       JOIN "DomesticWorker" dw ON dw."id"=wa."workerId" AND dw."societyId"=wa."societyId"
       JOIN "Household" h ON h."id"=wa."householdId" AND h."societyId"=wa."societyId"
+      JOIN "Unit" u ON u."id"=h."unitId" AND u."societyId"=h."societyId"
+      JOIN "Building" bd ON bd."id"=u."buildingId" AND bd."societyId"=u."societyId"
       WHERE p."societyId"=${societyId}::uuid
         AND EXISTS (
           SELECT 1 FROM "UnitOccupancy" uo
@@ -654,14 +449,14 @@ export class WorkforceService {
     return this.prisma.withTenantContext(societyId, async tx => {
       const lockKey = `${societyId}:${userId}:staff-payment:${idempotencyKey}`;
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))::text`);
-      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      const locked = await tx.$queryRaw<Array<{ id: string; }>>(Prisma.sql`
         SELECT "id" FROM "WorkforceAssignment"
         WHERE "id"=${input.assignmentId}::uuid AND "societyId"=${societyId}::uuid
         LIMIT 1 FOR UPDATE
       `);
       if (!locked.length) throw new NotFoundException('Household staff assignment not found');
       const assignment = await tx.workforceAssignment.findFirst({
-        where: { id: input.assignmentId, societyId },
+        where: { id: input.assignmentId, ...workforceAssignmentScope(societyId) },
         select: { householdId: true },
       });
       if (!assignment) throw new NotFoundException('Household staff assignment not found');
@@ -713,38 +508,11 @@ export class WorkforceService {
     return phone.trim().replace(/[\s()-]+/g, '');
   }
 
-  private requireIdempotencyKey(value: string) {
-    const key = value.trim();
-    if (!key) throw new BadRequestException('Idempotency key is required');
-    return key;
-  }
-
-  private workforceAssignmentId(metadata: Prisma.JsonValue) {
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;
-    const value = (metadata as Record<string, unknown>).workforceAssignmentId;
-    return typeof value === 'string' ? value : undefined;
-  }
-
-  private async residentUserIds(societyId: string, unitId: string) {
-    const now = new Date();
-    const residents = await this.prisma.unitOccupancy.findMany({
-      where: { societyId, unitId, active: true, gateNotificationEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-      orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
-      select: { userId: true },
-    });
-    return residents.map((resident) => resident.userId);
-  }
-
-  private async assertGate(societyId: string, gateId: string) {
-    const gate = await this.prisma.gate.findFirst({ where: { id: gateId, societyId, active: true }, select: { id: true } });
-    if (!gate) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
-  }
-
   private scheduleDayNames(schedule: Prisma.JsonValue) {
     if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return new Set<string>();
-    const value=schedule as Record<string,unknown>;
-    if(!Array.isArray(value.days)) return new Set<string>();
-    return new Set(value.days.filter((day):day is string=>typeof day==='string').map((day)=>day.trim().toUpperCase()));
+    const value = schedule as Record<string, unknown>;
+    if (!Array.isArray(value.days)) return new Set<string>();
+    return new Set(value.days.filter((day): day is string => typeof day === 'string').map((day) => day.trim().toUpperCase()));
   }
 
   private isScheduleAllowed(schedule: Prisma.JsonValue, now: Date) {
@@ -794,8 +562,8 @@ export class WorkforceService {
     return `${values.year}-${values.month}-${values.day}`;
   }
 
-  private async assertOwnHousehold(societyId: string, userId: string, householdId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma) {
-    const household = await tx.household.findFirst({ where: { id: householdId, societyId } });
+  private async assertOwnHousehold(societyId: string, userId: string, householdId: string, tx: Prisma.TransactionClient) {
+    const household = await tx.household.findFirst({ where: { id: householdId, societyId, unit: { is: workforceUnitScope(societyId) } } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
     const link = await tx.unitOccupancy.findFirst({

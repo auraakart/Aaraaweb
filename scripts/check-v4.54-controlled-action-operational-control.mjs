@@ -28,7 +28,7 @@ requireTokens('Guard continuity',read('services/api/src/guard-operations/guard-s
 requireTokens('Resident workforce AI registration',readContractBundle('aiAssistant'),[
   'RESIDENT_WORKFORCE','WORKFORCE_READ_OWN','residentStatusMine(societyId,userId,unitId)','household staff domestic help worker workforce',
 ]);
-requireTokens('Resident workforce evidence',read('services/api/src/workforce/workforce.service.ts'),[
+requireTokens('Resident workforce evidence',readContractBundle('workforce'),[
   'residentStatusMine','unitOccupancy.findFirst','onLeaveToday','checkedInNow',
 ]);
 requireTokens('Integration conformance',read('services/api/src/integrations/integration-registry.service.ts'),[

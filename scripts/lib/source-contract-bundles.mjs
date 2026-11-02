@@ -3,6 +3,11 @@ import fs from 'node:fs';
 export const readContractFile = (path) => fs.readFileSync(path, 'utf8');
 
 const bundles = {
+  workforce: [
+    'services/api/src/workforce/workforce.service.ts',
+    'services/api/src/workforce/workforce-gate-attendance.ts',
+    'services/api/src/workforce/workforce-parent-scope.ts',
+  ],
   amenities: [
     'services/api/src/amenities/amenities.service.ts',
     'services/api/src/amenities/amenity-booking-creator.ts',

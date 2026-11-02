@@ -1,3 +1,4 @@
+import { workforceFixture } from './test-support/workforce-fixture';
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { AccessService } from './access/access.service';
@@ -87,7 +88,7 @@ describe('commercial V1 relationship-expiry security regression', () => {
       gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-a', active: true }) },
       workforceAssignment: { findFirst: workforceFind },
     };
-    const service = new WorkforceService(prisma as unknown as PrismaService, {} as AccessService);
+    const service = new WorkforceService(workforceFixture(prisma as unknown as PrismaService), {} as AccessService);
 
     await expect(
       service.gateCheckIn('society-a', 'gate-a', 'assignment-a', 'guard-a', 'idem-expired'),
