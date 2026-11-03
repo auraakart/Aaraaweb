@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'src/utilities/utility-integration*.spec.ts',
       'src/utilities/utility-financial-context.spec.ts',
       'src/utilities/utility-reading-import.service.spec.ts',
       'src/utilities/utility-charges.service.spec.ts',
@@ -99,6 +100,10 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/utilities/utility-integrations.service.ts',
+        'src/utilities/utility-integration-auth.ts',
+        'src/utilities/utility-integration-replay.ts',
+        'src/utilities/utility-integration-parents.ts',
         'src/utilities/utility-reading-import.service.ts',
         'src/utilities/utility-charges.service.ts',
         'src/utilities/utility-invoices.service.ts',
@@ -157,6 +162,10 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/utilities/utility-integration-replay.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'src/utilities/utility-integrations.service.ts': { statements: 82, branches: 68, functions: 100, lines: 95 },
+        'src/utilities/utility-integration-auth.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'src/utilities/utility-integration-parents.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/utilities/utility-reading-import.service.ts': { statements: 95, branches: 90, functions: 100, lines: 98 },
         'src/utilities/utility-charges.service.ts': { statements: 93, branches: 80, functions: 100, lines: 100 },
         'src/utilities/utility-invoices.service.ts': { statements: 92, branches: 83, functions: 100, lines: 100 },

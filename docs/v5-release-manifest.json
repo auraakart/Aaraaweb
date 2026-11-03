@@ -2921,12 +2921,26 @@
     {
       "id": "V5.14.3",
       "name": "Utility financial and import selected transactions",
-      "status": "IN_PROGRESS_NONPRODUCTION",
+      "status": "COMPLETE_SELECTED_SOURCE_EXTERNAL_GATES_RETAINED",
       "currentSlice": "V5.14.3.1",
       "scopeDocument": "docs/V5.14.3-UTILITY-FINANCIAL-CONTEXT.md",
       "limitations": [
         "Utility charge/invoice and reading-import services only; integrations, reporting, notification and workforce subservices remain separate.",
         "No hosted policy/grant activation, productionization, live providers, device or staging/main promotion."
+      ],
+      "acceptedSourceSha": "f976dc8f4aae9061a978cbf7aba9dee7f9419260",
+      "nextUnblockedSequence": "Utility integration management/authenticated ingestion, then reporting, notifications and workforce subservices"
+    },
+    {
+      "id": "V5.14.4",
+      "name": "Utility integration selected transactions and exact credential routing",
+      "status": "IN_PROGRESS_NONPRODUCTION",
+      "currentSlice": "V5.14.4.1",
+      "scopeDocument": "docs/V5.14.4-UTILITY-INTEGRATION-CONTEXT.md",
+      "limitations": [
+        "Exact credential routing remains a narrow global capability; reviewed migration/function-owner and runtime EXECUTE grants are required before deployment.",
+        "Reporting, notifications and remaining workforce subservices retain separate source acceptance.",
+        "No hosted roles/policies, live providers, devices, independent artifacts, productionization or staging/main promotion."
       ]
     }
   ]

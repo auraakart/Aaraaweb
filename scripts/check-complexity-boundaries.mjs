@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 
 const budgets = new Map([
+  ['services/api/src/utilities/utility-integration-replay.ts', 30],
+  ['services/api/src/utilities/utility-integrations.service.ts', 610],
+  ['services/api/src/utilities/utility-integration-auth.ts', 35],
+  ['services/api/src/utilities/utility-integration-parents.ts', 30],
   ['services/api/src/utilities/utility-reading-import.service.ts', 215],
   ['services/api/src/utilities/utility-charges.service.ts', 165],
   ['services/api/src/utilities/utility-invoices.service.ts', 170],
