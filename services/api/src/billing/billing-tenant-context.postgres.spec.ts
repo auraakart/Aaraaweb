@@ -1655,12 +1655,18 @@ database('Billing transactions under a non-owner RLS role', () => {
     expect(await utilityCharges.voidDraft(societyA, owner, draft.id)).toMatchObject({status: 'VOID'});
   });
 
-  it('rolls back utility charge and invoice state when audit insertion is denied, then accepts a retry', async () => {
+  it('rolls back utility charge creation when audit insertion is denied, then accepts a retry', async () => {
     const {meter, input} = await utilityBillingReadings();
     executeDdl(`REVOKE INSERT ON "${schema}"."UtilityChargeEvent" FROM "${role}"`, fixtureUrl.toString());
     try { await expect(utilityCharges.createDraft(societyA, owner, input)).rejects.toThrow(); }
     finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityChargeEvent" TO "${role}"`, fixtureUrl.toString()); }
     expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "UtilityChargeDraft" WHERE "meterId"=${meter.id}::uuid`)).toEqual([]);
+    const draft = await utilityCharges.createDraft(societyA, owner, input); utilityDraftIds.push(draft.id);
+    expect(draft.status).toBe('DRAFT');
+  });
+
+  it('rolls back utility invoice issuance when audit insertion is denied, then accepts a retry', async () => {
+    const {input} = await utilityBillingReadings();
     const draft = await utilityCharges.createDraft(societyA, owner, input); utilityDraftIds.push(draft.id);
     const invoices = new UtilityInvoicesService(runtime);
     executeDdl(`REVOKE INSERT ON "${schema}"."UtilityChargeEvent" FROM "${role}"`, fixtureUrl.toString());
@@ -1669,14 +1675,17 @@ database('Billing transactions under a non-owner RLS role', () => {
     expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "MaintenanceInvoice" WHERE "sourceUtilityChargeDraftId"=${draft.id}::uuid`)).toEqual([]);
     expect(await fixture.$queryRaw(Prisma.sql`SELECT "status" FROM "UtilityChargeDraft" WHERE "id"=${draft.id}::uuid`)).toEqual([{status: 'DRAFT'}]);
     expect(await invoices.issueFromDraft(societyA, owner, draft.id, {billingPeriod: '2099-01', dueDate: '2099-02-15'})).toMatchObject({alreadyIssued: false});
+  });
+
+  it('rolls back reading imports when audit insertion is denied, then accepts a retry', async () => {
+    const meter = await utilityMeter();
     const [identity] = await fixture.$queryRaw<Array<{code: string}>>(Prisma.sql`SELECT "code" FROM "UtilityMeter" WHERE "id"=${meter.id}::uuid`);
     const rows = [{meterCode: identity.code, readingAt: '2099-03-01', value: 30}];
     executeDdl(`REVOKE INSERT ON "${schema}"."UtilityEvent" FROM "${role}"`, fixtureUrl.toString());
     try { await expect(utilityImports.commit(societyA, owner, rows)).rejects.toThrow(); }
     finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityEvent" TO "${role}"`, fixtureUrl.toString()); }
-    expect(await utilities.listReadings(societyA, meter.id)).toHaveLength(2);
+    expect(await utilities.listReadings(societyA, meter.id)).toHaveLength(0);
     expect(await utilityImports.commit(societyA, owner, rows)).toMatchObject({imported: 1, source: 'IMPORT'});
-
   });
 
   it('scopes resident usage and insights, preserving current ownership and occupancy authority', async () => {
