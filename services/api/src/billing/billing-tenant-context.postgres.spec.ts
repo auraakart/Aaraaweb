@@ -1,3 +1,4 @@
+import { UtilityResidentService } from '../utilities/utility-resident.service';
 import { UtilitiesService } from '../utilities/utilities.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { AmenitiesService } from '../amenities/amenities.service';
@@ -78,7 +79,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['UtilityMeter', 'UtilityReading', 'UtilityEvent', 'UtilityIntegration', 'UtilityTariffPlan', 'UtilityTariffSlab', 'UtilityTariffEvent', 'HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['UtilityChargeDraft', 'UtilityIntegrationMeterMap', 'UtilityMeter', 'UtilityReading', 'UtilityEvent', 'UtilityIntegration', 'UtilityTariffPlan', 'UtilityTariffSlab', 'UtilityTariffEvent', 'HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'AmenityWaitlistEntry', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
@@ -1550,6 +1551,20 @@ database('Billing transactions under a non-owner RLS role', () => {
     expect([societyA, societyB]).not.toContain(context.societyId);
   });
 
+  const residentUtilities = new UtilityResidentService(runtime);
+  const utilityDraftIds: string[] = [], utilityIntegrationIds: string[] = [];
+  afterEach(async () => {
+    for (const id of utilityDraftIds) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "MaintenanceInvoice" WHERE "sourceUtilityChargeDraftId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityChargeDraft" WHERE "id"=${id}::uuid`);
+    }
+    utilityDraftIds.length = 0;
+    for (const id of utilityIntegrationIds) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIntegrationMeterMap" WHERE "integrationId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIntegration" WHERE "id"=${id}::uuid`);
+    }
+    utilityIntegrationIds.length = 0;
+  });
   const utilities = new UtilitiesService(runtime);
   const utilityCodes: string[] = [], utilityPlanIds: string[] = [];
   afterEach(async () => {
@@ -1569,6 +1584,62 @@ database('Billing transactions under a non-owner RLS role', () => {
     const code = randomUUID().toUpperCase(); utilityCodes.push(code);
     return await utilities.createMeter(scope, owner, {code,meterType:'WATER',unitId:unit}) as {id:string};
   }
+  it('scopes resident usage and insights, preserving current ownership and occupancy authority', async () => {
+    for (const [scope, unit, foreign, foreignUnit] of [[societyA, unitA, societyB, unitB], [societyB, unitB, societyA, unitA]]) {
+      const meter = await utilityMeter(scope, unit);
+      const integration = randomUUID(); utilityIntegrationIds.push(integration);
+      await fixture.$executeRaw(Prisma.sql`INSERT INTO "UtilityIntegration" ("id","societyId","code","name","secretHash","createdByUserId")
+        VALUES (${integration}::uuid,${scope}::uuid,${integration},'Fixture',${'a'.repeat(64)},${owner}::uuid)`);
+      await fixture.$executeRaw(Prisma.sql`INSERT INTO "UtilityIntegrationMeterMap" ("societyId","integrationId","meterId","externalMeterId","createdByUserId")
+        VALUES (${scope}::uuid,${integration}::uuid,${meter.id}::uuid,${meter.id},${owner}::uuid)`);
+      await utilities.createReading(scope, owner, {meterId: meter.id, readingAt: new Date().toISOString(), value: 10});
+      expect(await residentUtilities.listUsageHistory(scope, owner, unit)).toEqual(expect.arrayContaining([expect.objectContaining({meterId: meter.id})]));
+      expect((await residentUtilities.residentInsights(scope, owner, unit)).meters).toEqual(expect.arrayContaining([expect.objectContaining({meterId: meter.id, providerLinked: true})]));
+      expect(await residentUtilities.listUsageHistory(foreign, owner, unit)).toEqual([]);
+      expect(await residentUtilities.listUsageHistory(scope, owner, foreignUnit)).toEqual([]);
+      expect((await residentUtilities.residentInsights(foreign, owner, unit)).meters).toEqual([]);
+      expect((await residentUtilities.listUsageHistory(scope, tenant, unit)).length).toBe(scope === societyA ? 1 : 0);
+      await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityMeter" SET "buildingId"=${foreign === societyA ? buildingA : buildingB}::uuid WHERE "id"=${meter.id}::uuid`);
+      expect(await residentUtilities.listUsageHistory(scope, owner, unit)).toEqual([]);
+      expect((await residentUtilities.residentInsights(scope, owner, unit)).meters).toEqual([]);
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "UtilityMeter"`)).toEqual([]);
+  });
+
+  it('exposes issued charges to current owners and tenants only with consistent invoice, meter and reading parents', async () => {
+    const meter = await utilityMeter();
+    const other = await utilityMeter();
+    const plan = await utilities.createTariffPlan(societyA, owner, {code: randomUUID(), name: 'Water', meterType: 'WATER', effectiveFrom: '2099-01-01', slabs: [{fromUnit: 0, ratePaisePerUnit: 100}]});
+    utilityPlanIds.push(plan.id);
+    const opening = await utilities.createReading(societyA, owner, {meterId: meter.id, readingAt: '2099-01-01', value: 10}) as {id: string};
+    const closing = await utilities.createReading(societyA, owner, {meterId: meter.id, readingAt: '2099-02-01', value: 20}) as {id: string};
+    const draft = randomUUID(); utilityDraftIds.push(draft);
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "UtilityChargeDraft"
+      ("id","societyId","unitId","meterId","openingReadingId","closingReadingId","tariffPlanId","periodStart","periodEnd","consumption","variableChargePaise","fixedChargePaise","minimumChargePaise","totalPaise","calculationJson","status","createdByUserId")
+      VALUES (${draft}::uuid,${societyA}::uuid,${unitA}::uuid,${meter.id}::uuid,${opening.id}::uuid,${closing.id}::uuid,${plan.id}::uuid,'2099-01-01','2099-02-01',10,1000,0,0,1000,'{}'::jsonb,'ISSUED',${owner}::uuid)`);
+    const invoice = randomUUID();
+    await fixture.$executeRaw(Prisma.sql`INSERT INTO "MaintenanceInvoice"
+      ("id","societyId","unitId","createdById","invoiceNumber","billingPeriod","amountPaise","dueDate","updatedAt","sourceUtilityChargeDraftId")
+      VALUES (${invoice}::uuid,${societyA}::uuid,${unitA}::uuid,${owner}::uuid,${invoice},'2099-02',1000,'2099-02-15',CURRENT_TIMESTAMP,${draft}::uuid)`);
+    for (const user of [owner, tenant]) expect(await residentUtilities.listIssuedCharges(societyA, user)).toEqual(expect.arrayContaining([expect.objectContaining({chargeDraftId: draft})]));
+    expect(await residentUtilities.listIssuedCharges(societyB, owner)).toEqual([]);
+    expect(await residentUtilities.listIssuedCharges(societyA, randomUUID())).toEqual([]);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "MaintenanceInvoice" SET "unitId"=${unitB}::uuid WHERE "id"=${invoice}::uuid`);
+    expect(await residentUtilities.listIssuedCharges(societyA, owner)).toEqual([]);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "MaintenanceInvoice" SET "unitId"=${unitA}::uuid WHERE "id"=${invoice}::uuid`);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityReading" SET "meterId"=${other.id}::uuid WHERE "id"=${closing.id}::uuid`);
+    expect(await residentUtilities.listIssuedCharges(societyA, owner)).toEqual([]);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityReading" SET "meterId"=${meter.id}::uuid WHERE "id"=${closing.id}::uuid`);
+    expect(await residentUtilities.listIssuedCharges(societyA, tenant)).toHaveLength(1);
+    await fixture.unitOccupancy.updateMany({where: {societyId: societyA, unitId: unitA, userId: tenant}, data: {active: false}});
+    try { expect(await residentUtilities.listIssuedCharges(societyA, tenant)).toEqual([]); }
+    finally { await fixture.unitOccupancy.updateMany({where: {societyId: societyA, unitId: unitA, userId: tenant}, data: {active: true}}); }
+    await fixture.unitOwnership.updateMany({where: {societyId: societyA, unitId: unitA, userId: owner}, data: {verified: false}});
+    try { expect(await residentUtilities.listIssuedCharges(societyA, owner)).toEqual([]); }
+    finally { await fixture.unitOwnership.updateMany({where: {societyId: societyA, unitId: unitA, userId: owner}, data: {verified: true}}); }
+
+  });
+
   it('isolates utility meter, reading and audit workflows in both selected societies', async () => {
     for (const [scope,unit,foreign] of [[societyA,unitA,societyB],[societyB,unitB,societyA]]) {
       const meter = await utilityMeter(scope,unit);

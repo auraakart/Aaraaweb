@@ -7,7 +7,7 @@ export class UtilityResidentService {
   constructor(private readonly prisma: PrismaService) {}
 
   listIssuedCharges(societyId: string, userId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT
         d."id" AS "chargeDraftId",
         d."unitId",
@@ -44,21 +44,22 @@ export class UtilityResidentService {
         b."name" AS "buildingName"
       FROM "UtilityChargeDraft" d
       JOIN "MaintenanceInvoice" i
-        ON i."sourceUtilityChargeDraftId"=d."id" AND i."societyId"=d."societyId"
+        ON i."sourceUtilityChargeDraftId"=d."id" AND i."societyId"=d."societyId" AND i."unitId"=d."unitId"
       JOIN "UtilityMeter" m
-        ON m."id"=d."meterId" AND m."societyId"=d."societyId"
+        ON m."id"=d."meterId" AND m."societyId"=d."societyId" AND m."unitId"=d."unitId"
       JOIN "UtilityTariffPlan" p
-        ON p."id"=d."tariffPlanId" AND p."societyId"=d."societyId"
+        ON p."id"=d."tariffPlanId" AND p."societyId"=d."societyId" AND p."meterType"=m."meterType"
       JOIN "UtilityReading" o
-        ON o."id"=d."openingReadingId" AND o."societyId"=d."societyId"
+        ON o."id"=d."openingReadingId" AND o."societyId"=d."societyId" AND o."meterId"=m."id"
       JOIN "UtilityReading" c
-        ON c."id"=d."closingReadingId" AND c."societyId"=d."societyId"
+        ON c."id"=d."closingReadingId" AND c."societyId"=d."societyId" AND c."meterId"=m."id"
       JOIN "Unit" u
         ON u."id"=d."unitId" AND u."societyId"=d."societyId"
       JOIN "Building" b
         ON b."id"=u."buildingId" AND b."societyId"=d."societyId"
       WHERE d."societyId"=${societyId}::uuid
         AND d."status"='ISSUED'
+        AND (m."buildingId" IS NULL OR m."buildingId"=b."id")
         AND (
           EXISTS (
             SELECT 1 FROM "UnitOwnership" uo
@@ -82,108 +83,117 @@ export class UtilityResidentService {
         )
       ORDER BY d."periodEnd" DESC, d."createdAt" DESC
       LIMIT 1000
-    `);
+    `));
   }
 
   async residentInsights(societyId: string, userId: string, unitId?: string) {
-    const usage=await this.listUsageHistory(societyId,userId,unitId);
-    const providerRows=await this.prisma.$queryRaw<Array<{meterId:string;providerLinked:boolean}>>(Prisma.sql`
-      SELECT m."id" AS "meterId",
-        EXISTS (
-          SELECT 1
-          FROM "UtilityIntegrationMeterMap" map
-          JOIN "UtilityIntegration" integration
-            ON integration."id"=map."integrationId"
-           AND integration."societyId"=map."societyId"
-           AND integration."status"='ACTIVE'
-          WHERE map."societyId"=m."societyId"
-            AND map."meterId"=m."id"
-            AND map."active"=TRUE
-        ) AS "providerLinked"
-      FROM "UtilityMeter" m
-      WHERE m."societyId"=${societyId}::uuid
-        AND m."active"=TRUE
-        AND (${unitId ?? null}::uuid IS NULL OR m."unitId"=${unitId ?? null}::uuid)
-        AND (
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const usage=await this.usageHistory(tx,societyId,userId,unitId);
+      const providerRows=await tx.$queryRaw<Array<{meterId:string;providerLinked:boolean}>>(Prisma.sql`
+        SELECT m."id" AS "meterId",
           EXISTS (
-            SELECT 1 FROM "UnitOwnership" ow
-            WHERE ow."societyId"=${societyId}::uuid
-              AND ow."unitId"=m."unitId"
-              AND ow."userId"=${userId}::uuid
-              AND ow."verified"=TRUE AND ow."active"=TRUE
-              AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
-              AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+            SELECT 1
+            FROM "UtilityIntegrationMeterMap" map
+            JOIN "UtilityIntegration" integration
+              ON integration."id"=map."integrationId"
+             AND integration."societyId"=map."societyId"
+             AND integration."status"='ACTIVE'
+            WHERE map."societyId"=m."societyId"
+              AND map."meterId"=m."id"
+              AND map."active"=TRUE
+          ) AS "providerLinked"
+        FROM "UtilityMeter" m
+        JOIN "Unit" u ON u."id"=m."unitId" AND u."societyId"=m."societyId"
+        JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=m."societyId"
+        WHERE m."societyId"=${societyId}::uuid
+          AND (m."buildingId" IS NULL OR m."buildingId"=b."id")
+          AND m."active"=TRUE
+          AND (${unitId ?? null}::uuid IS NULL OR m."unitId"=${unitId ?? null}::uuid)
+          AND (
+            EXISTS (
+              SELECT 1 FROM "UnitOwnership" ow
+              WHERE ow."societyId"=${societyId}::uuid
+                AND ow."unitId"=m."unitId"
+                AND ow."userId"=${userId}::uuid
+                AND ow."verified"=TRUE AND ow."active"=TRUE
+                AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+            )
+            OR EXISTS (
+              SELECT 1 FROM "UnitOccupancy" oc
+              WHERE oc."societyId"=${societyId}::uuid
+                AND oc."unitId"=m."unitId"
+                AND oc."userId"=${userId}::uuid
+                AND oc."active"=TRUE
+                AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
+            )
           )
-          OR EXISTS (
-            SELECT 1 FROM "UnitOccupancy" oc
-            WHERE oc."societyId"=${societyId}::uuid
-              AND oc."unitId"=m."unitId"
-              AND oc."userId"=${userId}::uuid
-              AND oc."active"=TRUE
-              AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
-              AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
-          )
-        )
-    `);
-    const providerByMeter=new Map(providerRows.map((row)=>[row.meterId,row.providerLinked]));
-    const grouped=new Map<string,Array<Record<string,unknown>>>();
-    for(const row of usage){
-      const meterId=String(row.meterId??'');
-      if(!meterId) continue;
-      const current=grouped.get(meterId)??[];
-      current.push(row);
-      grouped.set(meterId,current);
-    }
-    const meters=[...grouped.entries()].map(([meterId,rows])=>{
-      const samples=rows
-        .map((row)=>({row,value:Number(row.consumptionSincePrevious)}))
-        .filter((item)=>Number.isFinite(item.value)&&item.value>=0)
-        .slice(0,6);
-      const latest=samples[0]?.value??null;
-      const baselineValues=samples.slice(1).map((item)=>item.value);
-      const baselineAverage=baselineValues.length
-        ? baselineValues.reduce((sum,value)=>sum+value,0)/baselineValues.length
-        : null;
-      const changePercent=latest!==null&&baselineAverage!==null&&baselineAverage>0
-        ? Math.round(((latest-baselineAverage)/baselineAverage)*1000)/10
-        : null;
-      const attention=
-        latest===null||baselineAverage===null?'INSUFFICIENT_EVIDENCE':
-        baselineAverage>0&&latest>baselineAverage*1.5?'HIGHER_THAN_RECENT':
-        baselineAverage>0&&latest<baselineAverage*0.5?'LOWER_THAN_RECENT':
-        'NORMAL_RANGE';
-      const head=rows[0]??{};
+      `);
+      const providerByMeter=new Map(providerRows.map((row)=>[row.meterId,row.providerLinked]));
+      const grouped=new Map<string,Array<Record<string,unknown>>>();
+      for(const row of usage){
+        const meterId=String(row.meterId??'');
+        if(!meterId) continue;
+        const current=grouped.get(meterId)??[];
+        current.push(row);
+        grouped.set(meterId,current);
+      }
+      const meters=[...grouped.entries()].map(([meterId,rows])=>{
+        const samples=rows
+          .map((row)=>({row,value:Number(row.consumptionSincePrevious)}))
+          .filter((item)=>Number.isFinite(item.value)&&item.value>=0)
+          .slice(0,6);
+        const latest=samples[0]?.value??null;
+        const baselineValues=samples.slice(1).map((item)=>item.value);
+        const baselineAverage=baselineValues.length
+          ? baselineValues.reduce((sum,value)=>sum+value,0)/baselineValues.length
+          : null;
+        const changePercent=latest!==null&&baselineAverage!==null&&baselineAverage>0
+          ? Math.round(((latest-baselineAverage)/baselineAverage)*1000)/10
+          : null;
+        const attention=
+          latest===null||baselineAverage===null?'INSUFFICIENT_EVIDENCE':
+          baselineAverage>0&&latest>baselineAverage*1.5?'HIGHER_THAN_RECENT':
+          baselineAverage>0&&latest<baselineAverage*0.5?'LOWER_THAN_RECENT':
+          'NORMAL_RANGE';
+        const head=rows[0]??{};
+        return {
+          meterId,
+          unitId:head.unitId??null,
+          meterCode:head.meterCode??null,
+          meterLabel:head.meterLabel??null,
+          meterType:head.meterType??null,
+          latestReadingAt:head.readingAt??null,
+          latestConsumption:latest,
+          recentBaselineAverage:baselineAverage===null?null:Math.round(baselineAverage*1000)/1000,
+          changePercent,
+          attention,
+          providerLinked:providerByMeter.get(meterId)===true,
+          prepaidBalanceAvailable:false,
+          rechargeExecutionAvailable:false,
+        };
+      });
       return {
-        meterId,
-        unitId:head.unitId??null,
-        meterCode:head.meterCode??null,
-        meterLabel:head.meterLabel??null,
-        meterType:head.meterType??null,
-        latestReadingAt:head.readingAt??null,
-        latestConsumption:latest,
-        recentBaselineAverage:baselineAverage===null?null:Math.round(baselineAverage*1000)/1000,
-        changePercent,
-        attention,
-        providerLinked:providerByMeter.get(meterId)===true,
-        prepaidBalanceAvailable:false,
-        rechargeExecutionAvailable:false,
+        meters,
+        attentionCount:meters.filter((meter)=>meter.attention==='HIGHER_THAN_RECENT').length,
+        providerLinkedCount:meters.filter((meter)=>meter.providerLinked).length,
+        prepaid:{
+          balanceEvidenceAvailable:false,
+          rechargeExecutionAvailable:false,
+          boundary:'Aaraagate can ingest meter readings through provider-neutral integrations. Prepaid balance and recharge execution remain unavailable until an explicit provider adapter supplies authoritative balance and credit-confirmation evidence.',
+        },
+        boundary:'Consumption attention compares recent recorded deltas only. It is a deterministic usage signal, not a leak, fault or billing diagnosis.',
       };
     });
-    return {
-      meters,
-      attentionCount:meters.filter((meter)=>meter.attention==='HIGHER_THAN_RECENT').length,
-      providerLinkedCount:meters.filter((meter)=>meter.providerLinked).length,
-      prepaid:{
-        balanceEvidenceAvailable:false,
-        rechargeExecutionAvailable:false,
-        boundary:'Aaraagate can ingest meter readings through provider-neutral integrations. Prepaid balance and recharge execution remain unavailable until an explicit provider adapter supplies authoritative balance and credit-confirmation evidence.',
-      },
-      boundary:'Consumption attention compares recent recorded deltas only. It is a deterministic usage signal, not a leak, fault or billing diagnosis.',
-    };
   }
 
   listUsageHistory(societyId: string, userId: string, unitId?: string) {
-    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => this.usageHistory(tx,societyId,userId,unitId));
+  }
+
+  private usageHistory(tx: Prisma.TransactionClient, societyId: string, userId: string, unitId?: string) {
+    return tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       WITH allowed_meters AS (
         SELECT m."id",m."unitId",m."code",m."label",m."meterType",
                u."number" AS "unitNumber",b."name" AS "buildingName"
@@ -191,6 +201,7 @@ export class UtilityResidentService {
         JOIN "Unit" u ON u."id"=m."unitId" AND u."societyId"=m."societyId"
         JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=m."societyId"
         WHERE m."societyId"=${societyId}::uuid
+          AND (m."buildingId" IS NULL OR m."buildingId"=b."id")
           AND m."active"=TRUE
           AND (${unitId ?? null}::uuid IS NULL OR m."unitId"=${unitId ?? null}::uuid)
           AND (
