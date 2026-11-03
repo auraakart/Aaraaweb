@@ -9,13 +9,13 @@ const draftId = '33333333-3333-4333-8333-333333333333';
 
 describe('UtilityInvoicesService', () => {
   it('rejects malformed billing periods before opening a transaction', async () => {
-    const prisma = { $transaction: vi.fn() };
+    const prisma = { withTenantContext: vi.fn() };
     const service = new UtilityInvoicesService(prisma as unknown as PrismaService);
     await expect(service.issueFromDraft(societyId, actorId, draftId, {
       billingPeriod: '2026-13',
       dueDate: '2026-10-15',
     })).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();
   });
 
   it('rejects zero-value drafts before invoice creation', async () => {
@@ -33,7 +33,7 @@ describe('UtilityInvoicesService', () => {
       }]),
       $executeRaw: vi.fn(),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_scope, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilityInvoicesService(prisma as unknown as PrismaService);
     await expect(service.issueFromDraft(societyId, actorId, draftId, {
       billingPeriod: '2026-09',
@@ -66,7 +66,7 @@ describe('UtilityInvoicesService', () => {
         .mockResolvedValueOnce([existing]),
       $executeRaw: vi.fn(),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_scope, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new UtilityInvoicesService(prisma as unknown as PrismaService);
     await expect(service.issueFromDraft(societyId, actorId, draftId, {
       billingPeriod: '2026-09',

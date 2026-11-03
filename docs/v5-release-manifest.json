@@ -2908,11 +2908,24 @@
     {
       "id": "V5.14.2",
       "name": "Resident utility selected tenant reads",
-      "status": "IN_PROGRESS_NONPRODUCTION",
+      "status": "COMPLETE_SELECTED_SOURCE_EXTERNAL_GATES_RETAINED",
       "currentSlice": "V5.14.2.1",
       "scopeDocument": "docs/V5.14.2-UTILITY-RESIDENT-CONTEXT.md",
       "limitations": [
         "Resident read service only; utility charge/invoice mutation and import/integration services remain separate.",
+        "No hosted policy/grant activation, productionization, live providers, device or staging/main promotion."
+      ],
+      "acceptedSourceSha": "17ea7321d7c1d56229712608c8bfb3cfac66ebf6",
+      "nextUnblockedSequence": "Utility charge/invoice mutations, then import/integration capabilities"
+    },
+    {
+      "id": "V5.14.3",
+      "name": "Utility financial and import selected transactions",
+      "status": "IN_PROGRESS_NONPRODUCTION",
+      "currentSlice": "V5.14.3.1",
+      "scopeDocument": "docs/V5.14.3-UTILITY-FINANCIAL-CONTEXT.md",
+      "limitations": [
+        "Utility charge/invoice and reading-import services only; integrations, reporting, notification and workforce subservices remain separate.",
         "No hosted policy/grant activation, productionization, live providers, device or staging/main promotion."
       ]
     }

@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { utilityChargeParents } from './utility-charge-parents';
 
 type IssueUtilityInvoiceInput = {
   billingPeriod: string;
@@ -31,7 +32,7 @@ export class UtilityInvoicesService {
     }
     const dueDate = this.parseDateOnly(input.dueDate);
 
-    const invoice = await this.prisma.$transaction(async (tx): Promise<IssuedInvoice> => {
+    const invoice = await this.prisma.withTenantContext(societyId, async (tx): Promise<IssuedInvoice> => {
       const drafts = await tx.$queryRaw<Array<{
         id: string;
         unitId: string;
@@ -47,7 +48,7 @@ export class UtilityInvoicesService {
           m."code" AS "meterCode",m."meterType"
         FROM "UtilityChargeDraft" d
         JOIN "UtilityMeter" m ON m."id"=d."meterId" AND m."societyId"=d."societyId"
-        WHERE d."id"=${draftId}::uuid AND d."societyId"=${societyId}::uuid
+        WHERE d."id"=${draftId}::uuid AND d."societyId"=${societyId}::uuid AND ${utilityChargeParents()}
         FOR UPDATE OF d
       `);
       const draft = drafts[0];
@@ -65,7 +66,12 @@ export class UtilityInvoicesService {
         WHERE "societyId"=${societyId}::uuid AND "sourceUtilityChargeDraftId"=${draftId}::uuid
         LIMIT 1
       `);
-      if (existingRows[0]) return { ...existingRows[0], alreadyIssued: true };
+      if (existingRows[0]) {
+        if (existingRows[0].unitId !== draft.unitId || existingRows[0].amountPaise !== draft.totalPaise) {
+          throw new ConflictException('Linked utility invoice does not match its charge draft');
+        }
+        return { ...existingRows[0], alreadyIssued: true };
+      }
       if (draft.status !== 'DRAFT') throw new BadRequestException('Utility charge draft is not available for issuance');
 
       const invoiceNumber = `UTIL-${billingPeriod.replace('-', '')}-${draftId.slice(0, 8).toUpperCase()}`;
@@ -96,7 +102,8 @@ export class UtilityInvoicesService {
     });
 
     if (!invoice.alreadyIssued && this.realtime) {
-      const recipients = await this.prisma.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+      const recipients = await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+        SELECT recipients."userId" FROM (
         SELECT "userId" FROM "UnitOwnership"
         WHERE "societyId"=${societyId}::uuid AND "unitId"=${invoice.unitId}::uuid
           AND "verified"=true AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
@@ -106,7 +113,12 @@ export class UtilityInvoicesService {
         WHERE "societyId"=${societyId}::uuid AND "unitId"=${invoice.unitId}::uuid
           AND "relation"='TENANT' AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
           AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
-      `);
+        ) recipients
+        WHERE EXISTS (
+          SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
+          WHERE u."id"=${invoice.unitId}::uuid AND u."societyId"=${societyId}::uuid
+        )
+      `));
       const due = typeof invoice.dueDate === 'string' ? invoice.dueDate : invoice.dueDate.toISOString().slice(0, 10);
       for (const { userId } of recipients) {
         this.realtime.publishResident({

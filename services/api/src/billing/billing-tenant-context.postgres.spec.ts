@@ -1,3 +1,6 @@
+import { UtilityReadingImportService } from '../utilities/utility-reading-import.service';
+import { UtilityChargesService } from '../utilities/utility-charges.service';
+import { UtilityInvoicesService } from '../utilities/utility-invoices.service';
 import { UtilityResidentService } from '../utilities/utility-resident.service';
 import { UtilitiesService } from '../utilities/utilities.service';
 import { WorkforceService } from '../workforce/workforce.service';
@@ -79,7 +82,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['UtilityChargeDraft', 'UtilityIntegrationMeterMap', 'UtilityMeter', 'UtilityReading', 'UtilityEvent', 'UtilityIntegration', 'UtilityTariffPlan', 'UtilityTariffSlab', 'UtilityTariffEvent', 'HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['UtilityChargeEvent', 'UtilityChargeDraft', 'UtilityIntegrationMeterMap', 'UtilityMeter', 'UtilityReading', 'UtilityEvent', 'UtilityIntegration', 'UtilityTariffPlan', 'UtilityTariffSlab', 'UtilityTariffEvent', 'HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'AmenityWaitlistEntry', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
@@ -1555,6 +1558,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const utilityDraftIds: string[] = [], utilityIntegrationIds: string[] = [];
   afterEach(async () => {
     for (const id of utilityDraftIds) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityChargeEvent" WHERE "draftId"=${id}::uuid`);
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "MaintenanceInvoice" WHERE "sourceUtilityChargeDraftId"=${id}::uuid`);
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityChargeDraft" WHERE "id"=${id}::uuid`);
     }
@@ -1584,6 +1588,97 @@ database('Billing transactions under a non-owner RLS role', () => {
     const code = randomUUID().toUpperCase(); utilityCodes.push(code);
     return await utilities.createMeter(scope, owner, {code,meterType:'WATER',unitId:unit}) as {id:string};
   }
+  const utilityImports = new UtilityReadingImportService(runtime);
+  const utilityCharges = new UtilityChargesService(runtime);
+  async function utilityBillingReadings(scope = societyA, unit = unitA) {
+    const meter = await utilityMeter(scope, unit);
+    const plan = await utilities.createTariffPlan(scope, owner, {code: randomUUID(), name: 'Water', meterType: 'WATER', effectiveFrom: '2098-01-01', slabs: [{fromUnit: 0, ratePaisePerUnit: 100}]});
+    utilityPlanIds.push(plan.id);
+    await utilities.activateTariffPlan(scope, owner, plan.id);
+    const opening = await utilities.createReading(scope, owner, {meterId: meter.id, readingAt: '2099-01-01', value: 10}) as {id: string};
+    const closing = await utilities.createReading(scope, owner, {meterId: meter.id, readingAt: '2099-02-01', value: 20}) as {id: string};
+    return {meter, input: {openingReadingId: opening.id, closingReadingId: closing.id}};
+  }
+  it('isolates reading import preview/commit, serializes duplicate imports and rejects malformed meter parents', async () => {
+    for (const [scope, unit, foreign, foreignUnit] of [[societyA, unitA, societyB, unitB], [societyB, unitB, societyA, unitA]]) {
+      const meter = await utilityMeter(scope, unit);
+      const [identity] = await fixture.$queryRaw<Array<{code: string}>>(Prisma.sql`SELECT "code" FROM "UtilityMeter" WHERE "id"=${meter.id}::uuid`);
+      const rows = [{meterCode: identity.code, readingAt: '2099-03-01', value: 30}];
+      expect(await utilityImports.preview(scope, rows)).toMatchObject({valid: true});
+      expect(await utilityImports.preview(foreign, rows)).toMatchObject({valid: false});
+      await expect(utilityImports.commit(foreign, owner, rows)).rejects.toThrow('validation errors');
+      const results = await Promise.allSettled([1, 2].map(() => utilityImports.commit(scope, owner, rows)));
+      expect(results.filter(row => row.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter(row => row.status === 'rejected')).toHaveLength(1);
+      expect(await utilities.listReadings(scope, meter.id)).toEqual([expect.objectContaining({source: 'IMPORT'})]);
+      await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityMeter" SET "unitId"=${foreignUnit}::uuid WHERE "id"=${meter.id}::uuid`);
+      const next = [{...rows[0], readingAt: '2099-04-01', value: 40}];
+      expect(await utilityImports.preview(scope, next)).toMatchObject({valid: false});
+      await expect(utilityImports.commit(scope, owner, next)).rejects.toThrow('validation errors');
+    }
+  });
+
+  it('isolates utility billing lifecycle, concurrent invoice replay and owner/tenant recipients', async () => {
+    for (const [scope, unit, foreign] of [[societyA, unitA, societyB], [societyB, unitB, societyA]]) {
+      const {input} = await utilityBillingReadings(scope, unit);
+      const draft = await utilityCharges.createDraft(scope, owner, input); utilityDraftIds.push(draft.id);
+      expect(draft.totalPaise).toBe(1000);
+      expect(await utilityCharges.listDrafts(scope)).toEqual(expect.arrayContaining([expect.objectContaining({id: draft.id})]));
+      expect(await utilityCharges.listDrafts(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({id: draft.id})]));
+      await expect(utilityCharges.createDraft(scope, owner, input)).rejects.toThrow('already exists');
+      const sent: Array<{userId: string}> = [];
+      const invoices = new UtilityInvoicesService(runtime, {publishResident: (event: {userId: string}) => sent.push(event)} as never);
+      await expect(invoices.issueFromDraft(foreign, owner, draft.id, {billingPeriod: '2099-01', dueDate: '2099-02-15'})).rejects.toThrow('not found');
+      const results = await Promise.all([1, 2].map(() => invoices.issueFromDraft(scope, owner, draft.id, {billingPeriod: '2099-01', dueDate: '2099-02-15'})));
+      expect(new Set(results.map(row => row.id)).size).toBe(1);
+      expect(results.map(row => row.alreadyIssued).sort()).toEqual([false, true]);
+      expect(new Set(sent.map(row => row.userId))).toEqual(new Set(scope === societyA ? [owner, tenant] : [owner]));
+      expect(sent).toHaveLength(scope === societyA ? 2 : 1);
+      await expect(utilityCharges.voidDraft(scope, owner, draft.id)).rejects.toThrow('not found');
+    }
+    expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "UtilityChargeDraft"`)).toEqual([]);
+  });
+
+  it('rejects malformed utility billing parents without issuing or voiding their drafts', async () => {
+    const {meter, input} = await utilityBillingReadings();
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityMeter" SET "unitId"=${unitB}::uuid WHERE "id"=${meter.id}::uuid`);
+    await expect(utilityCharges.createDraft(societyA, owner, input)).rejects.toThrow('not found');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityMeter" SET "unitId"=${unitA}::uuid WHERE "id"=${meter.id}::uuid`);
+    const draft = await utilityCharges.createDraft(societyA, owner, input); utilityDraftIds.push(draft.id);
+    const other = await utilityMeter();
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityReading" SET "meterId"=${other.id}::uuid WHERE "id"=${input.closingReadingId}::uuid`);
+    expect(await utilityCharges.listDrafts(societyA)).toEqual([]);
+    const invoices = new UtilityInvoicesService(runtime);
+    await expect(invoices.issueFromDraft(societyA, owner, draft.id, {billingPeriod: '2099-01', dueDate: '2099-02-15'})).rejects.toThrow('not found');
+    await expect(utilityCharges.voidDraft(societyA, owner, draft.id)).rejects.toThrow('not found');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityReading" SET "meterId"=${meter.id}::uuid WHERE "id"=${input.closingReadingId}::uuid`);
+    expect(await utilityCharges.voidDraft(societyA, owner, draft.id)).toMatchObject({status: 'VOID'});
+  });
+
+  it('rolls back utility charge and invoice state when audit insertion is denied, then accepts a retry', async () => {
+    const {meter, input} = await utilityBillingReadings();
+    executeDdl(`REVOKE INSERT ON "${schema}"."UtilityChargeEvent" FROM "${role}"`, fixtureUrl.toString());
+    try { await expect(utilityCharges.createDraft(societyA, owner, input)).rejects.toThrow(); }
+    finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityChargeEvent" TO "${role}"`, fixtureUrl.toString()); }
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "UtilityChargeDraft" WHERE "meterId"=${meter.id}::uuid`)).toEqual([]);
+    const draft = await utilityCharges.createDraft(societyA, owner, input); utilityDraftIds.push(draft.id);
+    const invoices = new UtilityInvoicesService(runtime);
+    executeDdl(`REVOKE INSERT ON "${schema}"."UtilityChargeEvent" FROM "${role}"`, fixtureUrl.toString());
+    try { await expect(invoices.issueFromDraft(societyA, owner, draft.id, {billingPeriod: '2099-01', dueDate: '2099-02-15'})).rejects.toThrow(); }
+    finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityChargeEvent" TO "${role}"`, fixtureUrl.toString()); }
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "MaintenanceInvoice" WHERE "sourceUtilityChargeDraftId"=${draft.id}::uuid`)).toEqual([]);
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "status" FROM "UtilityChargeDraft" WHERE "id"=${draft.id}::uuid`)).toEqual([{status: 'DRAFT'}]);
+    expect(await invoices.issueFromDraft(societyA, owner, draft.id, {billingPeriod: '2099-01', dueDate: '2099-02-15'})).toMatchObject({alreadyIssued: false});
+    const [identity] = await fixture.$queryRaw<Array<{code: string}>>(Prisma.sql`SELECT "code" FROM "UtilityMeter" WHERE "id"=${meter.id}::uuid`);
+    const rows = [{meterCode: identity.code, readingAt: '2099-03-01', value: 30}];
+    executeDdl(`REVOKE INSERT ON "${schema}"."UtilityEvent" FROM "${role}"`, fixtureUrl.toString());
+    try { await expect(utilityImports.commit(societyA, owner, rows)).rejects.toThrow(); }
+    finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityEvent" TO "${role}"`, fixtureUrl.toString()); }
+    expect(await utilities.listReadings(societyA, meter.id)).toHaveLength(2);
+    expect(await utilityImports.commit(societyA, owner, rows)).toMatchObject({imported: 1, source: 'IMPORT'});
+
+  });
+
   it('scopes resident usage and insights, preserving current ownership and occupancy authority', async () => {
     for (const [scope, unit, foreign, foreignUnit] of [[societyA, unitA, societyB, unitB], [societyB, unitB, societyA, unitA]]) {
       const meter = await utilityMeter(scope, unit);
