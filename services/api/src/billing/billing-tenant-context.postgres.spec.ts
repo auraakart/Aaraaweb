@@ -1,3 +1,4 @@
+import { UtilitiesService } from '../utilities/utilities.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { AmenitiesService } from '../amenities/amenities.service';
 import { AmenityDepositExpiryWorker } from '../amenities/amenity-deposit-expiry.worker';
@@ -77,7 +78,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['UtilityMeter', 'UtilityReading', 'UtilityEvent', 'UtilityIntegration', 'UtilityTariffPlan', 'UtilityTariffSlab', 'UtilityTariffEvent', 'HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'AmenityWaitlistEntry', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
@@ -1547,6 +1548,71 @@ database('Billing transactions under a non-owner RLS role', () => {
     expect(await fixture.gate.count({ where: { societyId: societyA, code } })).toBe(0);
     const [context] = await runtime.$queryRaw<Array<{ societyId: string | null }>>(Prisma.sql`SELECT current_setting(${TENANT_CONTEXT_SETTING},true) AS "societyId"`);
     expect([societyA, societyB]).not.toContain(context.societyId);
+  });
+
+  const utilities = new UtilitiesService(runtime);
+  const utilityCodes: string[] = [], utilityPlanIds: string[] = [];
+  afterEach(async () => {
+    for (const code of utilityCodes) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityEvent" WHERE "meterId" IN (SELECT "id" FROM "UtilityMeter" WHERE "code"=${code})`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityReading" WHERE "meterId" IN (SELECT "id" FROM "UtilityMeter" WHERE "code"=${code})`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityMeter" WHERE "code"=${code}`);
+    }
+    for (const id of utilityPlanIds) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityTariffEvent" WHERE "planId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityTariffSlab" WHERE "planId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityTariffPlan" WHERE "id"=${id}::uuid`);
+    }
+    utilityCodes.length=0; utilityPlanIds.length=0;
+  });
+  async function utilityMeter(scope = societyA, unit = unitA) {
+    const code = randomUUID().toUpperCase(); utilityCodes.push(code);
+    return await utilities.createMeter(scope, owner, {code,meterType:'WATER',unitId:unit}) as {id:string};
+  }
+  it('isolates utility meter, reading and audit workflows in both selected societies', async () => {
+    for (const [scope,unit,foreign] of [[societyA,unitA,societyB],[societyB,unitB,societyA]]) {
+      const meter = await utilityMeter(scope,unit);
+      expect(await utilities.listMeters(scope)).toEqual(expect.arrayContaining([expect.objectContaining({id:meter.id})]));
+      expect(await utilities.listMeters(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({id:meter.id})]));
+      await utilities.createReading(scope,owner,{meterId:meter.id,readingAt:'2099-01-01',value:10});
+      expect(await utilities.listReadings(scope,meter.id)).toHaveLength(1);
+      const unread = await utilityMeter(scope,unit);
+      const meterList=await utilities.listMeters(scope) as Array<{id:string;latestReadingValue:unknown}>;
+      expect(meterList.find(row=>row.id===unread.id)?.latestReadingValue).toBeNull();
+      expect(Number(meterList.find(row=>row.id===meter.id)?.latestReadingValue)).toBe(10);
+      expect(await utilities.listReadings(foreign,meter.id)).toEqual([]);
+      await expect(utilities.createReading(foreign,owner,{meterId:meter.id,readingAt:'2099-01-02',value:20})).rejects.toThrow('not found');
+      expect(await utilities.history(scope)).toEqual(expect.arrayContaining([expect.objectContaining({meterId:meter.id,action:'READING_RECORDED'})]));
+      await utilities.deactivateMeter(scope,owner,meter.id);
+      await expect(utilities.createReading(scope,owner,{meterId:meter.id,readingAt:'2099-01-02',value:20})).rejects.toThrow('Inactive');
+      expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "UtilityMeter" WHERE "id"=${meter.id}::uuid`)).toEqual([]);
+    }
+  });
+  it('isolates utility tariff create, activation, retirement and history workflows', async () => {
+    for (const scope of [societyA,societyB]) {
+      const foreign=scope===societyA?societyB:societyA;
+      const plan=await utilities.createTariffPlan(scope,owner,{code:randomUUID(),name:'Water',meterType:'WATER',effectiveFrom:'2099-01-01',slabs:[{fromUnit:0,ratePaisePerUnit:100}]});
+      utilityPlanIds.push(plan.id);
+      await expect(utilities.activateTariffPlan(foreign,owner,plan.id)).rejects.toThrow('not found');
+      expect(await utilities.listTariffPlans(scope)).toEqual(expect.arrayContaining([expect.objectContaining({id:plan.id})]));
+      expect(await utilities.activateTariffPlan(scope,owner,plan.id)).toMatchObject({status:'ACTIVE'});
+      expect(await utilities.retireTariffPlan(scope,owner,plan.id)).toMatchObject({status:'RETIRED'});
+      expect(await utilities.tariffHistory(scope)).toEqual(expect.arrayContaining([expect.objectContaining({planId:plan.id,action:'TARIFF_RETIRED'})]));
+      expect(await utilities.tariffHistory(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({planId:plan.id})]));
+    }
+  });
+  it('rejects foreign meter parents, hides malformed copied rows and rolls back denied utility audit writes', async () => {
+    const code=randomUUID().toUpperCase(); utilityCodes.push(code);
+    await expect(utilities.createMeter(societyA,owner,{code,meterType:'WATER',unitId:unitB})).rejects.toThrow('destination not found');
+    const meter=await utilityMeter();
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityMeter" SET "unitId"=${unitB}::uuid WHERE "id"=${meter.id}::uuid`);
+    expect(await utilities.listMeters(societyA)).not.toEqual(expect.arrayContaining([expect.objectContaining({id:meter.id})]));
+    await expect(utilities.createReading(societyA,owner,{meterId:meter.id,readingAt:'2099-01-01',value:10})).rejects.toThrow('not found');
+    executeDdl(`REVOKE INSERT ON "${schema}"."UtilityEvent" FROM "${role}"`,fixtureUrl.toString());
+    try { await expect(utilities.createMeter(societyA,owner,{code,meterType:'WATER'})).rejects.toThrow(); }
+    finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityEvent" TO "${role}"`,fixtureUrl.toString()); }
+    expect(await fixture.$queryRaw(Prisma.sql`SELECT "id" FROM "UtilityMeter" WHERE "code"=${code}`)).toEqual([]);
+    expect((await utilities.createMeter(societyA,owner,{code,meterType:'WATER'}) as {id:string}).id).toBeTruthy();
   });
 
   const workforce = new WorkforceService(runtime, new AccessService(runtime, new EntitlementService(runtime)));

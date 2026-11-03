@@ -47,7 +47,7 @@ export class UtilitiesService {
   constructor(private readonly prisma: PrismaService) {}
 
   listMeters(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT m.*,
         b."name" AS "buildingName",
         u."number" AS "unitNumber",
@@ -64,9 +64,9 @@ export class UtilitiesService {
         ORDER BY r."readingAt" DESC
         LIMIT 1
       ) latest ON TRUE
-      WHERE m."societyId"=${societyId}::uuid
+      WHERE m."societyId"=${societyId}::uuid AND ${this.meterParents()}
       ORDER BY m."active" DESC, m."meterType", m."code"
-    `);
+    `));
   }
 
   async createMeter(societyId: string, actorUserId: string, input: CreateMeterInput) {
@@ -78,7 +78,21 @@ export class UtilitiesService {
     if (externalRef && externalRef.length > 120) throw new BadRequestException('Meter external reference is too long');
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
+        if (input.buildingId || input.unitId) {
+          const parents = await tx.$queryRaw<Array<{ valid: boolean }>>(Prisma.sql`
+            SELECT (
+              (${input.buildingId ?? null}::uuid IS NULL OR EXISTS (
+                SELECT 1 FROM "Building" b WHERE b."id"=${input.buildingId ?? null}::uuid AND b."societyId"=${societyId}::uuid
+              )) AND (${input.unitId ?? null}::uuid IS NULL OR EXISTS (
+                SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
+                WHERE u."id"=${input.unitId ?? null}::uuid AND u."societyId"=${societyId}::uuid
+                  AND (${input.buildingId ?? null}::uuid IS NULL OR u."buildingId"=${input.buildingId ?? null}::uuid)
+              ))
+            ) AS valid
+          `);
+          if (!parents[0]?.valid) throw new NotFoundException('Utility meter destination not found');
+        }
         const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           INSERT INTO "UtilityMeter" (
             "societyId","buildingId","unitId","code","label","meterType","externalRef","createdByUserId"
@@ -103,11 +117,11 @@ export class UtilitiesService {
   async deactivateMeter(societyId: string, actorUserId: string, meterId: string, noteInput?: string) {
     const note = noteInput?.trim() || null;
     if (note && note.length > 300) throw new BadRequestException('Meter deactivation note is too long');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        UPDATE "UtilityMeter"
+        UPDATE "UtilityMeter" m
         SET "active"=false,"updatedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${meterId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
+        WHERE m."id"=${meterId}::uuid AND m."societyId"=${societyId}::uuid AND m."active"=true AND ${this.meterParents()}
         RETURNING "id"
       `);
       if (!rows[0]) throw new NotFoundException('Active utility meter not found');
@@ -120,13 +134,14 @@ export class UtilitiesService {
   }
 
   listReadings(societyId: string, meterId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       WITH ordered AS (
         SELECT r.*,
           lag(r."value") OVER (ORDER BY r."readingAt") AS "previousValue",
           lag(r."readingKind") OVER (ORDER BY r."readingAt") AS "previousKind"
         FROM "UtilityReading" r
-        WHERE r."societyId"=${societyId}::uuid AND r."meterId"=${meterId}::uuid
+        JOIN "UtilityMeter" m ON m."id"=r."meterId" AND m."societyId"=r."societyId"
+        WHERE ${this.meterParents()} AND r."societyId"=${societyId}::uuid AND r."meterId"=${meterId}::uuid
       )
       SELECT ordered.*,
         CASE
@@ -138,7 +153,7 @@ export class UtilitiesService {
       FROM ordered
       ORDER BY ordered."readingAt" DESC
       LIMIT 1000
-    `);
+    `));
   }
 
   async createReading(societyId: string, actorUserId: string, input: CreateReadingInput) {
@@ -153,11 +168,11 @@ export class UtilitiesService {
     if (readingKind === 'RESET' && !note) throw new BadRequestException('Reset readings require a note explaining the reset or meter replacement');
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const meters = await tx.$queryRaw<Array<{ id: string; active: boolean }>>(Prisma.sql`
-          SELECT "id","active" FROM "UtilityMeter"
-          WHERE "id"=${input.meterId}::uuid AND "societyId"=${societyId}::uuid
-          FOR UPDATE
+          SELECT m."id",m."active" FROM "UtilityMeter" m
+          WHERE m."id"=${input.meterId}::uuid AND m."societyId"=${societyId}::uuid AND ${this.meterParents()}
+          FOR UPDATE OF m
         `);
         if (!meters[0]) throw new NotFoundException('Utility meter not found');
         if (!meters[0].active) throw new BadRequestException('Inactive utility meter cannot accept readings');
@@ -204,7 +219,7 @@ export class UtilitiesService {
   }
 
   listTariffPlans(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT p.*,
         COALESCE(
           jsonb_agg(
@@ -222,7 +237,7 @@ export class UtilitiesService {
       WHERE p."societyId"=${societyId}::uuid
       GROUP BY p."id"
       ORDER BY p."meterType", p."effectiveFrom" DESC, p."createdAt" DESC
-    `);
+    `));
   }
 
   async createTariffPlan(societyId: string, actorUserId: string, input: CreateTariffPlanInput) {
@@ -242,7 +257,7 @@ export class UtilitiesService {
     const slabs = this.validateTariffSlabs(input.slabs);
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const plans = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           INSERT INTO "UtilityTariffPlan" (
             "societyId","code","name","meterType","effectiveFrom","effectiveTo",
@@ -276,7 +291,7 @@ export class UtilitiesService {
   }
 
   async activateTariffPlan(societyId: string, actorUserId: string, planId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const plans = await tx.$queryRaw<Array<{
         id: string;
         status: UtilityTariffPlanStatus;
@@ -327,7 +342,7 @@ export class UtilitiesService {
   async retireTariffPlan(societyId: string, actorUserId: string, planId: string, noteInput?: string) {
     const note = noteInput?.trim() || null;
     if (note && note.length > 300) throw new BadRequestException('Tariff retirement note is too long');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; status: UtilityTariffPlanStatus }>>(Prisma.sql`
         UPDATE "UtilityTariffPlan"
         SET "status"='RETIRED',"updatedAt"=CURRENT_TIMESTAMP
@@ -344,19 +359,19 @@ export class UtilitiesService {
   }
 
   tariffHistory(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT e.*, p."code" AS "tariffCode", p."name" AS "tariffName", p."meterType", actor."name" AS "actorName"
       FROM "UtilityTariffEvent" e
-      LEFT JOIN "UtilityTariffPlan" p ON p."id"=e."planId" AND p."societyId"=e."societyId"
+      JOIN "UtilityTariffPlan" p ON p."id"=e."planId" AND p."societyId"=e."societyId"
       JOIN "User" actor ON actor."id"=e."actorUserId"
       WHERE e."societyId"=${societyId}::uuid
       ORDER BY e."occurredAt" DESC
       LIMIT 500
-    `);
+    `));
   }
 
   history(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT e.*, m."code" AS "meterCode",
         COALESCE(actor."name", integration."name") AS "actorName"
       FROM "UtilityEvent" e
@@ -365,9 +380,22 @@ export class UtilitiesService {
       LEFT JOIN "UtilityIntegration" integration
         ON integration."id"=e."integrationId" AND integration."societyId"=e."societyId"
       WHERE e."societyId"=${societyId}::uuid
+        AND (e."meterId" IS NULL OR (m."id" IS NOT NULL AND ${this.meterParents()}))
+        AND (e."integrationId" IS NULL OR integration."id" IS NOT NULL)
       ORDER BY e."occurredAt" DESC
       LIMIT 500
-    `);
+    `));
+  }
+
+  private meterParents() {
+    return Prisma.sql`
+      (m."buildingId" IS NULL OR EXISTS (SELECT 1 FROM "Building" b WHERE b."id"=m."buildingId" AND b."societyId"=m."societyId"))
+      AND (m."unitId" IS NULL OR EXISTS (
+        SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
+        WHERE u."id"=m."unitId" AND u."societyId"=m."societyId"
+          AND (m."buildingId" IS NULL OR u."buildingId"=m."buildingId")
+      ))
+    `;
   }
 
   private validateTariffSlabs(input: TariffSlabInput[]) {
