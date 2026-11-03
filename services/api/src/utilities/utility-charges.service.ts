@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { utilityChargeParents } from './utility-charge-parents';
 
 type Slab = { fromUnit: number; toUnit: number | null; ratePaisePerUnit: number };
 type ChargeInput = { openingReadingId: string; closingReadingId: string };
@@ -26,7 +27,7 @@ export class UtilityChargesService {
   constructor(private readonly prisma: PrismaService) {}
 
   listDrafts(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT d.*, m."code" AS "meterCode", m."meterType", u."number" AS "unitNumber",
         b."name" AS "buildingName", p."code" AS "tariffCode", p."name" AS "tariffName"
       FROM "UtilityChargeDraft" d
@@ -34,16 +35,16 @@ export class UtilityChargesService {
       JOIN "Unit" u ON u."id"=d."unitId" AND u."societyId"=d."societyId"
       JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=d."societyId"
       JOIN "UtilityTariffPlan" p ON p."id"=d."tariffPlanId" AND p."societyId"=d."societyId"
-      WHERE d."societyId"=${societyId}::uuid
+      WHERE d."societyId"=${societyId}::uuid AND ${utilityChargeParents()}
       ORDER BY d."createdAt" DESC
       LIMIT 1000
-    `);
+    `));
   }
 
   async createDraft(societyId: string, actorUserId: string, input: ChargeInput) {
     if (input.openingReadingId === input.closingReadingId) throw new BadRequestException('Opening and closing readings must be different');
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const rows = await tx.$queryRaw<Array<{
           meterId: string; unitId: string | null; meterType: string;
           openingAt: Date; openingValue: string; closingAt: Date; closingValue: string;
@@ -55,6 +56,11 @@ export class UtilityChargesService {
           JOIN "UtilityReading" o ON o."meterId"=m."id" AND o."societyId"=m."societyId" AND o."id"=${input.openingReadingId}::uuid
           JOIN "UtilityReading" c ON c."meterId"=m."id" AND c."societyId"=m."societyId" AND c."id"=${input.closingReadingId}::uuid
           WHERE m."societyId"=${societyId}::uuid AND o."readingKind"='ACTUAL' AND c."readingKind"='ACTUAL'
+            AND (m."unitId" IS NULL OR EXISTS (
+              SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
+              WHERE u."id"=m."unitId" AND u."societyId"=m."societyId"
+                AND (m."buildingId" IS NULL OR m."buildingId"=b."id")
+            ))
           FOR UPDATE OF m
         `);
         const context = rows[0];
@@ -114,10 +120,10 @@ export class UtilityChargesService {
   async voidDraft(societyId: string, actorUserId: string, draftId: string, noteInput?: string) {
     const note = noteInput?.trim() || null;
     if (note && note.length > 300) throw new BadRequestException('Void note is too long');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        UPDATE "UtilityChargeDraft" SET "status"='VOID',"voidedAt"=CURRENT_TIMESTAMP,"voidedByUserId"=${actorUserId}::uuid
-        WHERE "id"=${draftId}::uuid AND "societyId"=${societyId}::uuid AND "status"='DRAFT' RETURNING "id"
+        UPDATE "UtilityChargeDraft" d SET "status"='VOID',"voidedAt"=CURRENT_TIMESTAMP,"voidedByUserId"=${actorUserId}::uuid
+        WHERE "id"=${draftId}::uuid AND "societyId"=${societyId}::uuid AND "status"='DRAFT' AND ${utilityChargeParents()} RETURNING "id"
       `);
       if (!rows[0]) throw new NotFoundException('Active utility charge draft not found');
       await tx.$executeRaw(Prisma.sql`
@@ -129,6 +135,8 @@ export class UtilityChargesService {
   }
 
   private isUniqueViolation(error: unknown) {
-    return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
+    if (!error || typeof error !== 'object') return false;
+    const detail = error as { code?: string; meta?: { code?: string } };
+    return detail.code === '23505' || (detail.code === 'P2010' && detail.meta?.code === '23505');
   }
 }

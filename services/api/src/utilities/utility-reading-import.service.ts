@@ -28,18 +28,18 @@ type ValidationError = {
   message: string;
 };
 
-type QueryClient = Prisma.TransactionClient | PrismaService;
+type QueryClient = Prisma.TransactionClient;
 
 @Injectable()
 export class UtilityReadingImportService {
   constructor(private readonly prisma: PrismaService) {}
 
   async preview(societyId: string, rows: UtilityReadingImportRow[]) {
-    return this.validate(societyId, rows, this.prisma);
+    return this.prisma.withTenantContext(societyId, tx => this.validate(societyId, rows, tx));
   }
 
   async commit(societyId: string, actorUserId: string, rows: UtilityReadingImportRow[]) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const preview = await this.validate(societyId, rows, tx, true);
       if (!preview.valid) {
         throw new BadRequestException({
@@ -116,13 +116,18 @@ export class UtilityReadingImportService {
       return { valid: false, rowCount: inputRows.length, errors, prepared: [] as PreparedRow[] };
     }
 
-    const meters = await client.$queryRaw<Array<{ id: string; code: string; active: boolean }>>(lockMeters ? Prisma.sql`
-      SELECT "id","code","active" FROM "UtilityMeter"
-      WHERE "societyId"=${societyId}::uuid AND "code" IN (${Prisma.join(codes)})
-      FOR UPDATE
-    ` : Prisma.sql`
-      SELECT "id","code","active" FROM "UtilityMeter"
-      WHERE "societyId"=${societyId}::uuid AND "code" IN (${Prisma.join(codes)})
+    const meters = await client.$queryRaw<Array<{ id: string; code: string; active: boolean }>>(Prisma.sql`
+      SELECT m."id",m."code",m."active" FROM "UtilityMeter" m
+      WHERE m."societyId"=${societyId}::uuid AND m."code" IN (${Prisma.join(codes)})
+        AND (m."buildingId" IS NULL OR EXISTS (
+          SELECT 1 FROM "Building" b WHERE b."id"=m."buildingId" AND b."societyId"=m."societyId"
+        ))
+        AND (m."unitId" IS NULL OR EXISTS (
+          SELECT 1 FROM "Unit" u JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=u."societyId"
+          WHERE u."id"=m."unitId" AND u."societyId"=m."societyId"
+            AND (m."buildingId" IS NULL OR m."buildingId"=b."id")
+        ))
+      ${lockMeters ? Prisma.sql`FOR UPDATE OF m` : Prisma.empty}
     `);
     const meterByCode = new Map(meters.map((meter) => [meter.code, meter]));
 

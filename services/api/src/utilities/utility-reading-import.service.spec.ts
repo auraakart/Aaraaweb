@@ -9,7 +9,8 @@ type TransactionClientMock = {
 };
 
 function asPrismaService(value: Partial<PrismaService>): PrismaService {
-  return value as PrismaService;
+  const withTenantContext = value.withTenantContext ?? vi.fn((_scope, run) => run({ $queryRaw: value.$queryRaw }));
+  return { ...value, withTenantContext } as PrismaService;
 }
 
 describe('UtilityReadingImportService', () => {
@@ -48,7 +49,7 @@ describe('UtilityReadingImportService', () => {
       $executeRaw: vi.fn().mockResolvedValue(0),
     };
     const prisma = asPrismaService({
-      $transaction: vi.fn(async (callback: (client: TransactionClientMock) => unknown) => callback(tx)) as unknown as PrismaService['$transaction'],
+      withTenantContext: vi.fn(async (_scope, callback: (client: TransactionClientMock) => unknown) => callback(tx)) as unknown as PrismaService['withTenantContext'],
     });
     const service = new UtilityReadingImportService(prisma);
 
