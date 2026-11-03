@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
+      'src/utilities/utility-resident*.spec.ts',
       'src/utilities/utilities.service.spec.ts',
       'src/utilities/utility-core-context.spec.ts',
       'src/workforce/*.spec.ts',
@@ -94,6 +95,7 @@ export default defineConfig({
       reportsDirectory: './coverage-risk',
       reporter: ['text', 'json-summary', 'lcov'],
       include: [
+        'src/utilities/utility-resident.service.ts',
         'src/utilities/utilities.service.ts',
         'src/workforce/workforce.service.ts',
         'src/workforce/workforce-gate-attendance.ts',
@@ -147,6 +149,7 @@ export default defineConfig({
         'src/privacy/privacy-self.controller.ts',
       ],
       thresholds: {
+        'src/utilities/utility-resident.service.ts': { statements: 95, branches: 80, functions: 100, lines: 100 },
         'src/utilities/utilities.service.ts': { statements: 79, branches: 73, functions: 100, lines: 96 },
         'src/workforce/workforce.service.ts': { statements: 74, branches: 58, functions: 92, lines: 81 },
         'src/workforce/workforce-gate-attendance.ts': { statements: 88, branches: 77, functions: 100, lines: 94 },

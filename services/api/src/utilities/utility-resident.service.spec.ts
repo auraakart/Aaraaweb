@@ -6,13 +6,14 @@ const userId = '22222222-2222-4222-8222-222222222222';
 
 describe('UtilityResidentService', () => {
   it('lists only issued utility charges linked to invoices and authorized unit relationships', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const prisma = { withTenantContext: vi.fn((_scope, run) => run({ $queryRaw: queryRaw })) };
     const service = new UtilityResidentService(prisma as never);
 
     await service.listIssuedCharges(societyId, userId);
 
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
-    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    const query = queryRaw.mock.calls[0][0] as { strings: readonly string[] };
     const sql = query.strings.join(' ');
     expect(sql).toContain('"sourceUtilityChargeDraftId"');
     expect(sql).toContain('d."status"=\'ISSUED\'');

@@ -2895,11 +2895,24 @@
     {
       "id": "V5.14.1",
       "name": "Utility core selected tenant transactions",
-      "status": "IN_PROGRESS_NONPRODUCTION",
+      "status": "COMPLETE_SELECTED_SOURCE_EXTERNAL_GATES_RETAINED",
       "currentSlice": "V5.14.1.1",
       "scopeDocument": "docs/V5.14.1-UTILITY-CORE-CONTEXT.md",
       "limitations": [
         "Core meter/reading/tariff service only; charge/invoice, resident, import/integration, reports, notifications and workforce subservices remain separate.",
+        "No hosted policy/grant activation, productionization, live providers, device or staging/main promotion."
+      ],
+      "acceptedSourceSha": "de7bd299a915b9e7c7e839279372cfa6401b580b",
+      "nextUnblockedSequence": "Resident utility reads, then charge/invoice mutations and import/integration capabilities"
+    },
+    {
+      "id": "V5.14.2",
+      "name": "Resident utility selected tenant reads",
+      "status": "IN_PROGRESS_NONPRODUCTION",
+      "currentSlice": "V5.14.2.1",
+      "scopeDocument": "docs/V5.14.2-UTILITY-RESIDENT-CONTEXT.md",
+      "limitations": [
+        "Resident read service only; utility charge/invoice mutation and import/integration services remain separate.",
         "No hosted policy/grant activation, productionization, live providers, device or staging/main promotion."
       ]
     }

@@ -17,7 +17,7 @@ for (const [name, source] of [
 
 test('checked-in core and extraction budgets retain their ceilings', () => {
   const source = readFileSync('scripts/check-complexity-boundaries.mjs', 'utf8');
-  for (const [path, maximum] of [[file, 930], ['services/api/src/utilities/utilities.service.ts', 500], ['apps/resident/lib/screens/helpdesk_screen.dart', 880],
+  for (const [path, maximum] of [[file, 930], ['services/api/src/utilities/utility-resident.service.ts', 270], ['services/api/src/utilities/utilities.service.ts', 500], ['apps/resident/lib/screens/helpdesk_screen.dart', 880],
     ['apps/resident/lib/widgets/helpdesk_ticket_card.dart', 120], ['services/api/src/amenities/amenity-blackout-assessment.ts', 75]]) {
     requireComplexityCeiling(source, path, maximum);
   }
