@@ -436,7 +436,7 @@ database('Billing transactions under a non-owner RLS role', () => {
       INSERT INTO "PaymentWebhookReceipt"
         ("societyId","paymentId","providerEventId","providerOrderId","providerPaymentId","eventStatus","payload","payloadDigest")
       VALUES (${societyA}::uuid,${order.id}::uuid,${event.eventId},${event.providerOrderId},${event.providerPaymentId},
-        'CAPTURED',CAST(${JSON.stringify(event)} AS jsonb),${integration.replaceAll('-', '').repeat(2)}) RETURNING "id"`);
+        'CAPTURED',CAST(${JSON.stringify(event)} AS jsonb),${'a'.repeat(64)}) RETURNING "id"`);
     return { bill, order, receipt, event };
   }
 
@@ -2088,11 +2088,11 @@ database('Billing transactions under a non-owner RLS role', () => {
     const id = randomUUID(), exportJobId = randomUUID(), artifactId = randomUUID(), key = randomUUID();
     await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingExportJob"
       ("id","societyId","requestedByUserId","idempotencyKey","requestHash","contractVersion","format","fromDate","toDate","status","recordCount","artifactKey","completedAt")
-      VALUES (${exportJobId}::uuid,${scope}::uuid,${owner}::uuid,${key},${integration.replaceAll('-', '').repeat(2)},'aaraagate.accounting.journal.v1','CSV',
+      VALUES (${exportJobId}::uuid,${scope}::uuid,${owner}::uuid,${key},${'a'.repeat(64)},'aaraagate.accounting.journal.v1','CSV',
         DATE '2026-10-01',DATE '2026-10-31','COMPLETED',1,${artifactId},CURRENT_TIMESTAMP)`);
     await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingExportArtifact"
       ("id","societyId","jobId","filename","contentType","sha256","byteLength","content")
-      VALUES (${artifactId}::uuid,${scope}::uuid,${exportJobId}::uuid,'journal.csv','text/csv',${integration.replaceAll('-', '').repeat(2)},4,'a,b\n')`);
+      VALUES (${artifactId}::uuid,${scope}::uuid,${exportJobId}::uuid,'journal.csv','text/csv',${'a'.repeat(64)},4,'a,b\n')`);
     await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingConnectorDelivery"
       ("id","societyId","exportJobId","provider","idempotencyKey","status","attemptCount","leaseUntil")
       VALUES (${id}::uuid,${scope}::uuid,${exportJobId}::uuid,'RLS_CONNECTOR',${key},'PROCESSING',1,CURRENT_TIMESTAMP+INTERVAL '1 hour')`);
@@ -2234,7 +2234,7 @@ database('Billing transactions under a non-owner RLS role', () => {
       at: new Date(Date.now() - 86_400_000 + i * 1000), key: randomUUID() }));
     await fixture.$executeRaw(Prisma.sql`INSERT INTO "AccountingExportJob"
       ("id","societyId","requestedByUserId","idempotencyKey","requestHash","contractVersion","format","fromDate","toDate","createdAt")
-      VALUES ${Prisma.join(jobs.map(j => Prisma.sql`(${j.id}::uuid,${j.scope}::uuid,${owner}::uuid,${j.key},${integration.replaceAll('-', '').repeat(2)},'aaraagate.accounting.journal.v1','JSONL',DATE '2026-10-01',DATE '2026-10-31',${j.at})`))}`);
+      VALUES ${Prisma.join(jobs.map(j => Prisma.sql`(${j.id}::uuid,${j.scope}::uuid,${owner}::uuid,${j.key},${'a'.repeat(64)},'aaraagate.accounting.journal.v1','JSONL',DATE '2026-10-01',DATE '2026-10-31',${j.at})`))}`);
     return jobs;
   }
 
