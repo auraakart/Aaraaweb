@@ -1,3 +1,5 @@
+import { UtilityIntegrationsService } from '../utilities/utility-integrations.service';
+import { createHash } from 'node:crypto';
 import { UtilityReadingImportService } from '../utilities/utility-reading-import.service';
 import { UtilityChargesService } from '../utilities/utility-charges.service';
 import { UtilityInvoicesService } from '../utilities/utility-invoices.service';
@@ -59,6 +61,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const suffix = randomUUID().replaceAll('-', '');
   const schema = `billing_rls_${suffix}`;
   const role = `billing_rls_${suffix}`;
+  const utilityLookupOwner = `${role}_utility`;
   const lookupOwner = `${role}_lookup`;
   const claimsOwner = `${role}_claims`;
   const accountingOwner = `${role}_accounting`;
@@ -82,12 +85,13 @@ database('Billing transactions under a non-owner RLS role', () => {
   const societyA = randomUUID(), societyB = randomUUID();
   const buildingA = randomUUID(), buildingB = randomUUID();
   const unitA = randomUUID(), unitB = randomUUID();
-  const tables = ['UtilityChargeEvent', 'UtilityChargeDraft', 'UtilityIntegrationMeterMap', 'UtilityMeter', 'UtilityReading', 'UtilityEvent', 'UtilityIntegration', 'UtilityTariffPlan', 'UtilityTariffSlab', 'UtilityTariffEvent', 'HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
+  const tables = ['UtilityIngestionResolution', 'UtilityIntegrationEvent', 'UtilityIngestionAttempt', 'UtilityIngestionReceipt', 'UtilityChargeEvent', 'UtilityChargeDraft', 'UtilityIntegrationMeterMap', 'UtilityMeter', 'UtilityReading', 'UtilityEvent', 'UtilityIntegration', 'UtilityTariffPlan', 'UtilityTariffSlab', 'UtilityTariffEvent', 'HelpdeskTicket', 'HelpdeskActivity', 'HelpdeskSlaPolicy', 'HelpdeskSlaEvent', 'FacilityAsset', 'SocietyDocument', 'SocietyDocumentEvent', 'SocietyDocumentKnowledge', 'OccupancyLifecycleRequest', 'OccupancyLifecycleEvent', 'OccupancyLifecycleChecklistItem', 'OccupancyLifecycleDocument', 'WorkforceAssignment', 'DomesticWorker', 'WorkforceLeave', 'WorkforcePaymentRecord', 'User', 'Society', 'SocietyMembership', 'GateGuardAssignment', 'Building', 'Unit', 'UnitOwnership', 'UnitOccupancy',
     'MaintenanceInvoice', 'Payment', 'PaymentEvent', 'AmenityBooking', 'AmenityWaitlistEntry', 'Amenity',
     'PaymentAutopayPreference', 'PushDeliveryOutbox', 'PaymentWebhookReceipt',
     'PaymentRefund', 'PaymentReconciliationCase', 'PaymentGatewayOperation',
     'AccountingExportJob', 'AccountingExportArtifact', 'AccountingConnectorDelivery',
     'AccountingConnectorDeliveryAction', 'Visitor', 'VisitorPass', 'AuditEvent', 'Gate', 'AccessRequest', 'GateMutationReceipt', 'ParkingSlot', 'ParkingPermit', 'ParkingPolicy', 'ParkingEvent', 'ParkingAllocation', 'ParkingCredential', 'ParkingViolation', 'Household', 'HouseholdChangeRequest', 'HouseholdVehicle', 'EmergencyContact', 'JournalEntry', 'JournalLine', 'LedgerAccount', 'AccountingFund'];
+  let utilityLookupOwnerCreated = false;
   let schemaCreated = false, roleCreated = false, lookupOwnerCreated = false, claimsOwnerCreated = false, accountingOwnerCreated = false, occupancyOwnerCreated = false, amenityOwnerCreated = false;
 
   function executeDdl(sql: string, url = base.toString()) {
@@ -153,6 +157,17 @@ database('Billing transactions under a non-owner RLS role', () => {
     executeDdl(`GRANT USAGE ON SCHEMA "${schema}" TO "${role}"`);
     executeDdl(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schema}" TO "${role}"`, fixtureUrl.toString());
     executeDdl(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA "${schema}" TO "${role}"`, fixtureUrl.toString());
+    executeDdl(`CREATE ROLE "${utilityLookupOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+    utilityLookupOwnerCreated = true;
+    const utilityResolver = readFileSync(join(__dirname,
+      '../../prisma/migrations/20261103170000_v5144_utility_integration_resolver/migration.sql'), 'utf8');
+    executeDdl(utilityResolver.replaceAll('public.', `"${schema}".`), fixtureUrl.toString());
+    executeDdl(`GRANT USAGE, CREATE ON SCHEMA "${schema}" TO "${utilityLookupOwner}";
+      GRANT SELECT ("id","societyId","secretHash","status") ON "${schema}"."UtilityIntegration" TO "${utilityLookupOwner}";
+      CREATE POLICY utility_credential_route ON "${schema}"."UtilityIntegration" FOR SELECT TO "${utilityLookupOwner}" USING (true);
+      ALTER FUNCTION "${schema}".aaraagate_resolve_utility_integration(uuid,text) OWNER TO "${utilityLookupOwner}";
+      REVOKE CREATE ON SCHEMA "${schema}" FROM "${utilityLookupOwner}";
+      GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_resolve_utility_integration(uuid,text) TO "${role}";`);
     // Exercise the migrated capability with a non-owner, NOBYPASSRLS owner.
     // Its only global policy and column grants apply to this isolated schema.
     executeDdl(`CREATE ROLE "${lookupOwner}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
@@ -264,6 +279,7 @@ database('Billing transactions under a non-owner RLS role', () => {
     await fixture.$disconnect();
     if (schemaCreated) executeDdl(`DROP SCHEMA "${schema}" CASCADE`);
     if (roleCreated) executeDdl(`DROP ROLE "${role}"`);
+    if (utilityLookupOwnerCreated) executeDdl(`DROP ROLE "${utilityLookupOwner}"`);
     if (lookupOwnerCreated) executeDdl(`DROP ROLE "${lookupOwner}"`);
     if (claimsOwnerCreated) executeDdl(`DROP ROLE "${claimsOwner}"`);
     if (accountingOwnerCreated) executeDdl(`DROP ROLE "${accountingOwner}"`);
@@ -1564,6 +1580,10 @@ database('Billing transactions under a non-owner RLS role', () => {
     }
     utilityDraftIds.length = 0;
     for (const id of utilityIntegrationIds) {
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIngestionResolution" WHERE "receiptId" IN (SELECT "id" FROM "UtilityIngestionReceipt" WHERE "integrationId"=${id}::uuid)`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIngestionAttempt" WHERE "integrationId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIngestionReceipt" WHERE "integrationId"=${id}::uuid`);
+      await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIntegrationEvent" WHERE "integrationId"=${id}::uuid`);
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIntegrationMeterMap" WHERE "integrationId"=${id}::uuid`);
       await fixture.$executeRaw(Prisma.sql`DELETE FROM "UtilityIntegration" WHERE "id"=${id}::uuid`);
     }
@@ -1588,6 +1608,165 @@ database('Billing transactions under a non-owner RLS role', () => {
     const code = randomUUID().toUpperCase(); utilityCodes.push(code);
     return await utilities.createMeter(scope, owner, {code,meterType:'WATER',unitId:unit}) as {id:string};
   }
+  const utilityIntegrations = new UtilityIntegrationsService(runtime);
+  async function integrationFixture(scope = societyA) {
+    const created = await utilityIntegrations.create(scope, owner, {code: randomUUID(), name: 'Fixture integration'});
+    utilityIntegrationIds.push(created.id); return created;
+  }
+  function integrationDigest(key: string) {
+    return createHash('sha256').update(key.slice(key.indexOf('.') + 1)).digest('hex');
+  }
+  async function resolveUtility(client: PrismaService | Prisma.TransactionClient, id: string, digest: string | null) {
+    return client.$queryRaw<Array<{id: string; societyId: string}>>(Prisma.sql`SELECT * FROM aaraagate_resolve_utility_integration(${id}::uuid,${digest})`);
+  }
+  it('routes only exact active utility credentials in two societies without exposing hashes or root rows', async () => {
+    for (const scope of [societyA, societyB]) {
+      const integration = await integrationFixture(scope);
+      expect(await resolveUtility(runtime, integration.id, integrationDigest(integration.integrationKey))).toEqual([{id: integration.id, societyId: scope}]);
+      expect(await resolveUtility(runtime, integration.id, '0'.repeat(64))).toEqual([]);
+      expect(await resolveUtility(runtime, randomUUID(), integrationDigest(integration.integrationKey))).toEqual([]);
+      expect(await resolveUtility(runtime, integration.id, null)).toEqual([]);
+      expect(await resolveUtility(runtime, integration.id, "' OR true --")).toEqual([]);
+      expect(await runtime.$queryRaw(Prisma.sql`SELECT "id" FROM "UtilityIntegration"`)).toEqual([]);
+      await utilityIntegrations.revoke(scope, owner, integration.id);
+      expect(await resolveUtility(runtime, integration.id, integrationDigest(integration.integrationKey))).toEqual([]);
+    }
+  });
+
+  it('requires explicit resolver execution and a non-owner least-privilege capability role', async () => {
+    const integration = await integrationFixture();
+    const digest = integrationDigest(integration.integrationKey);
+    executeDdl(`REVOKE EXECUTE ON FUNCTION "${schema}".aaraagate_resolve_utility_integration(uuid,text) FROM "${role}"`);
+    try { await expect(resolveUtility(runtime, integration.id, digest)).rejects.toThrow(); }
+    finally { executeDdl(`GRANT EXECUTE ON FUNCTION "${schema}".aaraagate_resolve_utility_integration(uuid,text) TO "${role}"`); }
+    const [metadata] = await fixture.$queryRaw<Array<{definer: boolean; config: string[]; ownerName: string; bypass: boolean; login: boolean; member: boolean; tableOwner: boolean; nameAccess: boolean; publicExecute: boolean}>>(Prisma.sql`
+      SELECT p.prosecdef AS definer,p.proconfig AS config,r.rolname AS "ownerName",r.rolbypassrls AS bypass,r.rolcanlogin AS login,
+        pg_has_role(${role},r.oid,'MEMBER') AS member,c.relowner=p.proowner AS "tableOwner",
+        has_column_privilege(${utilityLookupOwner},c.oid,'name','SELECT') AS "nameAccess",
+        EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS "publicExecute"
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner
+      JOIN pg_class c ON c.relname='UtilityIntegration' AND c.relnamespace=n.oid
+      WHERE n.nspname=${schema} AND p.proname='aaraagate_resolve_utility_integration'`);
+    expect(metadata).toMatchObject({definer: true, ownerName: utilityLookupOwner, bypass: false, login: false, member: false, tableOwner: false, nameAccess: false, publicExecute: false});
+    expect(metadata.config).toEqual(expect.arrayContaining(['search_path=pg_catalog, pg_temp','row_security=on']));
+    await runtime.$transaction(async tx => {
+      await tx.$executeRaw(Prisma.sql`CREATE TEMP TABLE "UtilityIntegration" ("id" uuid,"societyId" uuid,"secretHash" text,"status" text) ON COMMIT DROP`);
+      await tx.$executeRaw(Prisma.sql`INSERT INTO pg_temp."UtilityIntegration" VALUES (${integration.id}::uuid,${societyB}::uuid,${digest},'ACTIVE')`);
+      expect(await resolveUtility(tx, integration.id, digest)).toEqual([{id: integration.id, societyId: societyA}]);
+    });
+  });
+
+  it('isolates utility mapping lifecycle and rejects foreign or malformed meter parents', async () => {
+    const integration = await integrationFixture();
+    const first = await utilityMeter(), next = await utilityMeter(), foreign = await utilityMeter(societyB, unitB);
+    await expect(utilityIntegrations.createMapping(societyA, owner, integration.id, {meterId: foreign.id, externalMeterId: 'FOREIGN'})).rejects.toThrow('not found');
+    const mapping = await utilityIntegrations.createMapping(societyA, owner, integration.id, {meterId: first.id, externalMeterId: 'EXT'}) as {id: string};
+    await expect(utilityIntegrations.replaceMapping(societyB, owner, integration.id, mapping.id, {meterId: foreign.id})).rejects.toThrow('not found');
+    const replacement = await utilityIntegrations.replaceMapping(societyA, owner, integration.id, mapping.id, {meterId: next.id}) as {id: string};
+    expect(await utilityIntegrations.listMappings(societyA)).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: mapping.id, active: false}), expect.objectContaining({id: replacement.id, active: true, replacesMappingId: mapping.id})]));
+    expect(await utilityIntegrations.listMappings(societyB)).toEqual([]);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityMeter" SET "unitId"=${unitB}::uuid WHERE "id"=${next.id}::uuid`);
+    expect(await utilityIntegrations.listMappings(societyA)).not.toEqual(expect.arrayContaining([expect.objectContaining({id: replacement.id})]));
+    await expect(utilityIntegrations.retireMapping(societyA, owner, integration.id, replacement.id)).rejects.toThrow('not found');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityMeter" SET "unitId"=${unitA}::uuid WHERE "id"=${next.id}::uuid`);
+    await utilityIntegrations.retireMapping(societyA, owner, integration.id, replacement.id);
+    expect(await utilityIntegrations.listEvents(societyA)).toEqual(expect.arrayContaining([expect.objectContaining({action: 'MAPPING_REPLACED'})]));
+  });
+
+  it('serializes utility ingestion replay/conflicts in both stored societies and preserves integration provenance', async () => {
+    for (const [scope, unit, foreign] of [[societyA, unitA, societyB], [societyB, unitB, societyA]]) {
+      const integration = await integrationFixture(scope), meter = await utilityMeter(scope, unit);
+      await utilityIntegrations.createMapping(scope, owner, integration.id, {meterId: meter.id, externalMeterId: 'SHARED-EXT'});
+      const input = {idempotencyKey: 'same-key', externalMeterId: 'SHARED-EXT', readingAt: '2099-01-01', value: 10};
+      const results = await Promise.all([1, 2].map(() => utilityIntegrations.ingest(integration.integrationKey, input)));
+      expect(new Set(results.map(row => row.receiptId)).size).toBe(1);
+      expect(results.map(row => row.replayed).sort()).toEqual([false, true]);
+      await expect(utilityIntegrations.ingest(integration.integrationKey, {...input, value: 11})).rejects.toThrow('different payload');
+      expect(await utilities.listReadings(scope, meter.id)).toEqual([expect.objectContaining({source: 'INTEGRATION', integrationId: integration.id, recordedByUserId: null})]);
+      expect(await utilityIntegrations.listReceipts(foreign)).not.toEqual(expect.arrayContaining([expect.objectContaining({id: results[0].receiptId})]));
+    }
+  });
+
+  it('rejects stored utility replay receipts referencing another society reading and permits valid replay after repair', async () => {
+    const first = await integrationFixture(), second = await integrationFixture(societyB);
+    const meterA = await utilityMeter(), meterB = await utilityMeter(societyB, unitB);
+    await utilityIntegrations.createMapping(societyA, owner, first.id, {meterId: meterA.id, externalMeterId: 'EXT'});
+    await utilityIntegrations.createMapping(societyB, owner, second.id, {meterId: meterB.id, externalMeterId: 'EXT'});
+    const input = {idempotencyKey: 'parent-check', externalMeterId: 'EXT', readingAt: '2099-01-01', value: 10};
+    const original = await utilityIntegrations.ingest(first.integrationKey, input);
+    const foreign = await utilityIntegrations.ingest(second.integrationKey, input);
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityIngestionReceipt" SET "readingId"=${foreign.readingId}::uuid WHERE "id"=${original.receiptId}::uuid`);
+    expect(await utilityIntegrations.listReceipts(societyA)).toEqual([]);
+    await expect(utilityIntegrations.ingest(first.integrationKey, input)).rejects.toThrow('inconsistent parents');
+    await fixture.$executeRaw(Prisma.sql`UPDATE "UtilityIngestionReceipt" SET "readingId"=${original.readingId}::uuid WHERE "id"=${original.receiptId}::uuid`);
+    expect(await utilityIntegrations.ingest(first.integrationKey, input)).toMatchObject({readingId: original.readingId, replayed: true});
+  });
+
+  it('retains quarantine evidence while dismissing and reprocessing through selected contexts', async () => {
+    const integration = await integrationFixture(), meter = await utilityMeter();
+    const input = {idempotencyKey: 'unmapped', externalMeterId: 'NEW-MAP', readingAt: '2099-01-01', value: 10};
+    const original = await utilityIntegrations.ingest(integration.integrationKey, input);
+    expect(original).toMatchObject({status: 'QUARANTINED', errorCode: 'METER_MAPPING_NOT_FOUND'});
+    await expect(utilityIntegrations.dismissReceipt(societyB, owner, original.receiptId, {note: 'Reviewed'})).rejects.toThrow('not found');
+    await utilityIntegrations.dismissReceipt(societyA, owner, original.receiptId, {note: 'Reviewed'});
+    await utilityIntegrations.createMapping(societyA, owner, integration.id, {meterId: meter.id, externalMeterId: 'NEW-MAP'});
+    const recovered = await utilityIntegrations.reprocessReceipt(societyA, owner, original.receiptId, {note: 'Mapping repaired'});
+    expect(recovered.replacementReceipt).toMatchObject({status: 'ACCEPTED'});
+    expect(recovered.replacementReceipt.receiptId).not.toBe(original.receiptId);
+    expect(await utilityIntegrations.listReceipts(societyA)).toEqual(expect.arrayContaining([expect.objectContaining({id: original.receiptId, status: 'QUARANTINED', latestResolutionAction: 'REPROCESS_ACCEPTED'})]));
+  });
+
+  it('rejects a credential rotated after global authentication but before the selected write', async () => {
+    const integration = await integrationFixture();
+    let resume!: () => void, notify!: () => void;
+    const resumed = new Promise<void>(resolve => {resume = resolve;});
+    const authenticated = new Promise<void>(resolve => {notify = resolve;});
+    const delayed = new Proxy(runtime, {get(target, key) {
+      if (key === '$queryRaw') return async (query: Prisma.Sql) => {const rows = await target.$queryRaw(query); notify(); await resumed; return rows;};
+      const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
+    }});
+    const pending = new UtilityIntegrationsService(delayed).ingest(integration.integrationKey, {idempotencyKey: 'stale-key', externalMeterId: 'EXT', readingAt: '2099-01-01', value: 10});
+    const rejected = expect(pending).rejects.toThrow('inactive');
+    try { await authenticated; await utilityIntegrations.rotateKey(societyA, owner, integration.id); }
+    finally { resume(); }
+    await rejected;
+    expect(await utilityIntegrations.listReceipts(societyA)).toEqual([]);
+  });
+
+  it('rolls back utility key rotation when lifecycle evidence is denied', async () => {
+    const integration = await integrationFixture();
+    executeDdl(`REVOKE INSERT ON "${schema}"."UtilityIntegrationEvent" FROM "${role}"`, fixtureUrl.toString());
+    try { await expect(utilityIntegrations.rotateKey(societyA, owner, integration.id)).rejects.toThrow(); }
+    finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityIntegrationEvent" TO "${role}"`, fixtureUrl.toString()); }
+    expect(await resolveUtility(runtime, integration.id, integrationDigest(integration.integrationKey))).toEqual([{id: integration.id, societyId: societyA}]);
+    const rotated = await utilityIntegrations.rotateKey(societyA, owner, integration.id);
+    expect(await resolveUtility(runtime, integration.id, integrationDigest(integration.integrationKey))).toEqual([]);
+    expect(await resolveUtility(runtime, integration.id, integrationDigest(rotated.integrationKey))).toEqual([{id: integration.id, societyId: societyA}]);
+  });
+
+  it('rolls back utility mapping replacement when lifecycle evidence is denied', async () => {
+    const integration = await integrationFixture(), first = await utilityMeter(), next = await utilityMeter();
+    const mapping = await utilityIntegrations.createMapping(societyA, owner, integration.id, {meterId: first.id, externalMeterId: 'EXT'}) as {id: string};
+    executeDdl(`REVOKE INSERT ON "${schema}"."UtilityIntegrationEvent" FROM "${role}"`, fixtureUrl.toString());
+    try { await expect(utilityIntegrations.replaceMapping(societyA, owner, integration.id, mapping.id, {meterId: next.id})).rejects.toThrow(); }
+    finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityIntegrationEvent" TO "${role}"`, fixtureUrl.toString()); }
+    expect(await utilityIntegrations.listMappings(societyA)).toEqual([expect.objectContaining({id: mapping.id, active: true})]);
+    expect(await utilityIntegrations.replaceMapping(societyA, owner, integration.id, mapping.id, {meterId: next.id})).toMatchObject({meterId: next.id});
+  });
+
+  it('rolls back ingestion reading, receipt and event when attempt evidence is denied', async () => {
+    const integration = await integrationFixture(), meter = await utilityMeter();
+    await utilityIntegrations.createMapping(societyA, owner, integration.id, {meterId: meter.id, externalMeterId: 'EXT'});
+    const input = {idempotencyKey: 'audit-retry', externalMeterId: 'EXT', readingAt: '2099-01-01', value: 10};
+    executeDdl(`REVOKE INSERT ON "${schema}"."UtilityIngestionAttempt" FROM "${role}"`, fixtureUrl.toString());
+    try { await expect(utilityIntegrations.ingest(integration.integrationKey, input)).rejects.toThrow(); }
+    finally { executeDdl(`GRANT INSERT ON "${schema}"."UtilityIngestionAttempt" TO "${role}"`, fixtureUrl.toString()); }
+    expect(await utilities.listReadings(societyA, meter.id)).toEqual([]);
+    expect(await utilityIntegrations.listReceipts(societyA)).toEqual([]);
+    expect(await utilityIntegrations.ingest(integration.integrationKey, input)).toMatchObject({status: 'ACCEPTED', replayed: false});
+  });
+
   const utilityImports = new UtilityReadingImportService(runtime);
   const utilityCharges = new UtilityChargesService(runtime);
   async function utilityBillingReadings(scope = societyA, unit = unitA) {

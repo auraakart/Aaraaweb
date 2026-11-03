@@ -1,8 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UtilityReadingKind } from './utilities.service';
+import { authenticateUtilityIntegration, UtilityIntegrationIdentity as IntegrationIdentity } from './utility-integration-auth';
+import { utilityIntegrationMappingParents, utilityIntegrationMeterParents } from './utility-integration-parents';
+import { utilityIntegrationReplay } from './utility-integration-replay';
 
 type CreateIntegrationInput = { code: string; name: string };
 type CreateMappingInput = { externalMeterId: string; meterId: string };
@@ -21,14 +24,6 @@ type NormalizedIntegrationReading = Omit<IntegrationReadingInput, 'readingKind' 
   note: string | null;
 };
 
-type IntegrationIdentity = {
-  id: string;
-  societyId: string;
-  name: string;
-  secretHash: string;
-  status: 'ACTIVE' | 'REVOKED';
-};
-
 type QuarantineReason = { code: string; message: string };
 type IngestionResult = {
   receiptId: string;
@@ -45,25 +40,26 @@ export class UtilityIntegrationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   list(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT i."id",i."code",i."name",i."status",i."createdAt",i."revokedAt",
         creator."name" AS "createdByName",
         COUNT(DISTINCT map."id") FILTER (WHERE map."active")::int AS "activeMappingCount",
         COUNT(DISTINCT receipt."id") FILTER (
           WHERE receipt."status"='QUARANTINED' AND NOT EXISTS (
             SELECT 1 FROM "UtilityIngestionResolution" resolution
-            WHERE resolution."receiptId"=receipt."id"
+            WHERE resolution."receiptId"=receipt."id" AND resolution."societyId"=receipt."societyId"
               AND resolution."action" IN ('DISMISSED','REPROCESS_ACCEPTED')
           )
         )::int AS "quarantinedCount"
       FROM "UtilityIntegration" i
       JOIN "User" creator ON creator."id"=i."createdByUserId"
       LEFT JOIN "UtilityIntegrationMeterMap" map ON map."integrationId"=i."id" AND map."societyId"=i."societyId"
+        AND ${utilityIntegrationMappingParents()}
       LEFT JOIN "UtilityIngestionReceipt" receipt ON receipt."integrationId"=i."id" AND receipt."societyId"=i."societyId"
       WHERE i."societyId"=${societyId}::uuid
       GROUP BY i."id",creator."name"
       ORDER BY i."status",i."createdAt" DESC
-    `);
+    `));
   }
 
   async create(societyId: string, actorUserId: string, input: CreateIntegrationInput) {
@@ -74,7 +70,7 @@ export class UtilityIntegrationsService {
     const secret = randomBytes(32).toString('base64url');
     const secretHash = this.hash(secret);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const rows = await tx.$queryRaw<Array<{ id: string; code: string; name: string; status: string; createdAt: Date }>>(Prisma.sql`
           INSERT INTO "UtilityIntegration" ("societyId","code","name","secretHash","createdByUserId")
           VALUES (${societyId}::uuid,${code},${name},${secretHash},${actorUserId}::uuid)
@@ -93,7 +89,7 @@ export class UtilityIntegrationsService {
   async rotateKey(societyId: string, actorUserId: string, integrationId: string) {
     const secret = randomBytes(32).toString('base64url');
     const secretHash = this.hash(secret);
-    const integration = await this.prisma.$transaction(async (tx) => {
+    const integration = await this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; code: string; name: string; status: string }>>(Prisma.sql`
         UPDATE "UtilityIntegration"
         SET "secretHash"=${secretHash}
@@ -108,7 +104,7 @@ export class UtilityIntegrationsService {
   }
 
   async revoke(societyId: string, actorUserId: string, integrationId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; status: string; revokedAt: Date }>>(Prisma.sql`
         UPDATE "UtilityIntegration"
         SET "status"='REVOKED',"revokedByUserId"=${actorUserId}::uuid,"revokedAt"=CURRENT_TIMESTAMP
@@ -125,7 +121,7 @@ export class UtilityIntegrationsService {
     const externalMeterId = input.externalMeterId.trim();
     if (!externalMeterId || externalMeterId.length > 160) throw new BadRequestException('External meter ID must be between 1 and 160 characters');
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
         const integrations = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           SELECT "id" FROM "UtilityIntegration"
           WHERE "id"=${integrationId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
@@ -133,9 +129,10 @@ export class UtilityIntegrationsService {
         `);
         if (!integrations[0]) throw new NotFoundException('Active utility integration not found');
         const meters = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT "id" FROM "UtilityMeter"
-          WHERE "id"=${input.meterId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
-          FOR UPDATE
+          SELECT m."id" FROM "UtilityMeter" m
+          WHERE m."id"=${input.meterId}::uuid AND m."societyId"=${societyId}::uuid AND m."active"=true
+            AND ${utilityIntegrationMeterParents('m')}
+          FOR UPDATE OF m
         `);
         if (!meters[0]) throw new NotFoundException('Active utility meter not found');
         const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
@@ -160,7 +157,7 @@ export class UtilityIntegrationsService {
   }
 
   listMappings(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT map."id",map."integrationId",map."externalMeterId",map."meterId",map."active",
         map."createdAt",map."retiredAt",map."replacesMappingId",
         integration."code" AS "integrationCode",meter."code" AS "meterCode",meter."label" AS "meterLabel"
@@ -168,19 +165,19 @@ export class UtilityIntegrationsService {
       JOIN "UtilityIntegration" integration
         ON integration."id"=map."integrationId" AND integration."societyId"=map."societyId"
       JOIN "UtilityMeter" meter ON meter."id"=map."meterId" AND meter."societyId"=map."societyId"
-      WHERE map."societyId"=${societyId}::uuid
+      WHERE map."societyId"=${societyId}::uuid AND ${utilityIntegrationMeterParents('meter')}
       ORDER BY map."active" DESC,map."createdAt" DESC
       LIMIT 500
-    `);
+    `));
   }
 
   async retireMapping(societyId: string, actorUserId: string, integrationId: string, mappingId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; externalMeterId: string; meterId: string; retiredAt: Date }>>(Prisma.sql`
-        UPDATE "UtilityIntegrationMeterMap"
+        UPDATE "UtilityIntegrationMeterMap" map
         SET "active"=false,"retiredByUserId"=${actorUserId}::uuid,"retiredAt"=CURRENT_TIMESTAMP
         WHERE "id"=${mappingId}::uuid AND "integrationId"=${integrationId}::uuid
-          AND "societyId"=${societyId}::uuid AND "active"=true
+          AND "societyId"=${societyId}::uuid AND "active"=true AND ${utilityIntegrationMappingParents()}
         RETURNING "id","externalMeterId","meterId","retiredAt"
       `);
       if (!rows[0]) throw new NotFoundException('Active utility meter mapping not found');
@@ -201,27 +198,33 @@ export class UtilityIntegrationsService {
     input: { meterId: string },
   ) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.withTenantContext(societyId, async (tx) => {
+        const authority = await tx.$queryRaw<Array<{id: string}>>(Prisma.sql`
+          SELECT "id" FROM "UtilityIntegration" WHERE "id"=${integrationId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
+          FOR UPDATE
+        `);
+        if (!authority[0]) throw new NotFoundException('Active utility integration not found');
         const existing = await tx.$queryRaw<Array<{ id: string; externalMeterId: string; meterId: string }>>(Prisma.sql`
           SELECT map."id",map."externalMeterId",map."meterId"
           FROM "UtilityIntegrationMeterMap" map
-          JOIN "UtilityIntegration" integration ON integration."id"=map."integrationId"
+          JOIN "UtilityIntegration" integration ON integration."id"=map."integrationId" AND integration."societyId"=map."societyId"
           WHERE map."id"=${mappingId}::uuid AND map."integrationId"=${integrationId}::uuid
-            AND map."societyId"=${societyId}::uuid AND map."active"=true AND integration."status"='ACTIVE'
+            AND map."societyId"=${societyId}::uuid AND map."active"=true AND integration."status"='ACTIVE' AND ${utilityIntegrationMappingParents()}
           FOR UPDATE OF map
         `);
         if (!existing[0]) throw new NotFoundException('Active utility meter mapping not found');
         const meters = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT "id" FROM "UtilityMeter"
-          WHERE "id"=${input.meterId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
-          FOR UPDATE
+          SELECT m."id" FROM "UtilityMeter" m
+          WHERE m."id"=${input.meterId}::uuid AND m."societyId"=${societyId}::uuid AND m."active"=true
+            AND ${utilityIntegrationMeterParents('m')}
+          FOR UPDATE OF m
         `);
         if (!meters[0]) throw new NotFoundException('Replacement utility meter not found');
         if (existing[0].meterId === input.meterId) throw new BadRequestException('Replacement meter must be different');
         await tx.$executeRaw(Prisma.sql`
           UPDATE "UtilityIntegrationMeterMap"
           SET "active"=false,"retiredByUserId"=${actorUserId}::uuid,"retiredAt"=CURRENT_TIMESTAMP
-          WHERE "id"=${mappingId}::uuid
+          WHERE "id"=${mappingId}::uuid AND "societyId"=${societyId}::uuid AND "integrationId"=${integrationId}::uuid
         `);
         const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
           INSERT INTO "UtilityIntegrationMeterMap" (
@@ -247,7 +250,7 @@ export class UtilityIntegrationsService {
   }
 
   listReceipts(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT receipt."id",receipt."idempotencyKey",receipt."externalMeterId",receipt."status",
         receipt."readingId",receipt."errorCode",receipt."errorMessage",receipt."receivedAt",
         integration."code" AS "integrationCode",integration."name" AS "integrationName",
@@ -256,22 +259,27 @@ export class UtilityIntegrationsService {
       FROM "UtilityIngestionReceipt" receipt
       JOIN "UtilityIntegration" integration
         ON integration."id"=receipt."integrationId" AND integration."societyId"=receipt."societyId"
-      LEFT JOIN "UtilityReading" reading ON reading."id"=receipt."readingId" AND reading."societyId"=receipt."societyId"
+      LEFT JOIN "UtilityReading" reading ON reading."id"=receipt."readingId" AND reading."societyId"=receipt."societyId" AND reading."integrationId"=receipt."integrationId"
       LEFT JOIN "UtilityMeter" meter ON meter."id"=reading."meterId" AND meter."societyId"=receipt."societyId"
       LEFT JOIN LATERAL (
         SELECT r."action",r."occurredAt",r."replacementReceiptId"
         FROM "UtilityIngestionResolution" r
-        WHERE r."receiptId"=receipt."id"
+        WHERE r."receiptId"=receipt."id" AND r."societyId"=receipt."societyId"
+          AND (r."replacementReceiptId" IS NULL OR EXISTS (
+            SELECT 1 FROM "UtilityIngestionReceipt" replacement WHERE replacement."id"=r."replacementReceiptId"
+              AND replacement."societyId"=receipt."societyId" AND replacement."integrationId"=receipt."integrationId"
+          ))
         ORDER BY r."occurredAt" DESC,r."id" DESC LIMIT 1
       ) resolution ON true
       WHERE receipt."societyId"=${societyId}::uuid
+        AND (receipt."readingId" IS NULL OR (reading."id" IS NOT NULL AND meter."id" IS NOT NULL AND ${utilityIntegrationMeterParents('meter')}))
       ORDER BY receipt."receivedAt" DESC
       LIMIT 500
-    `);
+    `));
   }
 
   listEvents(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT event."id",event."integrationId",event."action",event."metadata",event."occurredAt",
         integration."code" AS "integrationCode",actor."name" AS "actorName"
       FROM "UtilityIntegrationEvent" event
@@ -281,22 +289,23 @@ export class UtilityIntegrationsService {
       WHERE event."societyId"=${societyId}::uuid
       ORDER BY event."occurredAt" DESC
       LIMIT 500
-    `);
+    `));
   }
 
   async dismissReceipt(societyId: string, actorUserId: string, receiptId: string, input: ResolutionInput) {
     const note = this.normalizeResolutionNote(input.note, true);
     const operationId = randomUUID();
-    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    const rows = await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       INSERT INTO "UtilityIngestionResolution" (
         "societyId","receiptId","operationId","action","actorUserId","note"
       )
       SELECT ${societyId}::uuid,receipt."id",${operationId}::uuid,'DISMISSED',${actorUserId}::uuid,${note}
       FROM "UtilityIngestionReceipt" receipt
+      JOIN "UtilityIntegration" integration ON integration."id"=receipt."integrationId" AND integration."societyId"=receipt."societyId"
       WHERE receipt."id"=${receiptId}::uuid AND receipt."societyId"=${societyId}::uuid
         AND receipt."status"='QUARANTINED'
       RETURNING *
-    `);
+    `));
     if (!rows[0]) throw new NotFoundException('Quarantined utility ingestion receipt not found');
     return rows[0];
   }
@@ -304,7 +313,7 @@ export class UtilityIntegrationsService {
   async reprocessReceipt(societyId: string, actorUserId: string, receiptId: string, input: ResolutionInput) {
     const note = this.normalizeResolutionNote(input.note, false);
     const operationId = randomUUID();
-    const rows = await this.prisma.$queryRaw<Array<IntegrationIdentity & { rawPayload: IntegrationReadingInput }>>(Prisma.sql`
+    const rows = await this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<Array<IntegrationIdentity & { rawPayload: IntegrationReadingInput }>>(Prisma.sql`
       SELECT integration."id",integration."societyId",integration."name",integration."secretHash",integration."status",
         receipt."rawPayload"
       FROM "UtilityIngestionReceipt" receipt
@@ -312,7 +321,7 @@ export class UtilityIntegrationsService {
         ON integration."id"=receipt."integrationId" AND integration."societyId"=receipt."societyId"
       WHERE receipt."id"=${receiptId}::uuid AND receipt."societyId"=${societyId}::uuid
         AND receipt."status"='QUARANTINED'
-    `);
+    `));
     const original = rows[0];
     if (!original) throw new NotFoundException('Quarantined utility ingestion receipt not found');
     if (original.status !== 'ACTIVE') throw new BadRequestException('The integration must be active before reprocessing');
@@ -341,7 +350,7 @@ export class UtilityIntegrationsService {
   }
 
   async ingest(integrationKey: string | undefined, input: IntegrationReadingInput) {
-    const identity = await this.authenticate(integrationKey);
+    const identity = await authenticateUtilityIntegration(this.prisma, integrationKey);
     return this.process(identity, input);
   }
 
@@ -357,27 +366,20 @@ export class UtilityIntegrationsService {
     const payloadHash = this.hash(JSON.stringify(normalized));
     const rawPayload = JSON.stringify(normalized);
 
-    const result = await this.prisma.$transaction(async (tx): Promise<IngestionResult> => {
+    const result = await this.prisma.withTenantContext(identity.societyId, async (tx): Promise<IngestionResult> => {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${identity.id}),hashtext(${idempotencyKey}))`);
       const active = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "UtilityIntegration"
-        WHERE "id"=${identity.id}::uuid AND "societyId"=${identity.societyId}::uuid AND "status"='ACTIVE'
+        WHERE "id"=${identity.id}::uuid AND "societyId"=${identity.societyId}::uuid AND "status"='ACTIVE' AND "secretHash"=${identity.secretHash}
         FOR UPDATE
       `);
       if (!active[0]) throw new UnauthorizedException('Utility integration is inactive');
 
-      const existing = await tx.$queryRaw<Array<{
-        id: string; payloadHash: string; status: 'ACCEPTED' | 'QUARANTINED'; readingId: string | null;
-        errorCode: string | null; errorMessage: string | null;
-      }>>(Prisma.sql`
-        SELECT "id","payloadHash","status","readingId","errorCode","errorMessage"
-        FROM "UtilityIngestionReceipt"
-        WHERE "integrationId"=${identity.id}::uuid AND "idempotencyKey"=${idempotencyKey}
-      `);
-      if (existing[0]) {
-        const samePayload = existing[0].payloadHash === payloadHash;
-        await this.recordAttempt(tx, identity, existing[0].id, idempotencyKey, payloadHash, samePayload ? 'REPLAY' : 'IDEMPOTENCY_CONFLICT');
-        return { ...existing[0], receiptId: existing[0].id, replayed: samePayload, conflict: !samePayload };
+      const existing = await utilityIntegrationReplay(tx, identity.societyId, identity.id, idempotencyKey);
+      if (existing) {
+        const samePayload = existing.payloadHash === payloadHash;
+        await this.recordAttempt(tx, identity, existing.id, idempotencyKey, payloadHash, samePayload ? 'REPLAY' : 'IDEMPOTENCY_CONFLICT');
+        return { ...existing, receiptId: existing.id, replayed: samePayload, conflict: !samePayload };
       }
 
       const invalid = this.validateReading(normalized);
@@ -390,7 +392,8 @@ export class UtilityIntegrationsService {
         WHERE map."integrationId"=${identity.id}::uuid
           AND map."societyId"=${identity.societyId}::uuid
           AND map."externalMeterId"=${externalMeterId}
-          AND map."active"=true
+          AND map."active"=true AND ${utilityIntegrationMeterParents('meter')}
+        FOR UPDATE OF map,meter
       `);
       if (!mappings[0]) {
         return this.quarantine(tx, identity, normalized, payloadHash, rawPayload, {
@@ -414,7 +417,7 @@ export class UtilityIntegrationsService {
       const readingAt = new Date(normalized.readingAt);
       const collision = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "UtilityReading"
-        WHERE "meterId"=${meterId}::uuid AND "readingAt"=${readingAt}
+        WHERE "meterId"=${meterId}::uuid AND "societyId"=${identity.societyId}::uuid AND "readingAt"=${readingAt}
       `);
       if (collision[0]) {
         return this.quarantine(tx, identity, normalized, payloadHash, rawPayload, {
@@ -479,28 +482,6 @@ export class UtilityIntegrationsService {
 
     if (result.conflict) throw new ConflictException('Idempotency key was already used with a different payload');
     return result;
-  }
-
-  private async authenticate(integrationKey: string | undefined): Promise<IntegrationIdentity> {
-    if (!integrationKey) throw new UnauthorizedException('Utility integration key is required');
-    const separator = integrationKey.indexOf('.');
-    if (separator <= 0 || separator === integrationKey.length - 1) throw new UnauthorizedException('Utility integration key is invalid');
-    const integrationId = integrationKey.slice(0, separator);
-    const secret = integrationKey.slice(separator + 1);
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(integrationId)) {
-      throw new UnauthorizedException('Utility integration key is invalid');
-    }
-    const rows = await this.prisma.$queryRaw<IntegrationIdentity[]>(Prisma.sql`
-      SELECT "id","societyId","name","secretHash","status"
-      FROM "UtilityIntegration"
-      WHERE "id"=${integrationId}::uuid
-    `);
-    const identity = rows[0];
-    if (!identity || identity.status !== 'ACTIVE') throw new UnauthorizedException('Utility integration key is invalid');
-    const expected = Buffer.from(identity.secretHash, 'hex');
-    const actual = Buffer.from(this.hash(secret), 'hex');
-    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw new UnauthorizedException('Utility integration key is invalid');
-    return identity;
   }
 
   private validateReading(input: NormalizedIntegrationReading): QuarantineReason | null {
@@ -572,7 +553,7 @@ export class UtilityIntegrationsService {
     `);
   }
 
-  private recordResolution(
+  private async recordResolution(
     societyId: string,
     receiptId: string,
     operationId: string,
@@ -581,14 +562,20 @@ export class UtilityIntegrationsService {
     replacementReceiptId: string | null,
     note: string | null,
   ) {
-    return this.prisma.$executeRaw(Prisma.sql`
+    const written = await this.prisma.withTenantContext(societyId, tx => tx.$executeRaw(Prisma.sql`
       INSERT INTO "UtilityIngestionResolution" (
         "societyId","receiptId","operationId","action","actorUserId","replacementReceiptId","note"
-      ) VALUES (
-        ${societyId}::uuid,${receiptId}::uuid,${operationId}::uuid,${action},${actorUserId}::uuid,
+      ) SELECT ${societyId}::uuid,receipt."id",${operationId}::uuid,${action},${actorUserId}::uuid,
         ${replacementReceiptId}::uuid,${note}
-      )
-    `);
+      FROM "UtilityIngestionReceipt" receipt
+      JOIN "UtilityIntegration" integration ON integration."id"=receipt."integrationId" AND integration."societyId"=receipt."societyId"
+      WHERE receipt."id"=${receiptId}::uuid AND receipt."societyId"=${societyId}::uuid
+        AND (${replacementReceiptId}::uuid IS NULL OR EXISTS (
+          SELECT 1 FROM "UtilityIngestionReceipt" replacement WHERE replacement."id"=${replacementReceiptId}::uuid
+            AND replacement."societyId"=receipt."societyId" AND replacement."integrationId"=receipt."integrationId"
+        ))
+    `));
+    if (written !== 1) throw new NotFoundException('Utility resolution receipt parents not found');
   }
 
   private normalizeResolutionNote(value: string | undefined, required: boolean) {
@@ -603,6 +590,8 @@ export class UtilityIntegrationsService {
   }
 
   private isUniqueViolation(error: unknown) {
-    return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
+    if (!error || typeof error !== 'object') return false;
+    const detail = error as { code?: string; meta?: { code?: string } };
+    return detail.code === '23505' || (detail.code === 'P2010' && detail.meta?.code === '23505');
   }
 }

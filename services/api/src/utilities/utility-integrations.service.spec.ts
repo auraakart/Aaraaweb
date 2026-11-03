@@ -25,7 +25,7 @@ describe('UtilityIntegrationsService', () => {
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
     const prisma = {
-      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      withTenantContext: vi.fn((_scope, callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const service = new UtilityIntegrationsService(prisma as unknown as PrismaService);
 
@@ -55,6 +55,7 @@ describe('UtilityIntegrationsService', () => {
         .mockResolvedValueOnce([{ id: integrationId }])
         .mockResolvedValueOnce([{
           id: receiptId,
+          parentsValid: true,
           payloadHash,
           status: 'ACCEPTED',
           readingId,
@@ -64,7 +65,7 @@ describe('UtilityIntegrationsService', () => {
     };
     const prisma = {
       $queryRaw: vi.fn().mockResolvedValue([identity()]),
-      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      withTenantContext: vi.fn((_scope, callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const service = new UtilityIntegrationsService(prisma as unknown as PrismaService);
 
@@ -90,7 +91,7 @@ describe('UtilityIntegrationsService', () => {
     };
     const prisma = {
       $queryRaw: vi.fn().mockResolvedValue([identity()]),
-      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      withTenantContext: vi.fn((_scope, callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const service = new UtilityIntegrationsService(prisma as unknown as PrismaService);
 
@@ -126,7 +127,7 @@ describe('UtilityIntegrationsService', () => {
     };
     const prisma = {
       $queryRaw: vi.fn().mockResolvedValue([identity()]),
-      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      withTenantContext: vi.fn((_scope, callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const service = new UtilityIntegrationsService(prisma as unknown as PrismaService);
 
@@ -156,25 +157,14 @@ describe('UtilityIntegrationsService', () => {
     const tx = {
       $executeRaw: vi.fn().mockResolvedValue(1),
       $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{...identity(), rawPayload: {idempotencyKey: 'original-key', externalMeterId: 'UNMAPPED', readingAt: '2026-09-15T04:00:00.000Z', value: 10, readingKind: 'ACTUAL', note: null}}])
         .mockResolvedValueOnce([{ id: integrationId }])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ id: replacementReceiptId }]),
     };
     const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([{
-        ...identity(),
-        rawPayload: {
-          idempotencyKey: 'original-key',
-          externalMeterId: 'UNMAPPED',
-          readingAt: '2026-09-15T04:00:00.000Z',
-          value: 10,
-          readingKind: 'ACTUAL',
-          note: null,
-        },
-      }]),
-      $executeRaw: vi.fn().mockResolvedValue(1),
-      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      withTenantContext: vi.fn((_scope, callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const service = new UtilityIntegrationsService(prisma as unknown as PrismaService);
 
@@ -183,13 +173,13 @@ describe('UtilityIntegrationsService', () => {
         originalReceiptId: receiptId,
         replacementReceipt: { receiptId: replacementReceiptId, status: 'QUARANTINED' },
       });
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
-    const requested = prisma.$executeRaw.mock.calls[0][0] as { values: unknown[] };
-    const completed = prisma.$executeRaw.mock.calls[1][0] as { values: unknown[] };
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(4);
+    const requested = tx.$executeRaw.mock.calls[0][0] as { values: unknown[] };
+    const completed = tx.$executeRaw.mock.calls[3][0] as { values: unknown[] };
     expect(requested.values).toContain('REPROCESS_REQUESTED');
     expect(completed.values).toContain('REPROCESS_QUARANTINED');
     expect(completed.values).toContain(replacementReceiptId);
-    const replacementInsert = tx.$queryRaw.mock.calls[3][0] as { values: unknown[] };
+    const replacementInsert = tx.$queryRaw.mock.calls[4][0] as { values: unknown[] };
     expect(replacementInsert.values).not.toContain('original-key');
   });
 });
