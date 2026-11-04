@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ActionBar, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, ReadinessPanel, SecondaryButton, SelectField, StatusPill } from '../../../components/admin-ui'
 import './exports.css'
-import { api, type Session } from '../../../lib/admin-client'
+import { api, downloadAdminBlob, type Session } from '../../../lib/admin-client'
 
 type ExportJob={id:string;contractVersion:string;format:'CSV'|'JSONL'|'TALLY_CSV';fromDate:string;toDate:string;status:string;recordCount:number|null;artifactKey:string|null;errorCode:string|null;createdAt:string;completedAt:string|null}
 type Delivery={id:string;exportJobId:string;provider:string;status:string;attemptCount:number;lastAttemptAt:string|null;nextAttemptAt:string|null;providerReceiptId:string|null;failureCode:string|null;failureMessage:string|null;createdAt:string;updatedAt:string;completedAt:string|null}
@@ -11,7 +11,6 @@ type DeliveryMetrics={totals:{totalCount:number;pendingCount:number;deliveredCou
 type Readiness={provider:string;bridgeConfigured:boolean;apiKeyConfigured:boolean;autoDeliveryEnabled:boolean;state:'NOT_CONFIGURED'|'READY_DISABLED'|'ACTIVE';networkCheckPerformed:false}
 type DeliveryAction={id:string;deliveryId:string;actorUserId:string;action:'MANUAL_RETRY';fromStatus:'FAILED'|'UNKNOWN';previousAttemptCount:number;occurredAt:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 const contractVersion='aaraagate.accounting.journal.v1'
@@ -25,7 +24,25 @@ function presetRange(kind:'THIS_MONTH'|'LAST_MONTH'|'FINANCIAL_YEAR'){
   return {from:dateValue(new Date(startYear,3,1)),to:dateValue(new Date(startYear+1,2,31))}
 }
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function downloadArtifact(s:Session,job:ExportJob){const r=await fetch(`${base}/api/v1/accounting/exports/${job.id}/artifact`,{headers:{Authorization:`Bearer ${s.accessToken}`}});if(!r.ok){const text=await r.text();let message=`Download failed (${r.status})`;try{const body=text?JSON.parse(text):null;message=Array.isArray(body?.message)?body.message.join(', '):body?.message??message}catch{}throw new Error(message)}const blob=await r.blob();const disposition=r.headers.get('content-disposition')??'';const match=disposition.match(/filename="?([^";]+)"?/i);const filename=match?.[1]??`aaraagate-accounting-${job.id}.${job.format==='JSONL'?'jsonl':'csv'}`;const href=URL.createObjectURL(blob);try{const link=document.createElement('a');link.href=href;link.download=filename;document.body.appendChild(link);link.click();link.remove()}finally{URL.revokeObjectURL(href)}}
+async function downloadArtifact(s:Session,job:ExportJob){
+  // Preserve CSV, Tally CSV and JSONL bytes without forcing text/csv.
+  const {blob,headers}=await downloadAdminBlob(
+    '/accounting/exports/'+job.id+'/artifact',s,'*/*',
+  )
+  const disposition=headers.get('content-disposition')??''
+  const match=disposition.match(/filename="?([^";]+)"?/i)
+  const fallback='aaraagate-accounting-'+job.id+'.'+(job.format==='JSONL'?'jsonl':'csv')
+  const filename=(match?.[1]??fallback).replace(/[^A-Za-z0-9._-]/g,'_')
+  const href=URL.createObjectURL(blob)
+  try{
+    const link=document.createElement('a')
+    link.href=href
+    link.download=filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }finally{URL.revokeObjectURL(href)}
+}
 async function downloadEvidence(s:Session,delivery:Delivery){const evidence=await api<unknown>(`/accounting/connector-deliveries/${delivery.id}/evidence`,{},s);const blob=new Blob([JSON.stringify(evidence,null,2)+'\n'],{type:'application/json'});const href=URL.createObjectURL(blob);try{const link=document.createElement('a');link.href=href;link.download=`aaraagate-accounting-connector-evidence-${delivery.id}.json`;document.body.appendChild(link);link.click();link.remove()}finally{URL.revokeObjectURL(href)}}
 function age(value:string|null){if(!value)return '—';const ms=Date.now()-new Date(value).getTime();const hours=Math.max(0,Math.floor(ms/3_600_000));return hours<24?`${hours}h`:`${Math.floor(hours/24)}d ${hours%24}h`}
 

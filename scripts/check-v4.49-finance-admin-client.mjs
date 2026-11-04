@@ -81,7 +81,8 @@ const reportCsvContract=[
   /\bimport\s*\{[^}]*\bdownloadAdminBlob\b/.test(reportsSource),
   !reportsSource.includes('await fetch('),
   reportsClientSource.includes('export async function downloadAdminBlob('),
-  reportsClientSource.includes("headers:{Accept:'text/csv'"),
+  reportsClientSource.includes("accept:'text/csv'|'*/*'='text/csv'"),
+  reportsClientSource.includes("headers:{Accept:accept"),
   reportsClientSource.includes("Authorization:'Bearer '+current.accessToken"),
   reportsClientSource.includes('let active=storedFor(session)'),
   reportsClientSource.includes('storedFor(active)'),
@@ -103,8 +104,15 @@ if(!exportsSource.includes('lib/admin-client')||exportsSource.includes('async fu
   console.error(`V4.49 contract failed: ${exportsFile} JSON transport is not converged`)
   process.exit(1)
 }
-if(!exportsSource.includes('/artifact')||!exportsSource.includes('await fetch(')||!exportsSource.includes('response.blob')&&!exportsSource.includes('r.blob')){
-  console.error(`V4.49 contract failed: ${exportsFile} must retain explicit authenticated artifact blob transport`)
+if(!exportsSource.includes('/artifact')||
+   !exportsSource.includes("s,'*/*'")||
+   !/\bimport\s*\{[^}]*\bdownloadAdminBlob\b/.test(exportsSource)||
+   !exportsSource.includes('await downloadAdminBlob(')||
+   exportsSource.includes('await fetch(')||
+   exportsSource.includes('NEXT_PUBLIC_AARAGATE_API_BASE_URL')||
+   !reportsClientSource.includes("accept:'text/csv'|'*/*'='text/csv'")||
+   !reportsClientSource.includes('headers:{Accept:accept')){
+  console.error('V4.49 contract failed: Accounting artifacts require authenticated, binary-safe shared blob transport')
   process.exit(1)
 }
 
