@@ -68,8 +68,28 @@ if(!reportsSource.includes('lib/admin-client')||reportsSource.includes('async fu
   console.error(`V4.49 contract failed: ${reports} JSON transport is not converged`)
   process.exit(1)
 }
-if(!reportsSource.includes('downloadCsv')||!reportsSource.includes('Accept:\'text/csv\'')||!reportsSource.includes('await fetch(')){
-  console.error(`V4.49 contract failed: ${reports} must retain explicit CSV blob export transport`)
+// V5.14.5 moved CSV transport into the shared session-safe client. Keep the
+// historical blob/export contract, but pin the stricter login/society boundary
+// rather than requiring a fetch call at a particular UI file location.
+const reportsClientSource=fs.readFileSync('apps/admin/lib/admin-client.ts','utf8')
+const reportCsvContract=[
+  reportsSource.includes('downloadCsv'),
+  reportsSource.includes('await downloadAdminBlob(path,session)'),
+  /\bimport\s*\{[^}]*\bdownloadAdminBlob\b/.test(reportsSource),
+  !reportsSource.includes('await fetch('),
+  reportsClientSource.includes('export async function downloadAdminBlob('),
+  reportsClientSource.includes("headers:{Accept:'text/csv'"),
+  reportsClientSource.includes("Authorization:'Bearer '+current.accessToken"),
+  reportsClientSource.includes('let active=storedFor(session)'),
+  reportsClientSource.includes('storedFor(active)'),
+  reportsClientSource.includes('if(response.status===401)'),
+  reportsClientSource.includes('await refreshAdminSession(active)'),
+  reportsClientSource.includes('if(!response.ok)throw new Error('),
+  reportsClientSource.includes('const blob=await response.blob()'),
+  reportsClientSource.includes('return {blob,headers:response.headers}'),
+]
+if(reportCsvContract.some(passed=>!passed)){
+  console.error('V4.49 contract failed: Reports must use guarded shared CSV blob transport with session, refresh and response-body checks')
   process.exit(1)
 }
 
