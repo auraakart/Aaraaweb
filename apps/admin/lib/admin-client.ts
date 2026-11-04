@@ -42,6 +42,30 @@ function message(body:unknown,status:number){
   return `Request failed (${status})`;
 }
 async function readResponse(response:Response){const text=await response.text();if(!text)return null;try{return JSON.parse(text) as unknown}catch{return text}}
+/**
+ * Apply the same session-lineage checks to CSV responses as to JSON API calls.
+ * A different login or society must never receive the prior session's bytes.
+ */
+export async function downloadAdminBlob(path:string,session:Session):Promise<{blob:Blob;headers:Headers}>{
+  let active=storedFor(session);
+  const requestBlob=(current:Session)=>fetch(base+'/api/v1'+path,{
+    headers:{Accept:'text/csv',Authorization:'Bearer '+current.accessToken},
+  });
+  let response=await requestBlob(active);
+  storedFor(active);
+  if(response.status===401){
+    const latest=storedFor(active);
+    active=latest.sessionId!==active.sessionId||latest.accessToken!==active.accessToken
+      ?latest:await refreshAdminSession(active);
+    response=await requestBlob(active);
+  }
+  storedFor(active);
+  if(!response.ok)throw new Error(message(await readResponse(response),response.status));
+  const blob=await response.blob();
+  storedFor(active); // Login may have changed while downloading.
+  return {blob,headers:response.headers};
+}
+
 async function request(path:string,init:RequestInit,session?:Session){
   const response=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',...(session?{Authorization:`Bearer ${session.accessToken}`}:{}),...init.headers}});
   return {response,body:await readResponse(response)};

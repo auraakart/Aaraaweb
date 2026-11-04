@@ -2934,14 +2934,16 @@
     {
       "id": "V5.14.4",
       "name": "Utility integration selected transactions and exact credential routing",
-      "status": "IN_PROGRESS_NONPRODUCTION",
+      "status": "COMPLETE_SELECTED_SOURCE_EXTERNAL_GATES_RETAINED",
       "currentSlice": "V5.14.4.1",
       "scopeDocument": "docs/V5.14.4-UTILITY-INTEGRATION-CONTEXT.md",
       "limitations": [
         "Exact credential routing remains a narrow global capability; reviewed migration/function-owner and runtime EXECUTE grants are required before deployment.",
         "Reporting, notifications and remaining workforce subservices retain separate source acceptance.",
         "No hosted roles/policies, live providers, devices, independent artifacts, productionization or staging/main promotion."
-      ]
+      ],
+      "acceptedSourceSha": "41c9a0ce9c72a867c11c1e9747cd3316046703d8",
+      "nextUnblockedSequence": "Report reads/exports, notifications and remaining workforce subservices"
     }
   ]
 }
