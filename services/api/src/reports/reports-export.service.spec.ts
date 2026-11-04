@@ -116,4 +116,91 @@ describe('ReportsExportService', () => {
     )).rejects.toBeInstanceOf(BadRequestException);
     expect(auditCreate).not.toHaveBeenCalled();
   });
+
+  it('rejects oversized audit CSV before writing a misleading export audit event', async () => {
+    const auditRows = Array.from({ length: 5001 }, () => ({
+      event: 'ACCESS_CREATED',
+      occurredAt: new Date('2026-09-15T00:00:00.000Z'),
+      actorUserId: 'actor', gateId: null, accessRequestId: null, visitorPassId: null,
+    }));
+    const findMany = vi.fn().mockResolvedValue(auditRows);
+    const create = vi.fn();
+    const service = new ReportsExportService({
+      auditEvent: { findMany, create },
+    } as unknown as PrismaService);
+
+    await expect(service.auditCsv(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '2026-09-01T00:00:00Z',
+      '2026-09-30T00:00:00Z',
+    )).rejects.toBeInstanceOf(BadRequestException);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 5001,
+      where: expect.objectContaining({ societyId: '11111111-1111-4111-8111-111111111111' }),
+    }));
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('uses the selected society for each audit export and the resulting audit evidence', async () => {
+    const societyA = '11111111-1111-4111-8111-111111111111';
+    const societyB = '33333333-3333-4333-8333-333333333333';
+    const actor = '22222222-2222-4222-8222-222222222222';
+    const findMany = vi.fn().mockImplementation(async (query: { where: { societyId: string } }) => {
+      const marker = query.where.societyId === societyA ? 'gate-a' : 'gate-b';
+      return [{
+        event: 'VISITOR_CHECKED_IN', occurredAt: new Date('2026-09-10T00:00:00.000Z'),
+        actorUserId: actor, gateId: marker, accessRequestId: null, visitorPassId: null,
+      }];
+    });
+    const create = vi.fn().mockResolvedValue({});
+    const service = new ReportsExportService({
+      auditEvent: { findMany, create },
+    } as unknown as PrismaService);
+
+    const a = await service.auditCsv(societyA, actor);
+    const b = await service.auditCsv(societyB, actor);
+    expect(a.csv).toContain('gate-a');
+    expect(a.csv).not.toContain('gate-b');
+    expect(b.csv).toContain('gate-b');
+    expect(b.csv).not.toContain('gate-a');
+    expect(findMany.mock.calls.map(([query]) => query.where.societyId)).toEqual([societyA, societyB]);
+    expect(create.mock.calls.map(([query]) => query.data)).toEqual([
+      { societyId: societyA, actorUserId: actor, event: 'REPORT_EXPORTED' },
+      { societyId: societyB, actorUserId: actor, event: 'REPORT_EXPORTED' },
+    ]);
+  });
+
+  it('rejects malformed export date ranges before reading or writing tenant data', async () => {
+    const invoiceFindMany = vi.fn();
+    const auditFindMany = vi.fn();
+    const auditCreate = vi.fn();
+    const service = new ReportsExportService({
+      maintenanceInvoice: { findMany: invoiceFindMany },
+      auditEvent: { findMany: auditFindMany, create: auditCreate },
+    } as unknown as PrismaService);
+    await expect(service.maintenanceCsv('society', 'actor', 'invalid-date')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.auditCsv('society', 'actor', '2026-11-01', '2026-01-01')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.auditCsv('society', 'actor', '2025-01-01', '2026-11-01')).rejects.toBeInstanceOf(BadRequestException);
+    expect(invoiceFindMany).not.toHaveBeenCalled();
+    expect(auditFindMany).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it('restricts audit export projection to the approved privacy-safe columns', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const service = new ReportsExportService({
+      auditEvent: { findMany, create: vi.fn().mockResolvedValue({}) },
+    } as unknown as PrismaService);
+    const result = await service.auditCsv('11111111-1111-4111-8111-111111111111', 'actor');
+    const query = findMany.mock.calls[0][0];
+    expect(query.select).toEqual({
+      event: true, occurredAt: true, actorUserId: true,
+      gateId: true, accessRequestId: true, visitorPassId: true,
+    });
+    expect(query.where.societyId).toBe('11111111-1111-4111-8111-111111111111');
+    expect(result.csv).toBe('event,occurredAt,actorUserId,gateId,accessRequestId,visitorPassId\n');
+    expect(result.rowCount).toBe(0);
+  });
+
 });
