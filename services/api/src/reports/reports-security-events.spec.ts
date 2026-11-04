@@ -64,4 +64,34 @@ describe('ReportsService security event feed', () => {
 
     expect(queryRaw).not.toHaveBeenCalled();
   });
+
+  it('isolates count and page SQL parameters across sequential society switches', async () => {
+    const a = '11111111-1111-4111-8111-111111111111';
+    const b = '22222222-2222-4222-8222-222222222222';
+    const queryRaw = vi.fn().mockImplementation(async (...params: unknown[]) => {
+      const society = params[1] as string;
+      const sql = sqlText(params);
+      if (sql.includes('COUNT(*)')) return [{ count: society === a ? 1 : 2 }];
+      return [{ id: society === a ? 'security-a' : 'security-b' }];
+    });
+    const service = new ReportsService({ $queryRaw: queryRaw } as never);
+    const first = await service.securityEventFeed(a, 1, 10, 'SESSION_REVOKED');
+    const second = await service.securityEventFeed(b, 2, 10, 'SESSION_REVOKED');
+    expect(first.total).toBe(1);
+    expect(second.total).toBe(2);
+    expect(first.items).toEqual([{ id: 'security-a' }]);
+    expect(second.items).toEqual([{ id: 'security-b' }]);
+    expect(queryRaw).toHaveBeenCalledTimes(4);
+    for (const [index, call] of queryRaw.mock.calls.entries()) {
+      const selected = index < 2 ? a : b;
+      const other = index < 2 ? b : a;
+      expect(sqlText(call)).toContain('"societyId" =');
+      expect(call).toContain(selected);
+      expect(call).not.toContain(other);
+      expect(call).toContain('SESSION_REVOKED');
+    }
+    expect(queryRaw.mock.calls[1]).toContain(0);
+    expect(queryRaw.mock.calls[1]).toContain(10);
+    expect(queryRaw.mock.calls[3]).toContain(10);
+  });
 });

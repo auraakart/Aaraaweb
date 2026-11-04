@@ -248,4 +248,72 @@ describe('ReportsService', () => {
     expect(prisma.auditEvent.findMany).not.toHaveBeenCalled();
     expect(prisma.helpdeskTicket.findMany).not.toHaveBeenCalled();
   });
+
+  it('keeps sequential society summaries independent while redacting unapproved finance amounts', async () => {
+    const a = '11111111-1111-4111-8111-111111111111';
+    const b = '22222222-2222-4222-8222-222222222222';
+    const prisma = prismaMock();
+    const amountFor = (id: string) => id === a ? 1200 : 8900;
+    prisma.accessRequest.count.mockImplementation(async ({ where }) => where.societyId === a ? 1 : 4);
+    prisma.helpdeskTicket.count.mockImplementation(async ({ where }) => where.societyId === a ? 2 : 5);
+    prisma.auditEvent.count.mockImplementation(async ({ where }) => where.societyId === a ? 3 : 6);
+    prisma.maintenanceInvoice.aggregate.mockImplementation(async ({ where }) => ({
+      _count: { _all: where.societyId === a ? 1 : 7 },
+      _sum: { amountPaise: amountFor(where.societyId) },
+    }));
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    const aSummary = await service.summary(a, '2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z');
+    const bSummary = await service.summary(b, '2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z', true);
+    expect(aSummary.access.visitorRequests).toBe(1);
+    expect(bSummary.access.visitorRequests).toBe(4);
+    expect(aSummary.helpdesk.open).toBe(2);
+    expect(bSummary.helpdesk.open).toBe(5);
+    expect(aSummary.audit.eventCount).toBe(3);
+    expect(bSummary.audit.eventCount).toBe(6);
+    expect(aSummary.maintenance.billedPaise).toBeNull();
+    expect(aSummary.maintenance.outstandingPaise).toBeNull();
+    expect(bSummary.maintenance.billedPaise).toBe(8900);
+    expect(bSummary.maintenance.outstandingPaise).toBe(8900);
+    for (const delegate of [prisma.accessRequest.count, prisma.helpdeskTicket.count, prisma.auditEvent.count, prisma.maintenanceInvoice.aggregate]) {
+      const seen = delegate.mock.calls.map(([query]) => query.where.societyId);
+      expect(seen).toContain(a);
+      expect(seen).toContain(b);
+      expect(seen.every(id => id === a || id === b)).toBe(true);
+    }
+  });
+
+  it('never reuses a prior society predicate or page across the four report read feeds', async () => {
+    const a = '11111111-1111-4111-8111-111111111111';
+    const b = '22222222-2222-4222-8222-222222222222';
+    const prisma = prismaMock();
+    for (const model of [prisma.accessRequest, prisma.helpdeskTicket, prisma.maintenanceInvoice, prisma.auditEvent]) {
+      model.count.mockImplementation(async ({ where }) => where.societyId === a ? 1 : 2);
+      model.findMany.mockImplementation(async ({ where }) => [{ id: where.societyId === a ? 'only-a' : 'only-b' }]);
+    }
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    const reads = [
+      (id: string, page: number) => service.accessFeed(id, 'VISITOR', undefined, undefined, page, 10),
+      (id: string, page: number) => service.helpdeskFeed(id, undefined, undefined, page, 10),
+      (id: string, page: number) => service.maintenanceFeed(id, undefined, undefined, page, 10),
+      (id: string, page: number) => service.auditFeed(id, page, 10),
+    ];
+    for (const read of reads) {
+      const first = await read(a, 1);
+      const second = await read(b, 2);
+      expect(first.total).toBe(1);
+      expect(second.total).toBe(2);
+      expect(first.items[0].id).toBe('only-a');
+      expect(second.items[0].id).toBe('only-b');
+      expect(first.page).toBe(1);
+      expect(second.page).toBe(2);
+    }
+    for (const model of [prisma.accessRequest, prisma.helpdeskTicket, prisma.maintenanceInvoice, prisma.auditEvent]) {
+      const counts = model.count.mock.calls.map(([query]) => query.where.societyId);
+      const pages = model.findMany.mock.calls.map(([query]) => query.where.societyId);
+      expect(counts).toEqual([a, b]);
+      expect(pages).toEqual([a, b]);
+      expect(model.findMany.mock.calls.map(([query]) => query.skip)).toEqual([0, 10]);
+      expect(model.findMany.mock.calls.map(([query]) => query.take)).toEqual([10, 10]);
+    }
+  });
 });
