@@ -37,6 +37,7 @@ export class ReportsService {
     range: { gte: Date; lte: Date },
     includeFinancialAmounts: boolean,
   ) {
+return this.prisma.withTenantContext(societyId, async (tx) => {
     const [
       visitorRequests,
       visitorEntries,
@@ -50,35 +51,35 @@ export class ReportsService {
       helpdeskClosed,
       auditEvents,
     ] = await Promise.all([
-      this.prisma.accessRequest.count({
+      tx.accessRequest.count({
         where: { societyId, subjectType: AccessSubjectType.VISITOR, createdAt: range },
       }),
-      this.prisma.accessRequest.count({
+      tx.accessRequest.count({
         where: { societyId, subjectType: AccessSubjectType.VISITOR, enteredAt: range },
       }),
-      this.prisma.accessRequest.count({
+      tx.accessRequest.count({
         where: { societyId, subjectType: AccessSubjectType.DOMESTIC_HELP, enteredAt: range },
       }),
-      this.prisma.maintenanceInvoice.aggregate({
+      tx.maintenanceInvoice.aggregate({
         where: { societyId, issuedAt: range, status: { not: InvoiceStatus.VOID } },
         _count: { _all: true },
         _sum: { amountPaise: true },
       }),
-      this.prisma.maintenanceInvoice.aggregate({
+      tx.maintenanceInvoice.aggregate({
         where: { societyId, paidAt: range, status: InvoiceStatus.PAID },
         _count: { _all: true },
         _sum: { amountPaise: true },
       }),
-      this.prisma.maintenanceInvoice.aggregate({
+      tx.maintenanceInvoice.aggregate({
         where: { societyId, status: InvoiceStatus.ISSUED },
         _count: { _all: true },
         _sum: { amountPaise: true },
       }),
-      this.prisma.helpdeskTicket.count({ where: { societyId, status: 'OPEN', createdAt: range } }),
-      this.prisma.helpdeskTicket.count({ where: { societyId, status: 'IN_PROGRESS', createdAt: range } }),
-      this.prisma.helpdeskTicket.count({ where: { societyId, status: 'RESOLVED', createdAt: range } }),
-      this.prisma.helpdeskTicket.count({ where: { societyId, status: 'CLOSED', createdAt: range } }),
-      this.prisma.auditEvent.count({ where: { societyId, occurredAt: range } }),
+      tx.helpdeskTicket.count({ where: { societyId, status: 'OPEN', createdAt: range } }),
+      tx.helpdeskTicket.count({ where: { societyId, status: 'IN_PROGRESS', createdAt: range } }),
+      tx.helpdeskTicket.count({ where: { societyId, status: 'RESOLVED', createdAt: range } }),
+      tx.helpdeskTicket.count({ where: { societyId, status: 'CLOSED', createdAt: range } }),
+      tx.auditEvent.count({ where: { societyId, occurredAt: range } }),
     ]);
 
     return {
@@ -104,6 +105,7 @@ export class ReportsService {
       },
       audit: { eventCount: auditEvents },
     };
+    }, { timeout: 15_000 });
   }
 
   async accessFeed(
@@ -119,9 +121,10 @@ export class ReportsService {
     const type = this.accessSubjectType(subjectType);
     const where = { societyId, subjectType: type, createdAt: range };
 
+return this.prisma.withTenantContext(societyId, async (tx) => {
     const [total, items] = await Promise.all([
-      this.prisma.accessRequest.count({ where }),
-      this.prisma.accessRequest.findMany({
+      tx.accessRequest.count({ where }),
+      tx.accessRequest.findMany({
         where,
         // A unique tie breaker keeps equal timestamps in a stable page order.
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -147,6 +150,7 @@ export class ReportsService {
     ]);
 
     return { page, pageSize, total, items };
+    });
   }
 
   async helpdeskFeed(
@@ -160,9 +164,10 @@ export class ReportsService {
     const paging = this.paging(page, pageSize);
     const where = { societyId, createdAt: range };
 
+return this.prisma.withTenantContext(societyId, async (tx) => {
     const [total, items] = await Promise.all([
-      this.prisma.helpdeskTicket.count({ where }),
-      this.prisma.helpdeskTicket.findMany({
+      tx.helpdeskTicket.count({ where }),
+      tx.helpdeskTicket.findMany({
         where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
@@ -187,6 +192,7 @@ export class ReportsService {
     ]);
 
     return { page, pageSize, total, items };
+    });
   }
 
   async maintenanceFeed(
@@ -198,11 +204,12 @@ export class ReportsService {
   ) {
     const range = this.dateRange(from, to);
     const paging = this.paging(page, pageSize);
-    const where = { societyId, issuedAt: range, status: { not: InvoiceStatus.VOID } };
+    const where = { societyId, issuedAt: range, status: { not: InvoiceStatus.VOID }, unit: { societyId, building: { societyId } } };
 
+return this.prisma.withTenantContext(societyId, async (tx) => {
     const [total, items] = await Promise.all([
-      this.prisma.maintenanceInvoice.count({ where }),
-      this.prisma.maintenanceInvoice.findMany({
+      tx.maintenanceInvoice.count({ where }),
+      tx.maintenanceInvoice.findMany({
         where,
         orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
@@ -227,6 +234,7 @@ export class ReportsService {
     ]);
 
     return { page, pageSize, total, items };
+    });
   }
 
   async securityEventFeed(societyId: string, page = 1, pageSize = 50, eventType?: string, from?: string, to?: string) {
@@ -237,7 +245,8 @@ export class ReportsService {
       throw new BadRequestException('eventType must be an uppercase security event identifier');
     }
 
-    const countRows = await this.prisma.$queryRaw<Array<{ count: bigint | number }>>`
+return this.prisma.withTenantContext(societyId, async (tx) => {
+    const countRows = await tx.$queryRaw<Array<{ count: bigint | number }>>`
       SELECT COUNT(*)::int AS "count"
       FROM "SecurityEvent"
       WHERE "societyId" = ${societyId}::uuid
@@ -245,7 +254,7 @@ export class ReportsService {
         AND (${range?.gte ?? null}::timestamptz IS NULL OR "occurredAt" >= ${range?.gte ?? null})
         AND (${range?.lte ?? null}::timestamptz IS NULL OR "occurredAt" <= ${range?.lte ?? null})
     `;
-    const items = await this.prisma.$queryRaw`
+    const items = await tx.$queryRaw`
       SELECT "id","userId","sessionId","eventType","reason","occurredAt"
       FROM "SecurityEvent"
       WHERE "societyId" = ${societyId}::uuid
@@ -257,6 +266,7 @@ export class ReportsService {
       LIMIT ${paging.take}
     `;
     return { page, pageSize, total: Number(countRows[0]?.count ?? 0), items };
+    });
   }
 
   async auditFeed(societyId: string, page = 1, pageSize = 50, event?: string, from?: string, to?: string) {
@@ -265,9 +275,10 @@ export class ReportsService {
     const range = from || to ? this.dateRange(from, to) : undefined;
     const where = { societyId, ...(eventType ? { event: eventType } : {}), ...(range ? { occurredAt: range } : {}) };
 
+return this.prisma.withTenantContext(societyId, async (tx) => {
     const [total, items] = await Promise.all([
-      this.prisma.auditEvent.count({ where }),
-      this.prisma.auditEvent.findMany({
+      tx.auditEvent.count({ where }),
+      tx.auditEvent.findMany({
         where,
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
@@ -285,6 +296,7 @@ export class ReportsService {
     ]);
 
     return { page, pageSize, total, items };
+    });
   }
 
   private paging(page: number, pageSize: number) {
