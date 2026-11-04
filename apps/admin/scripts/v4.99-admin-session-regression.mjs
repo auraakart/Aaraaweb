@@ -150,3 +150,24 @@ test('report download surfaces a 403 without retrying as a different user',async
   await assert.rejects(downloadAdminBlob('/reports/maintenance/export.csv',active),/Export not allowed/)
   assert.equal(calls,1)
 })
+
+test('migration evidence uses selected-session authenticated CSV transport',async()=>{
+  const active=session();save(active);const sent=[]
+  globalThis.fetch=async(url,init)=>{
+    sent.push({url,headers:init.headers})
+    return new Response('batch,row\nabc,1\n',{status:200,headers:{'content-type':'text/csv'}})
+  }
+  const result=await downloadAdminBlob('/migration/batches/abc/evidence.csv',active)
+  assert.equal(await result.blob.text(),'batch,row\nabc,1\n')
+  assert.equal(sent.length,1)
+  assert.match(sent[0].url,/\/api\/v1\/migration\/batches\/abc\/evidence\.csv$/)
+  assert.equal(sent[0].headers.Accept,'text/csv')
+  assert.equal(sent[0].headers.Authorization,'Bearer '+active.accessToken)
+})
+test('migration evidence rejects a late response after society replacement',async()=>{
+  const old=session(),next=session({societyId:'society-two'}),gate=deferred();save(old)
+  globalThis.fetch=()=>gate.promise
+  const pending=downloadAdminBlob('/migration/batches/abc/evidence.csv',old)
+  save(next);gate.resolve(new Response('private',{status:200}))
+  await assert.rejects(pending,/changed/)
+})
