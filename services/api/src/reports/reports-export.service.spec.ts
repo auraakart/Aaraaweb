@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportsExportService } from './reports-export.service';
 
+/** Tests cannot silently fall back to a root Prisma delegate. */
+function tenantPrisma<T extends object>(tx:T):PrismaService{
+  return {withTenantContext:vi.fn(async (_societyId:string,op:(client:T)=>Promise<unknown>)=>op(tx))} as unknown as PrismaService;
+}
+
+
 describe('ReportsExportService', () => {
   it('exports a bounded, tenant-scoped audit feed and records the export', async () => {
     const findMany = vi.fn().mockResolvedValue([{
@@ -10,7 +16,7 @@ describe('ReportsExportService', () => {
       actorUserId: 'actor', gateId: null, accessRequestId: 'request', visitorPassId: null,
     }]);
     const auditCreate = vi.fn().mockResolvedValue({});
-    const service = new ReportsExportService({ auditEvent: { findMany, create: auditCreate } } as unknown as PrismaService);
+    const service = new ReportsExportService(tenantPrisma({ auditEvent: { findMany, create: auditCreate } }));
     const result = await service.auditCsv(
       'society', 'actor', '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z', 'ACCESS_CHECKED_IN',
     );
@@ -24,7 +30,7 @@ describe('ReportsExportService', () => {
 
   it('rejects unknown audit-event filters before querying data', async () => {
     const findMany = vi.fn();
-    const service = new ReportsExportService({ auditEvent: { findMany } } as unknown as PrismaService);
+    const service = new ReportsExportService(tenantPrisma({ auditEvent: { findMany } }));
     await expect(service.auditCsv('society', 'actor', undefined, undefined, 'UNKNOWN')).rejects.toThrow(
       'event must be a valid audit event type',
     );
@@ -41,7 +47,7 @@ describe('ReportsExportService', () => {
       }]) },
       auditEvent: { create: vi.fn().mockResolvedValue({}) },
     };
-    const result = await new ReportsExportService(prisma as unknown as PrismaService)
+    const result = await new ReportsExportService(tenantPrisma(prisma))
       .maintenanceCsv('society', 'actor');
     const escaped = `'${invoiceNumber}`;
     const expectedCell = /[",\r\n]/.test(escaped) ? `"${escaped}"` : escaped;
@@ -67,7 +73,7 @@ describe('ReportsExportService', () => {
       maintenanceInvoice: { findMany },
       auditEvent: { create: auditCreate },
     } as unknown as PrismaService;
-    const service = new ReportsExportService(prisma);
+    const service = new ReportsExportService(tenantPrisma(prisma));
 
     const result = await service.maintenanceCsv(
       '11111111-1111-1111-1111-111111111111',
@@ -108,7 +114,7 @@ describe('ReportsExportService', () => {
       maintenanceInvoice: { findMany: vi.fn().mockResolvedValue(Array.from({ length: 5001 }, () => row)) },
       auditEvent: { create: auditCreate },
     } as unknown as PrismaService;
-    const service = new ReportsExportService(prisma);
+    const service = new ReportsExportService(tenantPrisma(prisma));
 
     await expect(service.maintenanceCsv(
       '11111111-1111-1111-1111-111111111111',
@@ -125,9 +131,9 @@ describe('ReportsExportService', () => {
     }));
     const findMany = vi.fn().mockResolvedValue(auditRows);
     const create = vi.fn();
-    const service = new ReportsExportService({
+    const service = new ReportsExportService(tenantPrisma({
       auditEvent: { findMany, create },
-    } as unknown as PrismaService);
+    }));
 
     await expect(service.auditCsv(
       '11111111-1111-4111-8111-111111111111',
@@ -154,9 +160,9 @@ describe('ReportsExportService', () => {
       }];
     });
     const create = vi.fn().mockResolvedValue({});
-    const service = new ReportsExportService({
+    const service = new ReportsExportService(tenantPrisma({
       auditEvent: { findMany, create },
-    } as unknown as PrismaService);
+    }));
 
     const a = await service.auditCsv(societyA, actor);
     const b = await service.auditCsv(societyB, actor);
@@ -175,10 +181,10 @@ describe('ReportsExportService', () => {
     const invoiceFindMany = vi.fn();
     const auditFindMany = vi.fn();
     const auditCreate = vi.fn();
-    const service = new ReportsExportService({
+    const service = new ReportsExportService(tenantPrisma({
       maintenanceInvoice: { findMany: invoiceFindMany },
       auditEvent: { findMany: auditFindMany, create: auditCreate },
-    } as unknown as PrismaService);
+    }));
     await expect(service.maintenanceCsv('society', 'actor', 'invalid-date')).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.auditCsv('society', 'actor', '2026-11-01', '2026-01-01')).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.auditCsv('society', 'actor', '2025-01-01', '2026-11-01')).rejects.toBeInstanceOf(BadRequestException);
@@ -189,9 +195,9 @@ describe('ReportsExportService', () => {
 
   it('restricts audit export projection to the approved privacy-safe columns', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
-    const service = new ReportsExportService({
+    const service = new ReportsExportService(tenantPrisma({
       auditEvent: { findMany, create: vi.fn().mockResolvedValue({}) },
-    } as unknown as PrismaService);
+    }));
     const result = await service.auditCsv('11111111-1111-4111-8111-111111111111', 'actor');
     const query = findMany.mock.calls[0][0];
     expect(query.select).toEqual({
@@ -201,6 +207,33 @@ describe('ReportsExportService', () => {
     expect(query.where.societyId).toBe('11111111-1111-4111-8111-111111111111');
     expect(result.csv).toBe('event,occurredAt,actorUserId,gateId,accessRequestId,visitorPassId\n');
     expect(result.rowCount).toBe(0);
+  });
+
+
+  it('reads maintenance and writes export evidence inside the selected transaction only',async()=>{
+    const societyId='11111111-1111-4111-8111-111111111111',actor='22222222-2222-4222-8222-222222222222';
+    const rootRead=vi.fn(),rootWrite=vi.fn(),txRead=vi.fn().mockResolvedValue([]),txWrite=vi.fn().mockResolvedValue({});
+    const withTenantContext=vi.fn(async(_id:string,op:(tx:unknown)=>Promise<unknown>)=>op({maintenanceInvoice:{findMany:txRead},auditEvent:{create:txWrite}}));
+    const service=new ReportsExportService({withTenantContext,maintenanceInvoice:{findMany:rootRead},auditEvent:{create:rootWrite}} as unknown as PrismaService);
+    const result=await service.maintenanceCsv(societyId,actor);
+    expect(result.rowCount).toBe(0);
+    expect(withTenantContext).toHaveBeenCalledWith(societyId,expect.any(Function));
+    expect(txRead).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({societyId,unit:{societyId,building:{societyId}}})}));
+    expect(txWrite).toHaveBeenCalledWith({data:{societyId,actorUserId:actor,event:'REPORT_EXPORTED'}});
+    expect(rootRead).not.toHaveBeenCalled();expect(rootWrite).not.toHaveBeenCalled();
+  });
+
+  it('reads audit CSV and writes its evidence on one tenant transaction, without root access',async()=>{
+    const societyId='33333333-3333-4333-8333-333333333333',actor='22222222-2222-4222-8222-222222222222';
+    const rootRead=vi.fn(),rootWrite=vi.fn(),txRead=vi.fn().mockResolvedValue([]),txWrite=vi.fn().mockResolvedValue({});
+    const withTenantContext=vi.fn(async(_id:string,op:(tx:unknown)=>Promise<unknown>)=>op({auditEvent:{findMany:txRead,create:txWrite}}));
+    const service=new ReportsExportService({withTenantContext,auditEvent:{findMany:rootRead,create:rootWrite}} as unknown as PrismaService);
+    const result=await service.auditCsv(societyId,actor);
+    expect(result.rowCount).toBe(0);
+    expect(withTenantContext).toHaveBeenCalledWith(societyId,expect.any(Function));
+    expect(txRead).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({societyId})}));
+    expect(txWrite).toHaveBeenCalledWith({data:{societyId,actorUserId:actor,event:'REPORT_EXPORTED'}});
+    expect(rootRead).not.toHaveBeenCalled();expect(rootWrite).not.toHaveBeenCalled();
   });
 
 });

@@ -14,79 +14,83 @@ export class ReportsExportService {
 
   async maintenanceCsv(societyId: string, actorUserId: string, from?: string, to?: string) {
     const range = this.dateRange(from, to);
-    const rows = await this.prisma.maintenanceInvoice.findMany({
-      where: { societyId, issuedAt: range, status: { not: InvoiceStatus.VOID } },
-      orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
-      take: MAX_EXPORT_ROWS + 1,
-      select: {
-        invoiceNumber: true,
-        billingPeriod: true,
-        amountPaise: true,
-        dueDate: true,
-        status: true,
-        issuedAt: true,
-        paidAt: true,
-        unit: { select: { number: true, building: { select: { name: true } } } },
-      },
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const rows = await tx.maintenanceInvoice.findMany({
+        where: { societyId, issuedAt: range, status: { not: InvoiceStatus.VOID }, unit: { societyId, building: { societyId } } },
+        orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
+        take: MAX_EXPORT_ROWS + 1,
+        select: {
+          invoiceNumber: true,
+          billingPeriod: true,
+          amountPaise: true,
+          dueDate: true,
+          status: true,
+          issuedAt: true,
+          paidAt: true,
+          unit: { select: { number: true, building: { select: { name: true } } } },
+        },
+      });
+
+      if (rows.length > MAX_EXPORT_ROWS) {
+        throw new BadRequestException(`Report export cannot exceed ${MAX_EXPORT_ROWS} rows; narrow the date range`);
+      }
+
+      const header = ['invoiceNumber','billingPeriod','building','unit','amountPaise','dueDate','status','issuedAt','paidAt'];
+      const lines = rows.map((row) => [
+        row.invoiceNumber,
+        row.billingPeriod,
+        row.unit.building.name,
+        row.unit.number,
+        row.amountPaise,
+        row.dueDate.toISOString().slice(0, 10),
+        row.status,
+        row.issuedAt.toISOString(),
+        row.paidAt?.toISOString() ?? '',
+      ].map((value) => this.csvCell(value)).join(','));
+
+      await tx.auditEvent.create({
+        data: {
+          societyId,
+          actorUserId,
+          event: AuditEventType.REPORT_EXPORTED,
+        },
+      });
+
+      const startStamp = range.gte.toISOString().slice(0, 10);
+      const endStamp = range.lte.toISOString().slice(0, 10);
+      return {
+        fileName: `maintenance-report-${startStamp}-to-${endStamp}.csv`,
+        rowCount: rows.length,
+        csv: `${header.join(',')}\n${lines.join('\n')}${lines.length ? '\n' : ''}`,
+      };
     });
-
-    if (rows.length > MAX_EXPORT_ROWS) {
-      throw new BadRequestException(`Report export cannot exceed ${MAX_EXPORT_ROWS} rows; narrow the date range`);
-    }
-
-    const header = ['invoiceNumber','billingPeriod','building','unit','amountPaise','dueDate','status','issuedAt','paidAt'];
-    const lines = rows.map((row) => [
-      row.invoiceNumber,
-      row.billingPeriod,
-      row.unit.building.name,
-      row.unit.number,
-      row.amountPaise,
-      row.dueDate.toISOString().slice(0, 10),
-      row.status,
-      row.issuedAt.toISOString(),
-      row.paidAt?.toISOString() ?? '',
-    ].map((value) => this.csvCell(value)).join(','));
-
-    await this.prisma.auditEvent.create({
-      data: {
-        societyId,
-        actorUserId,
-        event: AuditEventType.REPORT_EXPORTED,
-      },
-    });
-
-    const startStamp = range.gte.toISOString().slice(0, 10);
-    const endStamp = range.lte.toISOString().slice(0, 10);
-    return {
-      fileName: `maintenance-report-${startStamp}-to-${endStamp}.csv`,
-      rowCount: rows.length,
-      csv: `${header.join(',')}\n${lines.join('\n')}${lines.length ? '\n' : ''}`,
-    };
   }
 
   async auditCsv(societyId: string, actorUserId: string, from?: string, to?: string, event?: string) {
     const range = this.dateRange(from, to);
     const eventType = auditEventFilter(event);
-    const rows = await this.prisma.auditEvent.findMany({
-      where: { societyId, occurredAt: range, ...(eventType ? { event: eventType } : {}) },
-      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
-      take: MAX_EXPORT_ROWS + 1,
-      select: { event: true, occurredAt: true, actorUserId: true, gateId: true, accessRequestId: true, visitorPassId: true },
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const rows = await tx.auditEvent.findMany({
+        where: { societyId, occurredAt: range, ...(eventType ? { event: eventType } : {}) },
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+        take: MAX_EXPORT_ROWS + 1,
+        select: { event: true, occurredAt: true, actorUserId: true, gateId: true, accessRequestId: true, visitorPassId: true },
+      });
+      if (rows.length > MAX_EXPORT_ROWS) {
+        throw new BadRequestException(`Report export cannot exceed ${MAX_EXPORT_ROWS} rows; narrow the date range`);
+      }
+      const header = ['event', 'occurredAt', 'actorUserId', 'gateId', 'accessRequestId', 'visitorPassId'];
+      const lines = rows.map((row) => [
+        row.event, row.occurredAt.toISOString(), row.actorUserId ?? '', row.gateId ?? '',
+        row.accessRequestId ?? '', row.visitorPassId ?? '',
+      ].map((value) => this.csvCell(value)).join(','));
+      await tx.auditEvent.create({ data: { societyId, actorUserId, event: AuditEventType.REPORT_EXPORTED } });
+      return {
+        fileName: `audit-report-${range.gte.toISOString().slice(0, 10)}-to-${range.lte.toISOString().slice(0, 10)}.csv`,
+        rowCount: rows.length,
+        csv: `${header.join(',')}\n${lines.join('\n')}${lines.length ? '\n' : ''}`,
+      };
     });
-    if (rows.length > MAX_EXPORT_ROWS) {
-      throw new BadRequestException(`Report export cannot exceed ${MAX_EXPORT_ROWS} rows; narrow the date range`);
-    }
-    const header = ['event', 'occurredAt', 'actorUserId', 'gateId', 'accessRequestId', 'visitorPassId'];
-    const lines = rows.map((row) => [
-      row.event, row.occurredAt.toISOString(), row.actorUserId ?? '', row.gateId ?? '',
-      row.accessRequestId ?? '', row.visitorPassId ?? '',
-    ].map((value) => this.csvCell(value)).join(','));
-    await this.prisma.auditEvent.create({ data: { societyId, actorUserId, event: AuditEventType.REPORT_EXPORTED } });
-    return {
-      fileName: `audit-report-${range.gte.toISOString().slice(0, 10)}-to-${range.lte.toISOString().slice(0, 10)}.csv`,
-      rowCount: rows.length,
-      csv: `${header.join(',')}\n${lines.join('\n')}${lines.length ? '\n' : ''}`,
-    };
   }
 
   private csvCell(value: string | number) {
