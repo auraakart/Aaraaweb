@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MigrationImportStager } from './import-stager'
-import { api, type Session } from '../../lib/admin-client'
+import { api, downloadAdminBlob, type Session } from '../../lib/admin-client'
 
 type Batch={id:string;entityType:string;sourceLabel?:string|null;status:string;checksum:string;totalRows:number;validRows:number;invalidRows:number;duplicateRows:number;referentialIssueCount:number;createdAt:string;updatedAt:string}
 type BatchDetail=Batch&{
@@ -95,10 +95,7 @@ export default function MigrationPage(){
     setBusy(true)
     setError('')
     try{
-      const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
-      const r=await fetch(base+'/api/v1/migration/batches/'+detail.id+'/evidence.csv',{headers:{Authorization:'Bearer '+session.accessToken}})
-      if(!r.ok)throw new Error('Evidence export failed ('+r.status+')')
-      const blob=await r.blob()
+      const {blob}=await downloadAdminBlob('/migration/batches/'+detail.id+'/evidence.csv',session)
       const url=URL.createObjectURL(blob)
       const a=document.createElement('a')
       a.href=url

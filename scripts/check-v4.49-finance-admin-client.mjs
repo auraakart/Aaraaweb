@@ -57,8 +57,11 @@ if(!migrationSource.includes('lib/admin-client')||migrationSource.includes('asyn
   console.error(`V4.49 contract failed: ${migration} JSON transport is not converged`)
   process.exit(1)
 }
-if(!migrationSource.includes('evidence.csv')||!migrationSource.includes('await fetch(')){
-  console.error(`V4.49 contract failed: ${migration} must retain explicit blob evidence export transport`)
+if(!migrationSource.includes("await downloadAdminBlob('/migration/batches/'")||
+   !migrationSource.includes("'/evidence.csv',session)")||
+   !/\bimport\s*\{[^}]*\bdownloadAdminBlob\b/.test(migrationSource)||
+   migrationSource.includes('await fetch(')){
+  console.error('V4.49 contract failed: Migration evidence must use the guarded shared CSV blob transport')
   process.exit(1)
 }
 
