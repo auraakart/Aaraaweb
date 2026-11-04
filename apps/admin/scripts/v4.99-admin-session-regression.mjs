@@ -171,3 +171,44 @@ test('migration evidence rejects a late response after society replacement',asyn
   save(next);gate.resolve(new Response('private',{status:200}))
   await assert.rejects(pending,/changed/)
 })
+
+test('accounting JSONL download retains binary bytes, filename and wildcard Accept',async()=>{
+  const active=session();save(active);const sent=[]
+  const bytes=new Uint8Array([123,34,105,100,34,58,49,125,10,0,255])
+  globalThis.fetch=async(url,init)=>{
+    sent.push({url,headers:init.headers})
+    return new Response(bytes,{status:200,headers:{'content-disposition':'attachment; filename="journal.jsonl"','content-type':'application/x-ndjson'}})
+  }
+  const result=await downloadAdminBlob('/accounting/exports/job-one/artifact',active,'*/*')
+  assert.deepEqual(new Uint8Array(await result.blob.arrayBuffer()),bytes)
+  assert.equal(result.headers.get('content-disposition'),'attachment; filename="journal.jsonl"')
+  assert.equal(sent.length,1)
+  assert.match(sent[0].url,/\/api\/v1\/accounting\/exports\/job-one\/artifact$/)
+  assert.equal(sent[0].headers.Accept,'*/*')
+  assert.equal(sent[0].headers.Authorization,'Bearer '+active.accessToken)
+})
+test('accounting artifact retries one 401 only within the original login family',async()=>{
+  const old=session(),fresh=session();save(old);let refreshes=0;const tokens=[]
+  globalThis.fetch=async(url,init)=>{
+    if(url.endsWith('/auth/refresh')){refreshes++;return response({sessionId:fresh.sessionId,accessToken:fresh.accessToken,refreshToken:fresh.refreshToken})}
+    tokens.push(init.headers.Authorization)
+    return tokens.length===1?response({message:'expired'},401):new Response('amount,paise\n1,200\n',{status:200})
+  }
+  const downloaded=await downloadAdminBlob('/accounting/exports/job-two/artifact',old,'*/*')
+  assert.equal(await downloaded.blob.text(),'amount,paise\n1,200\n')
+  assert.deepEqual(tokens,['Bearer '+old.accessToken,'Bearer '+fresh.accessToken])
+  assert.equal(refreshes,1)
+})
+test('accounting artifact rejects late bytes after society replacement',async()=>{
+  const old=session(),switched=session({societyId:'society-two'}),gate=deferred();save(old)
+  globalThis.fetch=()=>gate.promise
+  const pending=downloadAdminBlob('/accounting/exports/job-three/artifact',old,'*/*')
+  save(switched);gate.resolve(new Response('private',{status:200}))
+  await assert.rejects(pending,/changed/)
+})
+test('accounting artifact denies 403 without credential refresh or replay',async()=>{
+  const active=session();save(active);let calls=0
+  globalThis.fetch=async()=>{calls++;return response({message:'Artifact restricted'},403)}
+  await assert.rejects(downloadAdminBlob('/accounting/exports/job-four/artifact',active,'*/*'),/Artifact restricted/)
+  assert.equal(calls,1)
+})

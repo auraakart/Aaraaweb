@@ -43,13 +43,13 @@ function message(body:unknown,status:number){
 }
 async function readResponse(response:Response){const text=await response.text();if(!text)return null;try{return JSON.parse(text) as unknown}catch{return text}}
 /**
- * Apply the same session-lineage checks to CSV responses as to JSON API calls.
+ * Apply the same session-lineage checks to CSV and accounting artifacts as to JSON API calls.
  * A different login or society must never receive the prior session's bytes.
  */
-export async function downloadAdminBlob(path:string,session:Session):Promise<{blob:Blob;headers:Headers}>{
+export async function downloadAdminBlob(path:string,session:Session,accept:'text/csv'|'*/*'='text/csv'):Promise<{blob:Blob;headers:Headers}>{
   let active=storedFor(session);
   const requestBlob=(current:Session)=>fetch(base+'/api/v1'+path,{
-    headers:{Accept:'text/csv',Authorization:'Bearer '+current.accessToken},
+    headers:{Accept:accept,Authorization:'Bearer '+current.accessToken},
   });
   let response=await requestBlob(active);
   storedFor(active);
