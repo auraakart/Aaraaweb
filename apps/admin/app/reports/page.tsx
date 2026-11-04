@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Download, RefreshCw, ShieldCheck } from 'lucide-react'
 import './reports.css'
-import { api, type Session } from '../../lib/admin-client'
+import { api, downloadAdminBlob, type Session } from '../../lib/admin-client'
 
 type Summary={range:{from:string;to:string};access:{visitorRequests:number;visitorEntries:number;workforceEntries:number};maintenance:{billedCount:number;billedPaise:number|null;collectedCount:number;collectedPaise:number|null;outstandingCount:number;outstandingPaise:number|null};helpdesk:{open:number;inProgress:number;resolved:number;closed:number};audit:{eventCount:number}}
 type SummaryComparison={current:Summary;previous:Summary}
@@ -20,21 +20,16 @@ type Outcomes={range:{from:string;to:string};finance:null|{billedPaise:number;co
 type ExperienceStep={startedUsers:number;completedUsers:number;completionPercent:number|null;coverageState:'TRACKED'|'PARTIAL_CLIENT_COVERAGE'}
 type Experience={range:{from:string;to:string};amenity:ExperienceStep&{bookings:number};payment:ExperienceStep&{orders:number;capturedUsers:number};helpdesk:ExperienceStep&{tickets:number;resolvedUsers:number};privacy:{subject:string;frequency:string;rawInteractionTraceStored:false};evidence:string;boundary:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const auditRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','AUDITOR'])
 const financeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','ACCOUNTANT'])
 const auditEventTypes=['VISITOR_VERIFIED','VISITOR_CHECKED_IN','VISITOR_CHECKED_OUT','ACCESS_CREATED','ACCESS_APPROVED','ACCESS_DENIED','ACCESS_CANCELLED','ACCESS_VERIFIED','ACCESS_CHECKED_IN','ACCESS_CHECKED_OUT','REPORT_EXPORTED'] as const
 
 async function downloadCsv(path:string,session:Session){
-  const response=await fetch(`${base}/api/v1${path}`,{headers:{Accept:'text/csv',Authorization:`Bearer ${session.accessToken}`}})
-  if(!response.ok){
-    const text=await response.text()
-    try{const body=JSON.parse(text) as {message?:unknown};throw new Error(typeof body.message==='string'?body.message:`Request failed (${response.status})`)}catch(error){if(error instanceof SyntaxError)throw new Error(`Download failed (${response.status})`);throw error}
-  }
-  const name=response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1]?.replace(/[^A-Za-z0-9._-]/g,'_')??'aaraagate-report.csv'
-  const url=URL.createObjectURL(await response.blob())
+  const {blob,headers}=await downloadAdminBlob(path,session)
+  const name=headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1]?.replace(/[^A-Za-z0-9._-]/g,'_')??'aaraagate-report.csv'
+  const url=URL.createObjectURL(blob)
   const anchor=document.createElement('a');anchor.href=url;anchor.download=name;anchor.click();URL.revokeObjectURL(url)
-  const parsedRows=Number.parseInt(response.headers.get('x-aaraagate-export-rows')??'',10)
+  const parsedRows=Number.parseInt(headers.get('x-aaraagate-export-rows')??'',10)
   return {name,rowCount:Number.isSafeInteger(parsedRows)&&parsedRows>=0?parsedRows:null}
 }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test,beforeEach,after} from 'node:test'
-import {api,refreshAdminSession,logoutAdminSession,isAdminSessionCurrent,clearAdminSessionIfCurrent} from '../lib/admin-client.ts'
+import {api,downloadAdminBlob,refreshAdminSession,logoutAdminSession,isAdminSessionCurrent,clearAdminSessionIfCurrent} from '../lib/admin-client.ts'
 
 const originalFetch=globalThis.fetch,originalStorage=globalThis.sessionStorage
 const entries=new Map()
@@ -104,4 +104,49 @@ test('partner and society storage retain separate authentication lineages',async
 test('server-side callers without browser storage retain the explicit session contract',async()=>{
   const storage=globalThis.sessionStorage;delete globalThis.sessionStorage
   try{globalThis.fetch=async()=>response({ok:true});assert.deepEqual(await api('/server',{},session()),{ok:true})}finally{globalThis.sessionStorage=storage}
+})
+
+test('report download blocks stale society without a network call',async()=>{
+  const old=session(),newSociety=session({societyId:'society-two'});save(newSociety)
+  let calls=0;globalThis.fetch=async()=>{calls++;return new Response('private')}
+  await assert.rejects(downloadAdminBlob('/reports/audit/export.csv',old),/changed/)
+  assert.equal(calls,0)
+})
+test('report download retries one 401 within the authorized login family',async()=>{
+  const old=session(),rotated=session();save(old);const tokens=[];let refreshes=0
+  globalThis.fetch=async(url,init)=>{
+    if(url.endsWith('/auth/refresh')){refreshes++;return response({sessionId:rotated.sessionId,accessToken:rotated.accessToken,refreshToken:rotated.refreshToken})}
+    tokens.push(init.headers.Authorization)
+    return tokens.length===1?response({message:'expired'},401):new Response('event,date\nTEST,2026-11-04\n',{
+      status:200,headers:{'content-disposition':'attachment; filename="audit.csv"','x-aaraagate-export-rows':'1'},
+    })
+  }
+  const result=await downloadAdminBlob('/reports/audit/export.csv',old)
+  assert.equal(await result.blob.text(),'event,date\nTEST,2026-11-04\n')
+  assert.equal(result.headers.get('x-aaraagate-export-rows'),'1')
+  assert.deepEqual(tokens,['Bearer '+old.accessToken,'Bearer '+rotated.accessToken])
+  assert.equal(refreshes,1);assert.equal(stored().sessionId,rotated.sessionId)
+})
+test('report download rejects a response from a replaced login',async()=>{
+  const old=session(),replacement=session(),gate=deferred();save(old);globalThis.fetch=()=>gate.promise
+  const pending=downloadAdminBlob('/reports/maintenance/export.csv',old)
+  save(replacement);gate.resolve(new Response('private',{status:200}))
+  await assert.rejects(pending,/changed/)
+})
+test('report download discards bytes after society replacement during body streaming',async()=>{
+  const old=session(),replacement=session({societyId:'society-two'}),gate=deferred();save(old)
+  globalThis.fetch=async()=>{
+    const r=new Response('unused',{status:200})
+    r.blob=async()=>{await gate.promise;return new Blob(['private'],{type:'text/csv'})}
+    return r
+  }
+  const pending=downloadAdminBlob('/reports/audit/export.csv',old)
+  await tick();save(replacement);gate.resolve()
+  await assert.rejects(pending,/changed/)
+})
+test('report download surfaces a 403 without retrying as a different user',async()=>{
+  const active=session();save(active);let calls=0
+  globalThis.fetch=async()=>{calls++;return response({message:'Export not allowed'},403)}
+  await assert.rejects(downloadAdminBlob('/reports/maintenance/export.csv',active),/Export not allowed/)
+  assert.equal(calls,1)
 })
