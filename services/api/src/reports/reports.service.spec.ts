@@ -350,8 +350,14 @@ describe('ReportsService', () => {
   it('keeps both adjacent summary periods in explicit selected-society transactions', async () => {
     const societyId = '33333333-3333-4333-8333-333333333333';
     const prisma = prismaMock();
+    // Two comparison periods run three invoice aggregates each. A one-shot
+    // three-value mock would silently return undefined for the second period.
+    prisma.maintenanceInvoice.aggregate.mockResolvedValue({
+      _count: { _all: 1 }, _sum: { amountPaise: 5000 },
+    });
     const service = new ReportsService(prisma as unknown as PrismaService);
     await service.summaryComparison(societyId, '2026-09-11T00:00:00Z', '2026-09-12T00:00:00Z');
+    expect(prisma.maintenanceInvoice.aggregate).toHaveBeenCalledTimes(6);
     expect(prisma.withTenantContext).toHaveBeenCalledTimes(2);
     expect(prisma.withTenantContext.mock.calls.map(([id]) => id)).toEqual([societyId, societyId]);
   });
