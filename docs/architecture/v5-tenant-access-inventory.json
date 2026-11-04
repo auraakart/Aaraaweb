@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "651ddb0cc0afce87c12c3304642c6fe2d5bfb0f314d75671deb009e613136480",
+  "sourceDigest": "a20728b71f0a494d7f0cc0131ee6e217ed32544151bb52a8a25e5584f538b0b7",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 18,
     "utilitySqlSites": 70,
-    "runtimeTenantContextCalls": 391,
+    "runtimeTenantContextCalls": 393,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -1219,6 +1219,14 @@
     {
       "file": "services/api/src/privacy/privacy.service.ts",
       "line": 575
+    },
+    {
+      "file": "services/api/src/reports/reports-export.service.ts",
+      "line": 17
+    },
+    {
+      "file": "services/api/src/reports/reports-export.service.ts",
+      "line": 72
     },
     {
       "file": "services/api/src/societies/societies.controller.ts",
@@ -3558,10 +3566,10 @@
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-analytics.service.ts","line":479,"method":"platformPortfolioCommandCentre","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccessRequest","HelpdeskTicket","NoticeDispatch","Receivable","ReceivableAdjustment","ReceivableAllocation","ReceivableAllocationReversal","Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-analytics.service.ts","line":679,"method":"platformOutcomes","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerServiceBooking"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-analytics.service.ts","line":688,"method":"platformOutcomes","operation":"$queryRaw","kind":"RAW_SQL","tables":["OperationalUsageEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.maintenanceInvoice","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":17,"method":"maintenanceCsv","operation":"findMany","kind":"ORM","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":50,"method":"maintenanceCsv","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":70,"method":"auditCsv","operation":"findMany","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":84,"method":"auditCsv","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.maintenanceInvoice","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":18,"method":"callback","operation":"findMany","kind":"ORM","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":51,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":73,"method":"callback","operation":"findMany","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.auditEvent","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports-export.service.ts","line":87,"method":"callback","operation":"create","kind":"ORM","tables":["AuditEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.accessRequest","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports.service.ts","line":53,"method":"summaryForRange","operation":"count","kind":"ORM","tables":["AccessRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.accessRequest","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports.service.ts","line":56,"method":"summaryForRange","operation":"count","kind":"ORM","tables":["AccessRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.accessRequest","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/reports/reports.service.ts","line":59,"method":"summaryForRange","operation":"count","kind":"ORM","tables":["AccessRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
