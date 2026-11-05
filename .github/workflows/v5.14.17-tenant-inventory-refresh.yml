@@ -1,0 +1,46 @@
+name: Temporary V5.14.17 tenant inventory refresh
+
+on:
+  push:
+    branches:
+      - mastermind/v5.14.17-gate-recipient-tenant-context
+    paths:
+      - .github/workflows/v5.14.17-tenant-inventory-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: mastermind/v5.14.17-gate-recipient-tenant-context
+          fetch-depth: 1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Regenerate canonical tenant inventory
+        run: |
+          set -euo pipefail
+          node services/api/scripts/tenant-access-inventory.mjs --write
+          node scripts/sync-tenant-access-summary.mjs --write
+          node services/api/scripts/tenant-access-inventory.mjs --check
+          node scripts/sync-tenant-access-summary.mjs
+      - name: Commit only generated inventory and summary to feature branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/architecture/v5-tenant-access-inventory.json docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(v5.14.17): sync canonical tenant access inventory"
+            git push origin HEAD:refs/heads/mastermind/v5.14.17-gate-recipient-tenant-context
+          fi
