@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -15,6 +15,15 @@ export type PushOutboxEnvelope = {
   payload: Record<string, unknown>;
   status: PushDeliveryStatus;
   attemptCount: number;
+};
+
+type PushEnqueueInput = {
+  targetScope: PushDeliveryTarget;
+  societyId?: string | null;
+  userId: string;
+  eventType: string;
+  dedupeKey: string;
+  payload: Record<string, unknown>;
 };
 
 const PUSH_BATCH_SIZE = 100;
@@ -44,14 +53,22 @@ function expireExhaustedPushSql(id?: string) {
 export class PushDeliveryOutboxService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async enqueue(input: {
-    targetScope: PushDeliveryTarget;
-    societyId?: string | null;
-    userId: string;
-    eventType: string;
-    dedupeKey: string;
-    payload: Record<string, unknown>;
-  }, client: Pick<Prisma.TransactionClient, '$queryRaw'> = this.prisma) {
+  async enqueue(input: PushEnqueueInput, client?: Pick<Prisma.TransactionClient, '$queryRaw'>) {
+    if (input.targetScope === 'RESIDENT') {
+      if (!input.societyId?.trim()) throw new BadRequestException('Resident push work requires a society');
+    } else if (input.targetScope === 'CONSUMER') {
+      if (input.societyId != null) throw new BadRequestException('Consumer push work must have no society');
+    } else {
+      throw new BadRequestException('Unsupported push delivery target');
+    }
+    if (client) return this.enqueueOnClient(input, client);
+    if (input.targetScope === 'RESIDENT') {
+      return this.prisma.withTenantContext(input.societyId!, tx => this.enqueueOnClient(input, tx));
+    }
+    return this.enqueueOnClient(input, this.prisma);
+  }
+
+  private async enqueueOnClient(input: PushEnqueueInput, client: Pick<Prisma.TransactionClient, '$queryRaw'>) {
     const rows = await client.$queryRaw<Array<{ id: string; status: PushDeliveryStatus }>>(Prisma.sql`
       INSERT INTO "PushDeliveryOutbox" (
         "targetScope","societyId","userId","eventType","dedupeKey","payload"

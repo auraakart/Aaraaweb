@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "83a76b8a9e2be5db7a3c09d701e7db30e3c325a89f429ae38a1a7d34fba77a6c",
+  "sourceDigest": "a577e88ea60c043b11067b469b16311ee60a1b12ec067510cf3e1474caf9ac1d",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 18,
     "utilitySqlSites": 70,
-    "runtimeTenantContextCalls": 411,
+    "runtimeTenantContextCalls": 412,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -1051,6 +1051,10 @@
     {
       "file": "services/api/src/notifications/notification-realtime.service.ts",
       "line": 152
+    },
+    {
+      "file": "services/api/src/notifications/push-delivery-outbox.service.ts",
+      "line": 66
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
@@ -3427,11 +3431,11 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/gate-notification-fallback.service.ts","line":45,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["GateNotificationAttempt"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.unitOccupancy","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/gate-recipient.service.ts","line":9,"method":"notificationRecipients","operation":"findMany","kind":"ORM","tables":["UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.maintenanceInvoice","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/notification-realtime.service.ts","line":152,"method":"callback","operation":"findFirst","kind":"ORM","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"client","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":55,"method":"enqueue","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":99,"method":"claimOne","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":119,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":150,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":163,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"client","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":72,"method":"enqueueOnClient","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":116,"method":"claimOne","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":136,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":167,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":180,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":94,"method":"register","operation":"upsert","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":102,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":109,"method":"callback","operation":"count","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
