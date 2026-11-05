@@ -49,6 +49,18 @@ withDatabase('Push delivery lease ownership on migrated PostgreSQL', () => {
     return rows[0];
   }
 
+  it('routes resident enqueue through the selected tenant transaction on PostgreSQL', async () => {
+    const scope = vi.spyOn(prisma, 'withTenantContext');
+    try {
+      const queued = await enqueue();
+      expect(queued.id).toBeDefined();
+      expect(scope).toHaveBeenCalledWith(societyId, expect.any(Function));
+      expect(await row(queued.id)).toMatchObject({ status: 'PENDING', attemptCount: 0 });
+    } finally {
+      scope.mockRestore();
+    }
+  });
+
   it.each(['userId', 'societyId'])('defers a persisted %s payload mismatch without device lookup', async field => {
     const queued = await enqueue();
     await prisma.$executeRaw(Prisma.sql`

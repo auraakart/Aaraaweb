@@ -11,7 +11,13 @@ describe('PushDeliveryOutboxService', () => {
 
   it('enqueues with a target-scoped dedupe key', async () => {
     const queryRaw = vi.fn().mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111', status: 'PENDING' }]);
-    const service = new PushDeliveryOutboxService({ $queryRaw: queryRaw } as never);
+    const tx = { $queryRaw: queryRaw };
+    const rootSql = vi.fn(() => { throw new Error('resident enqueue cannot use root SQL'); });
+    const withTenantContext = vi.fn(async (id: string, action: (context: typeof tx) => Promise<unknown>) => {
+      void id;
+      return action(tx);
+    });
+    const service = new PushDeliveryOutboxService({ $queryRaw: rootSql, withTenantContext } as never);
     await expect(service.enqueue({
       targetScope: 'RESIDENT',
       societyId: '22222222-2222-4222-8222-222222222222',
@@ -22,6 +28,8 @@ describe('PushDeliveryOutboxService', () => {
     })).resolves.toEqual(expect.objectContaining({ status: 'PENDING' }));
     const sql = (queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sql).toContain('ON CONFLICT ("targetScope","dedupeKey")');
+    expect(withTenantContext).toHaveBeenCalledWith('22222222-2222-4222-8222-222222222222', expect.any(Function));
+    expect(rootSql).not.toHaveBeenCalled();
   });
 
   it('marks a claimed delivery dispatched after transport success', async () => {
