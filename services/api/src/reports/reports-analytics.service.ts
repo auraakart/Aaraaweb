@@ -23,56 +23,58 @@ export class ReportsAnalyticsService{
 
   async journeyFunnel(societyId:string,from?:string,to?:string){
     const range=this.dateRange(from,to);
-    const [visitorRows,helpdeskRows,serviceRows,paymentRows]=await Promise.all([
-      this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS requested,
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status" IN ('APPROVED','CHECKED_IN','CHECKED_OUT'))::int AS approved,
-          COUNT(*) FILTER (WHERE "enteredAt" BETWEEN ${range.gte} AND ${range.lte})::int AS entered,
-          COUNT(*) FILTER (WHERE "exitedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS exited
-        FROM "AccessRequest"
-        WHERE "societyId"=${societyId}::uuid AND "subjectType"='VISITOR'
-          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
-            OR "enteredAt" BETWEEN ${range.gte} AND ${range.lte}
-            OR "exitedAt" BETWEEN ${range.gte} AND ${range.lte})
-      `),
-      this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS created,
-          COUNT(*) FILTER (WHERE "resolvedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS resolved,
-          COUNT(*) FILTER (WHERE "closedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS closed
-        FROM "HelpdeskTicket" WHERE "societyId"=${societyId}::uuid
-          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
-            OR "resolvedAt" BETWEEN ${range.gte} AND ${range.lte}
-            OR "closedAt" BETWEEN ${range.gte} AND ${range.lte})
-      `),
-      this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS requested,
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status" IN ('CONFIRMED','IN_PROGRESS','COMPLETED'))::int AS confirmed,
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status" IN ('IN_PROGRESS','COMPLETED'))::int AS inProgress,
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='COMPLETED')::int AS completed
-        FROM "ServiceBooking" WHERE "societyId"=${societyId}::uuid
-          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte})
-      `),
-      this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS created,
-          COUNT(*) FILTER (WHERE "completedAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='CAPTURED')::int AS captured,
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='FAILED')::int AS failed
-        FROM "Payment" WHERE "societyId"=${societyId}::uuid
-          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
-            OR "completedAt" BETWEEN ${range.gte} AND ${range.lte})
-      `),
-    ]);
-    return {
-      range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
-      visitor:visitorRows[0]??{},
-      helpdesk:helpdeskRows[0]??{},
-      services:metricAliases(serviceRows[0],['inProgress']),
-      payments:paymentRows[0]??{},
-      source:'authoritative-domain-records',
-    };
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const [visitorRows,helpdeskRows,serviceRows,paymentRows]=await Promise.all([
+        tx.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS requested,
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status" IN ('APPROVED','CHECKED_IN','CHECKED_OUT'))::int AS approved,
+            COUNT(*) FILTER (WHERE "enteredAt" BETWEEN ${range.gte} AND ${range.lte})::int AS entered,
+            COUNT(*) FILTER (WHERE "exitedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS exited
+          FROM "AccessRequest"
+          WHERE "societyId"=${societyId}::uuid AND "subjectType"='VISITOR'
+            AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
+              OR "enteredAt" BETWEEN ${range.gte} AND ${range.lte}
+              OR "exitedAt" BETWEEN ${range.gte} AND ${range.lte})
+        `),
+        tx.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS created,
+            COUNT(*) FILTER (WHERE "resolvedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS resolved,
+            COUNT(*) FILTER (WHERE "closedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS closed
+          FROM "HelpdeskTicket" WHERE "societyId"=${societyId}::uuid
+            AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
+              OR "resolvedAt" BETWEEN ${range.gte} AND ${range.lte}
+              OR "closedAt" BETWEEN ${range.gte} AND ${range.lte})
+        `),
+        tx.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS requested,
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status" IN ('CONFIRMED','IN_PROGRESS','COMPLETED'))::int AS confirmed,
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status" IN ('IN_PROGRESS','COMPLETED'))::int AS inProgress,
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='COMPLETED')::int AS completed
+          FROM "ServiceBooking" WHERE "societyId"=${societyId}::uuid
+            AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte})
+        `),
+        tx.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS created,
+            COUNT(*) FILTER (WHERE "completedAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='CAPTURED')::int AS captured,
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='FAILED')::int AS failed
+          FROM "Payment" WHERE "societyId"=${societyId}::uuid
+            AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
+              OR "completedAt" BETWEEN ${range.gte} AND ${range.lte})
+        `),
+      ]);
+      return {
+        range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
+        visitor:visitorRows[0]??{},
+        helpdesk:helpdeskRows[0]??{},
+        services:metricAliases(serviceRows[0],['inProgress']),
+        payments:paymentRows[0]??{},
+        source:'authoritative-domain-records',
+      };
+    }, { timeout: 15_000 });
   }
 
   async experienceFunnel(societyId:string,from?:string,to?:string){
@@ -182,265 +184,267 @@ export class ReportsAnalyticsService{
 
   async outcomes(societyId:string,from?:string,to?:string,includeFinance=false){
     const range=this.dateRange(from,to);
-    const [
-      financeRows,ageingRows,reconciliationRows,helpdeskRows,gateRows,gateFallbackRows,guardRows,
-      amenityRows,notificationRows,serviceRows,adoptionRows,usageRows,
-    ]=await Promise.all([
-      includeFinance?this.prisma.$queryRaw<Array<{billedPaise:bigint|number;collectedPaise:bigint|number}>>(Prisma.sql`
-        WITH cohort AS (
-          SELECT
-            r."id",
-            GREATEST(
-              r."amountPaise"
-              + COALESCE((
-                  SELECT SUM(CASE WHEN a."type"='DEBIT' THEN a."amountPaise" ELSE -a."amountPaise" END)
-                  FROM "ReceivableAdjustment" a
-                  WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
-                    AND a."createdAt"<=${range.lte}
-                ),0),
-              0
-            ) AS "netBilledPaise",
-            GREATEST(
-              COALESCE((
-                SELECT SUM(x."amountPaise")
-                FROM "ReceivableAllocation" x
-                WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
-                  AND x."allocatedAt"<=${range.lte}
-              ),0)
-              - COALESCE((
-                SELECT SUM(rv."amountPaise")
-                FROM "ReceivableAllocationReversal" rv
-                JOIN "ReceivableAllocation" x
-                  ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
-                WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
-                  AND rv."reversedAt"<=${range.lte}
-              ),0),
-              0
-            ) AS "allocatedPaise"
-          FROM "Receivable" r
-          WHERE r."societyId"=${societyId}::uuid
-            AND r."issuedAt" BETWEEN ${range.gte} AND ${range.lte}
-            AND (r."status"<>'VOID' OR r."voidedAt">${range.lte})
-        )
-        SELECT
-          COALESCE(SUM("netBilledPaise"),0)::bigint AS "billedPaise",
-          COALESCE(SUM(LEAST("allocatedPaise","netBilledPaise")),0)::bigint AS "collectedPaise"
-        FROM cohort
-      `):Promise.resolve([]),
-      includeFinance?this.prisma.$queryRaw<Array<Record<string,bigint|number>>>(Prisma.sql`
-        WITH balances AS (
-          SELECT
-            r."dueDate",
-            GREATEST(
-              r."amountPaise"
-              + COALESCE((
-                  SELECT SUM(CASE WHEN a."type"='DEBIT' THEN a."amountPaise" ELSE -a."amountPaise" END)
-                  FROM "ReceivableAdjustment" a
-                  WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
-                    AND a."createdAt"<=${range.lte}
-                ),0)
-              - GREATEST(
-                  COALESCE((
-                    SELECT SUM(x."amountPaise")
-                    FROM "ReceivableAllocation" x
-                    WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
-                      AND x."allocatedAt"<=${range.lte}
-                  ),0)
-                  - COALESCE((
-                    SELECT SUM(rv."amountPaise")
-                    FROM "ReceivableAllocationReversal" rv
-                    JOIN "ReceivableAllocation" x
-                      ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
-                    WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
-                      AND rv."reversedAt"<=${range.lte}
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const [
+        financeRows,ageingRows,reconciliationRows,helpdeskRows,gateRows,gateFallbackRows,guardRows,
+        amenityRows,notificationRows,serviceRows,adoptionRows,usageRows,
+      ]=await Promise.all([
+        includeFinance?tx.$queryRaw<Array<{billedPaise:bigint|number;collectedPaise:bigint|number}>>(Prisma.sql`
+          WITH cohort AS (
+            SELECT
+              r."id",
+              GREATEST(
+                r."amountPaise"
+                + COALESCE((
+                    SELECT SUM(CASE WHEN a."type"='DEBIT' THEN a."amountPaise" ELSE -a."amountPaise" END)
+                    FROM "ReceivableAdjustment" a
+                    WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
+                      AND a."createdAt"<=${range.lte}
                   ),0),
-                  0
-                ),
-              0
-            ) AS "outstandingPaise"
-          FROM "Receivable" r
-          WHERE r."societyId"=${societyId}::uuid
-            AND r."issuedAt"<=${range.lte}
-            AND (r."status"<>'VOID' OR r."voidedAt">${range.lte})
-        )
-        SELECT
-          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND "dueDate">=${range.lte}::date),0)::bigint AS "currentPaise",
-          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 1 AND 30),0)::bigint AS "days1To30Paise",
-          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 31 AND 60),0)::bigint AS "days31To60Paise",
-          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 61 AND 90),0)::bigint AS "days61To90Paise",
-          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate">90),0)::bigint AS "days90PlusPaise"
-        FROM balances
-      `):Promise.resolve([]),
-      includeFinance?this.prisma.$queryRaw<Array<{open:number}>>(Prisma.sql`
-        SELECT COUNT(*)::int AS "open" FROM "PaymentReconciliationCase"
-        WHERE "societyId"=${societyId}::uuid AND "status"<>'RESOLVED'
-      `):Promise.resolve([]),
-      this.prisma.$queryRaw<Array<{resolved:number;met:number;breached:number}>>(Prisma.sql`
-        SELECT
-          COUNT(*)::int AS "resolved",
-          COUNT(*) FILTER (
-            WHERE "resolutionDueAt" IS NOT NULL
-              AND COALESCE("resolvedAt","closedAt") IS NOT NULL
-              AND COALESCE("resolvedAt","closedAt")<="resolutionDueAt"
-          )::int AS "met",
-          COUNT(*) FILTER (
-            WHERE "resolutionDueAt" IS NOT NULL
-              AND COALESCE("resolvedAt","closedAt") IS NOT NULL
-              AND COALESCE("resolvedAt","closedAt")>"resolutionDueAt"
-          )::int AS "breached"
-        FROM "HelpdeskTicket"
-        WHERE "societyId"=${societyId}::uuid
-          AND COALESCE("resolvedAt","closedAt") BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<{processed:number;avgProcessingSeconds:number|null;avgApprovalSeconds:number|null}>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE ar."enteredAt" BETWEEN ${range.gte} AND ${range.lte})::int AS "processed",
-          ROUND(AVG(EXTRACT(EPOCH FROM (ar."enteredAt"-ar."createdAt"))) FILTER (
-            WHERE ar."enteredAt" BETWEEN ${range.gte} AND ${range.lte} AND ar."enteredAt">=ar."createdAt"
-          )::numeric,2)::float8 AS "avgProcessingSeconds",
-          ROUND(AVG(EXTRACT(EPOCH FROM (approved."approvedAt"-ar."createdAt"))) FILTER (
-            WHERE approved."approvedAt" BETWEEN ${range.gte} AND ${range.lte} AND approved."approvedAt">=ar."createdAt"
-          )::numeric,2)::float8 AS "avgApprovalSeconds"
-        FROM "AccessRequest" ar
-        LEFT JOIN LATERAL (
-          SELECT MIN(ae."occurredAt") AS "approvedAt"
-          FROM "AuditEvent" ae
-          WHERE ae."societyId"=ar."societyId" AND ae."accessRequestId"=ar."id" AND ae."event"='ACCESS_APPROVED'
-        ) approved ON TRUE
-        WHERE ar."societyId"=${societyId}::uuid AND ar."subjectType"='VISITOR'
-      `),
-      this.prisma.$queryRaw<Array<{pushQueued:number;ivrSimulated:number;manualRequired:number;missingPhone:number}>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "channel"='PUSH' AND "status"='QUEUED')::int AS "pushQueued",
-          COUNT(*) FILTER (WHERE "channel"='IVR' AND "status"='SIMULATED')::int AS "ivrSimulated",
-          COUNT(*) FILTER (WHERE "channel"='MANUAL' AND "status"='REQUIRED')::int AS "manualRequired",
-          COUNT(*) FILTER (WHERE "channel"='MANUAL' AND "reason"='NO_RESIDENT_PHONE')::int AS "missingPhone"
-        FROM "GateNotificationAttempt"
-        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<Record<string,bigint|number>>>(Prisma.sql`
-        SELECT
-          COALESCE(SUM("syncRuns"),0)::bigint AS "syncRuns",
-          COALESCE(SUM("actionsConsidered"),0)::bigint AS "actionsConsidered",
-          COALESCE(SUM("actionsSynced"),0)::bigint AS "actionsSynced",
-          COALESCE(SUM("actionsRetried"),0)::bigint AS "actionsRetried",
-          COALESCE(SUM("actionsUnresolved"),0)::bigint AS "actionsUnresolved",
-          COALESCE(SUM("reviewRequired"),0)::bigint AS "reviewRequired"
-        FROM "GuardOfflineSyncMetric"
-        WHERE "societyId"=${societyId}::uuid AND "bucketDate" BETWEEN ${range.gte}::date AND ${range.lte}::date
-      `),
-      this.prisma.$queryRaw<Array<{activeAmenities:number;confirmedBookings:number;distinctUsers:number;bookingHours:number}>>(Prisma.sql`
-        SELECT
-          (SELECT COUNT(*)::int FROM "Amenity" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE) AS "activeAmenities",
-          COUNT(*) FILTER (WHERE b."status"='CONFIRMED')::int AS "confirmedBookings",
-          COUNT(DISTINCT b."userId") FILTER (WHERE b."status"='CONFIRMED')::int AS "distinctUsers",
-          COALESCE(ROUND((SUM(EXTRACT(EPOCH FROM (b."endsAt"-b."startsAt"))/3600.0) FILTER (WHERE b."status"='CONFIRMED'))::numeric,2),0)::float8 AS "bookingHours"
-        FROM "AmenityBooking" b
-        WHERE b."societyId"=${societyId}::uuid AND b."startsAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<{attempted:number;dispatched:number;retried:number}>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "attemptCount">0)::int AS "attempted",
-          COUNT(*) FILTER (WHERE "status"='DISPATCHED')::int AS "dispatched",
-          COUNT(*) FILTER (WHERE "attemptCount">1)::int AS "retried"
-        FROM "NoticeDispatch"
-        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<{bookings:number;completed:number;cancelled:number;distinctBookers:number}>>(Prisma.sql`
-        SELECT
-          COUNT(*)::int AS "bookings",
-          COUNT(*) FILTER (WHERE "status"='COMPLETED')::int AS "completed",
-          COUNT(*) FILTER (WHERE "status"='CANCELLED')::int AS "cancelled",
-          COUNT(DISTINCT "residentUserId")::int AS "distinctBookers"
-        FROM "ServiceBooking"
-        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<{eligibleResidents:number;activeResidents:number}>>(Prisma.sql`
-        WITH eligible AS (
-          SELECT DISTINCT "userId" FROM "UnitOccupancy"
-          WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
-            AND "effectiveFrom"<=${range.lte} AND ("effectiveTo" IS NULL OR "effectiveTo">=${range.gte})
-          UNION
-          SELECT DISTINCT "userId" FROM "UnitOwnership"
-          WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "verified"=TRUE
-            AND "effectiveFrom"<=${range.lte} AND ("effectiveTo" IS NULL OR "effectiveTo">=${range.gte})
-        )
-        SELECT
-          COUNT(*)::int AS "eligibleResidents",
-          COUNT(*) FILTER (WHERE EXISTS (
-            SELECT 1 FROM "Session" s WHERE s."userId"=eligible."userId" AND s."societyId"=${societyId}::uuid
-              AND s."createdAt" BETWEEN ${range.gte} AND ${range.lte}
-          ))::int AS "activeResidents"
-        FROM eligible
-      `),
-      this.prisma.$queryRaw<Array<{serviceDiscoverers:number;serviceBookers:number;propertySwitchers:number}>>(Prisma.sql`
-        SELECT
-          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='SERVICE_DISCOVERY_VIEWED')::int AS "serviceDiscoverers",
-          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='SERVICE_BOOKING_CREATED')::int AS "serviceBookers",
-          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='PROPERTY_CONTEXT_SWITCHED')::int AS "propertySwitchers"
-        FROM "OperationalUsageEvent"
-        WHERE "societyId"=${societyId}::uuid AND "occurredAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-    ]);
+                0
+              ) AS "netBilledPaise",
+              GREATEST(
+                COALESCE((
+                  SELECT SUM(x."amountPaise")
+                  FROM "ReceivableAllocation" x
+                  WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                    AND x."allocatedAt"<=${range.lte}
+                ),0)
+                - COALESCE((
+                  SELECT SUM(rv."amountPaise")
+                  FROM "ReceivableAllocationReversal" rv
+                  JOIN "ReceivableAllocation" x
+                    ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
+                  WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                    AND rv."reversedAt"<=${range.lte}
+                ),0),
+                0
+              ) AS "allocatedPaise"
+            FROM "Receivable" r
+            WHERE r."societyId"=${societyId}::uuid
+              AND r."issuedAt" BETWEEN ${range.gte} AND ${range.lte}
+              AND (r."status"<>'VOID' OR r."voidedAt">${range.lte})
+          )
+          SELECT
+            COALESCE(SUM("netBilledPaise"),0)::bigint AS "billedPaise",
+            COALESCE(SUM(LEAST("allocatedPaise","netBilledPaise")),0)::bigint AS "collectedPaise"
+          FROM cohort
+        `):Promise.resolve([]),
+        includeFinance?tx.$queryRaw<Array<Record<string,bigint|number>>>(Prisma.sql`
+          WITH balances AS (
+            SELECT
+              r."dueDate",
+              GREATEST(
+                r."amountPaise"
+                + COALESCE((
+                    SELECT SUM(CASE WHEN a."type"='DEBIT' THEN a."amountPaise" ELSE -a."amountPaise" END)
+                    FROM "ReceivableAdjustment" a
+                    WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
+                      AND a."createdAt"<=${range.lte}
+                  ),0)
+                - GREATEST(
+                    COALESCE((
+                      SELECT SUM(x."amountPaise")
+                      FROM "ReceivableAllocation" x
+                      WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                        AND x."allocatedAt"<=${range.lte}
+                    ),0)
+                    - COALESCE((
+                      SELECT SUM(rv."amountPaise")
+                      FROM "ReceivableAllocationReversal" rv
+                      JOIN "ReceivableAllocation" x
+                        ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
+                      WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                        AND rv."reversedAt"<=${range.lte}
+                    ),0),
+                    0
+                  ),
+                0
+              ) AS "outstandingPaise"
+            FROM "Receivable" r
+            WHERE r."societyId"=${societyId}::uuid
+              AND r."issuedAt"<=${range.lte}
+              AND (r."status"<>'VOID' OR r."voidedAt">${range.lte})
+          )
+          SELECT
+            COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND "dueDate">=${range.lte}::date),0)::bigint AS "currentPaise",
+            COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 1 AND 30),0)::bigint AS "days1To30Paise",
+            COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 31 AND 60),0)::bigint AS "days31To60Paise",
+            COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 61 AND 90),0)::bigint AS "days61To90Paise",
+            COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate">90),0)::bigint AS "days90PlusPaise"
+          FROM balances
+        `):Promise.resolve([]),
+        includeFinance?tx.$queryRaw<Array<{open:number}>>(Prisma.sql`
+          SELECT COUNT(*)::int AS "open" FROM "PaymentReconciliationCase"
+          WHERE "societyId"=${societyId}::uuid AND "status"<>'RESOLVED'
+        `):Promise.resolve([]),
+        tx.$queryRaw<Array<{resolved:number;met:number;breached:number}>>(Prisma.sql`
+          SELECT
+            COUNT(*)::int AS "resolved",
+            COUNT(*) FILTER (
+              WHERE "resolutionDueAt" IS NOT NULL
+                AND COALESCE("resolvedAt","closedAt") IS NOT NULL
+                AND COALESCE("resolvedAt","closedAt")<="resolutionDueAt"
+            )::int AS "met",
+            COUNT(*) FILTER (
+              WHERE "resolutionDueAt" IS NOT NULL
+                AND COALESCE("resolvedAt","closedAt") IS NOT NULL
+                AND COALESCE("resolvedAt","closedAt")>"resolutionDueAt"
+            )::int AS "breached"
+          FROM "HelpdeskTicket"
+          WHERE "societyId"=${societyId}::uuid
+            AND COALESCE("resolvedAt","closedAt") BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<{processed:number;avgProcessingSeconds:number|null;avgApprovalSeconds:number|null}>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE ar."enteredAt" BETWEEN ${range.gte} AND ${range.lte})::int AS "processed",
+            ROUND(AVG(EXTRACT(EPOCH FROM (ar."enteredAt"-ar."createdAt"))) FILTER (
+              WHERE ar."enteredAt" BETWEEN ${range.gte} AND ${range.lte} AND ar."enteredAt">=ar."createdAt"
+            )::numeric,2)::float8 AS "avgProcessingSeconds",
+            ROUND(AVG(EXTRACT(EPOCH FROM (approved."approvedAt"-ar."createdAt"))) FILTER (
+              WHERE approved."approvedAt" BETWEEN ${range.gte} AND ${range.lte} AND approved."approvedAt">=ar."createdAt"
+            )::numeric,2)::float8 AS "avgApprovalSeconds"
+          FROM "AccessRequest" ar
+          LEFT JOIN LATERAL (
+            SELECT MIN(ae."occurredAt") AS "approvedAt"
+            FROM "AuditEvent" ae
+            WHERE ae."societyId"=ar."societyId" AND ae."accessRequestId"=ar."id" AND ae."event"='ACCESS_APPROVED'
+          ) approved ON TRUE
+          WHERE ar."societyId"=${societyId}::uuid AND ar."subjectType"='VISITOR'
+        `),
+        tx.$queryRaw<Array<{pushQueued:number;ivrSimulated:number;manualRequired:number;missingPhone:number}>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "channel"='PUSH' AND "status"='QUEUED')::int AS "pushQueued",
+            COUNT(*) FILTER (WHERE "channel"='IVR' AND "status"='SIMULATED')::int AS "ivrSimulated",
+            COUNT(*) FILTER (WHERE "channel"='MANUAL' AND "status"='REQUIRED')::int AS "manualRequired",
+            COUNT(*) FILTER (WHERE "channel"='MANUAL' AND "reason"='NO_RESIDENT_PHONE')::int AS "missingPhone"
+          FROM "GateNotificationAttempt"
+          WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<Record<string,bigint|number>>>(Prisma.sql`
+          SELECT
+            COALESCE(SUM("syncRuns"),0)::bigint AS "syncRuns",
+            COALESCE(SUM("actionsConsidered"),0)::bigint AS "actionsConsidered",
+            COALESCE(SUM("actionsSynced"),0)::bigint AS "actionsSynced",
+            COALESCE(SUM("actionsRetried"),0)::bigint AS "actionsRetried",
+            COALESCE(SUM("actionsUnresolved"),0)::bigint AS "actionsUnresolved",
+            COALESCE(SUM("reviewRequired"),0)::bigint AS "reviewRequired"
+          FROM "GuardOfflineSyncMetric"
+          WHERE "societyId"=${societyId}::uuid AND "bucketDate" BETWEEN ${range.gte}::date AND ${range.lte}::date
+        `),
+        tx.$queryRaw<Array<{activeAmenities:number;confirmedBookings:number;distinctUsers:number;bookingHours:number}>>(Prisma.sql`
+          SELECT
+            (SELECT COUNT(*)::int FROM "Amenity" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE) AS "activeAmenities",
+            COUNT(*) FILTER (WHERE b."status"='CONFIRMED')::int AS "confirmedBookings",
+            COUNT(DISTINCT b."userId") FILTER (WHERE b."status"='CONFIRMED')::int AS "distinctUsers",
+            COALESCE(ROUND((SUM(EXTRACT(EPOCH FROM (b."endsAt"-b."startsAt"))/3600.0) FILTER (WHERE b."status"='CONFIRMED'))::numeric,2),0)::float8 AS "bookingHours"
+          FROM "AmenityBooking" b
+          WHERE b."societyId"=${societyId}::uuid AND b."startsAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<{attempted:number;dispatched:number;retried:number}>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "attemptCount">0)::int AS "attempted",
+            COUNT(*) FILTER (WHERE "status"='DISPATCHED')::int AS "dispatched",
+            COUNT(*) FILTER (WHERE "attemptCount">1)::int AS "retried"
+          FROM "NoticeDispatch"
+          WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<{bookings:number;completed:number;cancelled:number;distinctBookers:number}>>(Prisma.sql`
+          SELECT
+            COUNT(*)::int AS "bookings",
+            COUNT(*) FILTER (WHERE "status"='COMPLETED')::int AS "completed",
+            COUNT(*) FILTER (WHERE "status"='CANCELLED')::int AS "cancelled",
+            COUNT(DISTINCT "residentUserId")::int AS "distinctBookers"
+          FROM "ServiceBooking"
+          WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<{eligibleResidents:number;activeResidents:number}>>(Prisma.sql`
+          WITH eligible AS (
+            SELECT DISTINCT "userId" FROM "UnitOccupancy"
+            WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+              AND "effectiveFrom"<=${range.lte} AND ("effectiveTo" IS NULL OR "effectiveTo">=${range.gte})
+            UNION
+            SELECT DISTINCT "userId" FROM "UnitOwnership"
+            WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "verified"=TRUE
+              AND "effectiveFrom"<=${range.lte} AND ("effectiveTo" IS NULL OR "effectiveTo">=${range.gte})
+          )
+          SELECT
+            COUNT(*)::int AS "eligibleResidents",
+            COUNT(*) FILTER (WHERE EXISTS (
+              SELECT 1 FROM "Session" s WHERE s."userId"=eligible."userId" AND s."societyId"=${societyId}::uuid
+                AND s."createdAt" BETWEEN ${range.gte} AND ${range.lte}
+            ))::int AS "activeResidents"
+          FROM eligible
+        `),
+        tx.$queryRaw<Array<{serviceDiscoverers:number;serviceBookers:number;propertySwitchers:number}>>(Prisma.sql`
+          SELECT
+            COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='SERVICE_DISCOVERY_VIEWED')::int AS "serviceDiscoverers",
+            COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='SERVICE_BOOKING_CREATED')::int AS "serviceBookers",
+            COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='PROPERTY_CONTEXT_SWITCHED')::int AS "propertySwitchers"
+          FROM "OperationalUsageEvent"
+          WHERE "societyId"=${societyId}::uuid AND "occurredAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+      ]);
 
-    const finance=financeRows[0];
-    const ageing=ageingRows[0]??{};
-    const helpdesk=helpdeskRows[0]??{resolved:0,met:0,breached:0};
-    const guard=guardRows[0]??{};
-    const services=serviceRows[0]??{bookings:0,completed:0,cancelled:0,distinctBookers:0};
-    const adoption=adoptionRows[0]??{eligibleResidents:0,activeResidents:0};
-    const usage=usageRows[0]??{serviceDiscoverers:0,serviceBookers:0,propertySwitchers:0};
-    const number=(value:unknown)=>Number(value??0);
-    const rate=(numerator:number,denominator:number)=>denominator>0?Math.round((numerator/denominator)*10000)/100:null;
+      const finance=financeRows[0];
+      const ageing=ageingRows[0]??{};
+      const helpdesk=helpdeskRows[0]??{resolved:0,met:0,breached:0};
+      const guard=guardRows[0]??{};
+      const services=serviceRows[0]??{bookings:0,completed:0,cancelled:0,distinctBookers:0};
+      const adoption=adoptionRows[0]??{eligibleResidents:0,activeResidents:0};
+      const usage=usageRows[0]??{serviceDiscoverers:0,serviceBookers:0,propertySwitchers:0};
+      const number=(value:unknown)=>Number(value??0);
+      const rate=(numerator:number,denominator:number)=>denominator>0?Math.round((numerator/denominator)*10000)/100:null;
 
-    return {
-      range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
-      finance:includeFinance?{
-        billedPaise:number(finance?.billedPaise),
-        collectedPaise:number(finance?.collectedPaise),
-        collectionPercent:rate(number(finance?.collectedPaise),number(finance?.billedPaise)),
-        outstandingAgeingPaise:{
-          current:number(ageing.currentPaise),days1To30:number(ageing.days1To30Paise),
-          days31To60:number(ageing.days31To60Paise),days61To90:number(ageing.days61To90Paise),
-          days90Plus:number(ageing.days90PlusPaise),
+      return {
+        range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
+        finance:includeFinance?{
+          billedPaise:number(finance?.billedPaise),
+          collectedPaise:number(finance?.collectedPaise),
+          collectionPercent:rate(number(finance?.collectedPaise),number(finance?.billedPaise)),
+          outstandingAgeingPaise:{
+            current:number(ageing.currentPaise),days1To30:number(ageing.days1To30Paise),
+            days31To60:number(ageing.days31To60Paise),days61To90:number(ageing.days61To90Paise),
+            days90Plus:number(ageing.days90PlusPaise),
+          },
+          reconciliationExceptions:number(reconciliationRows[0]?.open),
+        }:null,
+        helpdesk:{
+          resolved:helpdesk.resolved,slaMet:helpdesk.met,slaBreached:helpdesk.breached,
+          slaCompliancePercent:rate(helpdesk.met,helpdesk.met+helpdesk.breached),
         },
-        reconciliationExceptions:number(reconciliationRows[0]?.open),
-      }:null,
-      helpdesk:{
-        resolved:helpdesk.resolved,slaMet:helpdesk.met,slaBreached:helpdesk.breached,
-        slaCompliancePercent:rate(helpdesk.met,helpdesk.met+helpdesk.breached),
-      },
-      gate:gateRows[0]??{processed:0,avgProcessingSeconds:null,avgApprovalSeconds:null},
-      gateFallback:{
-        ...(gateFallbackRows[0]??{pushQueued:0,ivrSimulated:0,manualRequired:0,missingPhone:0}),
-        fallbackRequiredPercent:rate(gateFallbackRows[0]?.manualRequired??0,(gateFallbackRows[0]?.pushQueued??0)+(gateFallbackRows[0]?.ivrSimulated??0)+(gateFallbackRows[0]?.manualRequired??0)),
-        boundary:'Push, IVR-simulator and manual-fallback counts are delivery evidence only. They do not change resident approval authority or claim a live telephony provider.',
-      },
-      guardOfflineSync:{
-        syncRuns:number(guard.syncRuns),actionsConsidered:number(guard.actionsConsidered),actionsSynced:number(guard.actionsSynced),
-        actionsRetried:number(guard.actionsRetried),actionsUnresolved:number(guard.actionsUnresolved),reviewRequired:number(guard.reviewRequired),
-        unresolvedPercent:rate(number(guard.actionsUnresolved),number(guard.actionsConsidered)),
-      },
-      amenities:amenityRows[0]??{activeAmenities:0,confirmedBookings:0,distinctUsers:0,bookingHours:0},
-      notifications:{
-        ...(notificationRows[0]??{attempted:0,dispatched:0,retried:0}),
-        deliverySuccessPercent:rate(notificationRows[0]?.dispatched??0,notificationRows[0]?.attempted??0),
-        scope:'scheduled notice dispatch handoff',
-      },
-      services:{
-        ...services,
-        completionPercent:rate(services.completed,services.bookings),
-        cancellationPercent:rate(services.cancelled,services.bookings),
-        serviceDiscoverers:usage.serviceDiscoverers,
-        discoveryToBookingPercent:rate(usage.serviceBookers,usage.serviceDiscoverers),
-      },
-      adoption:{
-        ...adoption,
-        activationPercent:rate(adoption.activeResidents,adoption.eligibleResidents),
-        propertySwitchers:usage.propertySwitchers,
-      },
-      evidence:'authoritative-domain-records-and-pseudonymous-usage-events',
-    };
+        gate:gateRows[0]??{processed:0,avgProcessingSeconds:null,avgApprovalSeconds:null},
+        gateFallback:{
+          ...(gateFallbackRows[0]??{pushQueued:0,ivrSimulated:0,manualRequired:0,missingPhone:0}),
+          fallbackRequiredPercent:rate(gateFallbackRows[0]?.manualRequired??0,(gateFallbackRows[0]?.pushQueued??0)+(gateFallbackRows[0]?.ivrSimulated??0)+(gateFallbackRows[0]?.manualRequired??0)),
+          boundary:'Push, IVR-simulator and manual-fallback counts are delivery evidence only. They do not change resident approval authority or claim a live telephony provider.',
+        },
+        guardOfflineSync:{
+          syncRuns:number(guard.syncRuns),actionsConsidered:number(guard.actionsConsidered),actionsSynced:number(guard.actionsSynced),
+          actionsRetried:number(guard.actionsRetried),actionsUnresolved:number(guard.actionsUnresolved),reviewRequired:number(guard.reviewRequired),
+          unresolvedPercent:rate(number(guard.actionsUnresolved),number(guard.actionsConsidered)),
+        },
+        amenities:amenityRows[0]??{activeAmenities:0,confirmedBookings:0,distinctUsers:0,bookingHours:0},
+        notifications:{
+          ...(notificationRows[0]??{attempted:0,dispatched:0,retried:0}),
+          deliverySuccessPercent:rate(notificationRows[0]?.dispatched??0,notificationRows[0]?.attempted??0),
+          scope:'scheduled notice dispatch handoff',
+        },
+        services:{
+          ...services,
+          completionPercent:rate(services.completed,services.bookings),
+          cancellationPercent:rate(services.cancelled,services.bookings),
+          serviceDiscoverers:usage.serviceDiscoverers,
+          discoveryToBookingPercent:rate(usage.serviceBookers,usage.serviceDiscoverers),
+        },
+        adoption:{
+          ...adoption,
+          activationPercent:rate(adoption.activeResidents,adoption.eligibleResidents),
+          propertySwitchers:usage.propertySwitchers,
+        },
+        evidence:'authoritative-domain-records-and-pseudonymous-usage-events',
+      };
+    }, { timeout: 30_000 });
   }
 
   async platformPortfolioCommandCentre(from?:string,to?:string){

@@ -95,17 +95,45 @@ withDatabase('Journey query windows on migrated PostgreSQL', () => {
   });
 
   it('preserves all original aggregates while reducing rows entering each aggregate', async () => {
-    const observed = vi.spyOn(prisma, '$queryRaw');
-    await analytics.journeyFunnel(societies[0], from.toISOString(), to.toISOString());
-    const queries = observed.mock.calls.map(call => call[0] as Prisma.Sql);
-    const results = await Promise.all(observed.mock.results.map(result => result.value));
-    observed.mockRestore();
+    // Observe the actual tenant transaction client; Prisma root spies may also
+    // intercept transaction proxies and cannot distinguish a root fallback.
+    const captured: Array<{ query: Prisma.Sql; result: unknown }> = [];
+    const trackedClient = {
+      withTenantContext: <T>(
+        societyId: string,
+        operation: (tx: Prisma.TransactionClient) => Promise<T>,
+        options?: { timeout?: number },
+      ) => prisma.withTenantContext(societyId, async (tx) => {
+        const observedTx = new Proxy(tx, {
+          get(target, key, receiver) {
+            if (key === '$queryRaw') {
+              return async (query: Prisma.Sql) => {
+                const evidence = { query, result: undefined as unknown };
+                captured.push(evidence);
+                evidence.result = await tx.$queryRaw(query);
+                return evidence.result;
+              };
+            }
+            return Reflect.get(target, key, receiver);
+          },
+        });
+        return operation(observedTx);
+      }, options),
+    };
+    const trackedAnalytics = new ReportsAnalyticsService(trackedClient as never);
+    await trackedAnalytics.journeyFunnel(societies[0], from.toISOString(), to.toISOString());
+    expect(captured).toHaveLength(4);
+    const queries = captured.map(row => row.query);
+    const results = captured.map(row => row.result);
     for (const [index, query] of queries.entries()) {
       // Remove only the appended window predicate from trusted repository SQL
       // to reproduce the previous query. Retain all FILTERs and tenant clauses.
-      const cutoff = query.strings.findIndex(part => part.includes('\n          AND ('));
+      // SQL indentation is not part of the query's semantics. Scope the
+      // previous-window comparison to the appended predicate, not spaces.
+      const windowPredicate = /\n\s+AND \(/;
+      const cutoff = query.strings.findIndex(part => windowPredicate.test(part));
       expect(cutoff).toBeGreaterThan(0);
-      const strings = [...query.strings.slice(0, cutoff), query.strings[cutoff].split('\n          AND (')[0]];
+      const strings = [...query.strings.slice(0, cutoff), query.strings[cutoff].split(windowPredicate)[0]];
       const original = Prisma.sql(strings, ...query.values.slice(0, cutoff));
       await expect(prisma.$queryRaw(original)).resolves.toEqual(results[index]);
       const inputRows = async (statement: Prisma.Sql) => {
