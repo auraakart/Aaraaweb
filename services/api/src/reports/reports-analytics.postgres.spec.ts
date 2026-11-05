@@ -131,7 +131,12 @@ withDatabase('Journey query windows on migrated PostgreSQL', () => {
   });
 
   it('exposes canonical operations metrics without removing the legacy lowercase fields', async () => {
+    const context = vi.spyOn(prisma, 'withTenantContext');
+    const rootSql = vi.spyOn(prisma, '$queryRaw');
     const result = await analytics.operationsDashboard(societies[0], from.toISOString(), to.toISOString());
+    expect(context).toHaveBeenCalledWith(societies[0], expect.any(Function));
+    expect(rootSql).not.toHaveBeenCalled();
+
     expect(result.helpdesk).toEqual({
       open: 101, responsebreached: 0, resolutionbreached: 0, resolvedinrange: 1,
       responseBreached: 0, resolutionBreached: 0, resolvedInRange: 1,

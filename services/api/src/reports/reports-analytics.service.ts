@@ -77,103 +77,107 @@ export class ReportsAnalyticsService{
 
   async experienceFunnel(societyId:string,from?:string,to?:string){
     const range=this.dateRange(from,to);
-    const [usageRows,amenityRows,paymentRows,helpdeskRows]=await Promise.all([
-      this.prisma.$queryRaw<Array<{amenityStarters:number;paymentStarters:number;helpdeskStarters:number}>>(Prisma.sql`
-        SELECT
-          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='AMENITY_BOOKING_STARTED')::int AS "amenityStarters",
-          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='PAYMENT_CHECKOUT_STARTED')::int AS "paymentStarters",
-          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='HELPDESK_DRAFT_STARTED')::int AS "helpdeskStarters"
-        FROM "OperationalUsageEvent"
-        WHERE "societyId"=${societyId}::uuid AND "occurredAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<{bookers:number;bookings:number}>>(Prisma.sql`
-        SELECT COUNT(DISTINCT "userId")::int AS "bookers",COUNT(*)::int AS "bookings"
-        FROM "AmenityBooking"
-        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<{orderCreators:number;orders:number;capturedUsers:number}>>(Prisma.sql`
-        SELECT
-          COUNT(DISTINCT "payerUserId")::int AS "orderCreators",
-          COUNT(*)::int AS "orders",
-          COUNT(DISTINCT "payerUserId") FILTER (WHERE "status"='CAPTURED')::int AS "capturedUsers"
-        FROM "Payment"
-        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-      this.prisma.$queryRaw<Array<{submitters:number;tickets:number;resolvedUsers:number}>>(Prisma.sql`
-        SELECT
-          COUNT(DISTINCT "createdById")::int AS "submitters",
-          COUNT(*)::int AS "tickets",
-          COUNT(DISTINCT "createdById") FILTER (WHERE "status" IN ('RESOLVED','CLOSED'))::int AS "resolvedUsers"
-        FROM "HelpdeskTicket"
-        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
-      `),
-    ]);
-    const usage=usageRows[0]??{amenityStarters:0,paymentStarters:0,helpdeskStarters:0};
-    const amenity=amenityRows[0]??{bookers:0,bookings:0};
-    const payment=paymentRows[0]??{orderCreators:0,orders:0,capturedUsers:0};
-    const helpdesk=helpdeskRows[0]??{submitters:0,tickets:0,resolvedUsers:0};
-    const rate=(n:number,d:number)=>d>0?Math.round((n/d)*10000)/100:null;
-    const funnel=(started:number,completedUsers:number)=>{
-      const coverageState=started>=completedUsers?'TRACKED':'PARTIAL_CLIENT_COVERAGE';
-      return {
-        startedUsers:started,
-        completedUsers,
-        completionPercent:coverageState==='TRACKED'?rate(completedUsers,started):null,
-        coverageState,
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const [usageRows,amenityRows,paymentRows,helpdeskRows]=await Promise.all([
+        tx.$queryRaw<Array<{amenityStarters:number;paymentStarters:number;helpdeskStarters:number}>>(Prisma.sql`
+          SELECT
+            COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='AMENITY_BOOKING_STARTED')::int AS "amenityStarters",
+            COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='PAYMENT_CHECKOUT_STARTED')::int AS "paymentStarters",
+            COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='HELPDESK_DRAFT_STARTED')::int AS "helpdeskStarters"
+          FROM "OperationalUsageEvent"
+          WHERE "societyId"=${societyId}::uuid AND "occurredAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<{bookers:number;bookings:number}>>(Prisma.sql`
+          SELECT COUNT(DISTINCT "userId")::int AS "bookers",COUNT(*)::int AS "bookings"
+          FROM "AmenityBooking"
+          WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<{orderCreators:number;orders:number;capturedUsers:number}>>(Prisma.sql`
+          SELECT
+            COUNT(DISTINCT "payerUserId")::int AS "orderCreators",
+            COUNT(*)::int AS "orders",
+            COUNT(DISTINCT "payerUserId") FILTER (WHERE "status"='CAPTURED')::int AS "capturedUsers"
+          FROM "Payment"
+          WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+        tx.$queryRaw<Array<{submitters:number;tickets:number;resolvedUsers:number}>>(Prisma.sql`
+          SELECT
+            COUNT(DISTINCT "createdById")::int AS "submitters",
+            COUNT(*)::int AS "tickets",
+            COUNT(DISTINCT "createdById") FILTER (WHERE "status" IN ('RESOLVED','CLOSED'))::int AS "resolvedUsers"
+          FROM "HelpdeskTicket"
+          WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+        `),
+      ]);
+      const usage=usageRows[0]??{amenityStarters:0,paymentStarters:0,helpdeskStarters:0};
+      const amenity=amenityRows[0]??{bookers:0,bookings:0};
+      const payment=paymentRows[0]??{orderCreators:0,orders:0,capturedUsers:0};
+      const helpdesk=helpdeskRows[0]??{submitters:0,tickets:0,resolvedUsers:0};
+      const rate=(n:number,d:number)=>d>0?Math.round((n/d)*10000)/100:null;
+      const funnel=(started:number,completedUsers:number)=>{
+        const coverageState=started>=completedUsers?'TRACKED':'PARTIAL_CLIENT_COVERAGE';
+        return {
+          startedUsers:started,
+          completedUsers,
+          completionPercent:coverageState==='TRACKED'?rate(completedUsers,started):null,
+          coverageState,
+        };
       };
-    };
-    return {
-      range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
-      amenity:{...funnel(usage.amenityStarters,amenity.bookers),bookings:amenity.bookings},
-      payment:{...funnel(usage.paymentStarters,payment.orderCreators),orders:payment.orders,capturedUsers:payment.capturedUsers},
-      helpdesk:{...funnel(usage.helpdeskStarters,helpdesk.submitters),tickets:helpdesk.tickets,resolvedUsers:helpdesk.resolvedUsers},
-      privacy:{
-        subject:'sha256-pseudonymous-user',
-        frequency:'at-most-one-event-type-per-user-per-day',
-        rawInteractionTraceStored:false,
-      },
-      evidence:'pseudonymous-daily-start-signals-plus-authoritative-domain-outcomes',
-      boundary:'Start-signal coverage depends on clients carrying V4.70 telemetry. Partial coverage is reported explicitly and never interpreted as user intent, satisfaction or individual behavior.',
-    };
+      return {
+        range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
+        amenity:{...funnel(usage.amenityStarters,amenity.bookers),bookings:amenity.bookings},
+        payment:{...funnel(usage.paymentStarters,payment.orderCreators),orders:payment.orders,capturedUsers:payment.capturedUsers},
+        helpdesk:{...funnel(usage.helpdeskStarters,helpdesk.submitters),tickets:helpdesk.tickets,resolvedUsers:helpdesk.resolvedUsers},
+        privacy:{
+          subject:'sha256-pseudonymous-user',
+          frequency:'at-most-one-event-type-per-user-per-day',
+          rawInteractionTraceStored:false,
+        },
+        evidence:'pseudonymous-daily-start-signals-plus-authoritative-domain-outcomes',
+        boundary:'Start-signal coverage depends on clients carrying V4.70 telemetry. Partial coverage is reported explicitly and never interpreted as user intent, satisfaction or individual behavior.',
+      };
+    });
   }
 
   async operationsDashboard(societyId:string,from?:string,to?:string){
     const range=this.dateRange(from,to);
-    const [helpdeskRows,facilityRows,incidentRows]=await Promise.all([
-      this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "status" NOT IN ('RESOLVED','CLOSED'))::int AS open,
-          COUNT(*) FILTER (WHERE "slaState"='RESPONSE_BREACHED')::int AS responseBreached,
-          COUNT(*) FILTER (WHERE "slaState"='RESOLUTION_BREACHED')::int AS resolutionBreached,
-          COUNT(*) FILTER (WHERE "resolvedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS resolvedInRange
-        FROM "HelpdeskTicket" WHERE "societyId"=${societyId}::uuid
-      `),
-      this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "status"='OPEN')::int AS open,
-          COUNT(*) FILTER (WHERE "status"='IN_PROGRESS')::int AS inProgress,
-          COUNT(*) FILTER (WHERE "status"='COMPLETED' AND "completedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS completedInRange,
-          COUNT(*) FILTER (WHERE "status" IN ('OPEN','IN_PROGRESS') AND "dueAt" IS NOT NULL AND "dueAt"<CURRENT_TIMESTAMP)::int AS overdue,
-          COUNT(*) FILTER (WHERE "status" IN ('OPEN','IN_PROGRESS') AND "priority"='CRITICAL')::int AS criticalOpen
-        FROM "FacilityWorkOrder" WHERE "societyId"=${societyId}::uuid
-      `),
-      this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
-        SELECT
-          COUNT(*) FILTER (WHERE "status"='ACTIVE')::int AS active,
-          COUNT(*) FILTER (WHERE "status"='ACKNOWLEDGED')::int AS acknowledged,
-          COUNT(*) FILTER (WHERE "status" IN ('ACTIVE','ACKNOWLEDGED') AND "severity"='CRITICAL')::int AS criticalOpen,
-          COUNT(*) FILTER (WHERE "resolvedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS resolvedInRange,
-          COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS createdInRange
-        FROM "SosIncident" WHERE "societyId"=${societyId}::uuid
-      `),
-    ]);
-    return {
-      range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
-      helpdesk:metricAliases(helpdeskRows[0],['responseBreached','resolutionBreached','resolvedInRange']),
-      facilities:metricAliases(facilityRows[0],['inProgress','completedInRange','criticalOpen']),
-      incidents:metricAliases(incidentRows[0],['criticalOpen','resolvedInRange','createdInRange']),
-      source:'authoritative-domain-records',
-    };
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const [helpdeskRows,facilityRows,incidentRows]=await Promise.all([
+        tx.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "status" NOT IN ('RESOLVED','CLOSED'))::int AS open,
+            COUNT(*) FILTER (WHERE "slaState"='RESPONSE_BREACHED')::int AS responseBreached,
+            COUNT(*) FILTER (WHERE "slaState"='RESOLUTION_BREACHED')::int AS resolutionBreached,
+            COUNT(*) FILTER (WHERE "resolvedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS resolvedInRange
+          FROM "HelpdeskTicket" WHERE "societyId"=${societyId}::uuid
+        `),
+        tx.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "status"='OPEN')::int AS open,
+            COUNT(*) FILTER (WHERE "status"='IN_PROGRESS')::int AS inProgress,
+            COUNT(*) FILTER (WHERE "status"='COMPLETED' AND "completedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS completedInRange,
+            COUNT(*) FILTER (WHERE "status" IN ('OPEN','IN_PROGRESS') AND "dueAt" IS NOT NULL AND "dueAt"<CURRENT_TIMESTAMP)::int AS overdue,
+            COUNT(*) FILTER (WHERE "status" IN ('OPEN','IN_PROGRESS') AND "priority"='CRITICAL')::int AS criticalOpen
+          FROM "FacilityWorkOrder" WHERE "societyId"=${societyId}::uuid
+        `),
+        tx.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "status"='ACTIVE')::int AS active,
+            COUNT(*) FILTER (WHERE "status"='ACKNOWLEDGED')::int AS acknowledged,
+            COUNT(*) FILTER (WHERE "status" IN ('ACTIVE','ACKNOWLEDGED') AND "severity"='CRITICAL')::int AS criticalOpen,
+            COUNT(*) FILTER (WHERE "resolvedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS resolvedInRange,
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte})::int AS createdInRange
+          FROM "SosIncident" WHERE "societyId"=${societyId}::uuid
+        `),
+      ]);
+      return {
+        range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
+        helpdesk:metricAliases(helpdeskRows[0],['responseBreached','resolutionBreached','resolvedInRange']),
+        facilities:metricAliases(facilityRows[0],['inProgress','completedInRange','criticalOpen']),
+        incidents:metricAliases(incidentRows[0],['criticalOpen','resolvedInRange','createdInRange']),
+        source:'authoritative-domain-records',
+      };
+    });
   }
 
   async outcomes(societyId:string,from?:string,to?:string,includeFinance=false){
