@@ -10,8 +10,12 @@ const societies = [
 ];
 
 function analyticsPrisma() {
-  const txSql = vi.fn(async (_query: { values: unknown[]; strings: readonly string[] }): Promise<Record<string, unknown>[]> => [{}]);
-  const rootSql = vi.fn((_query?: unknown) => {
+  const txSql = vi.fn(async (query: { values: unknown[]; strings: readonly string[] }): Promise<Record<string, unknown>[]> => {
+    void query;
+    return [{}];
+  });
+  const rootSql = vi.fn((query?: unknown) => {
+    void query;
     throw new Error('Society-scoped analytics must not query root Prisma');
   });
   const withTenantContext = vi.fn(async (_societyId: string, action: (tx: { $queryRaw: typeof txSql }) => Promise<unknown>) => {
@@ -73,8 +77,12 @@ describe('V5.14.12 analytics tenant transaction boundaries', () => {
   });
 
   it('retains intentionally cross-society platform analytics on the explicit platform client', async () => {
-    const rootSql = vi.fn(async (_query: unknown) => []);
-    const withTenantContext = vi.fn((_id: string, _action: unknown) => { throw new Error('Platform metrics cannot be forced into one society'); });
+    const rootSql = vi.fn(async (query: unknown) => { void query; return []; });
+    const withTenantContext = vi.fn((id: string, action: unknown) => {
+      void id;
+      void action;
+      throw new Error('Platform metrics cannot be forced into one society');
+    });
     const service = new ReportsAnalyticsService({ $queryRaw: rootSql, withTenantContext } as never);
     const portfolio = await service.platformPortfolioCommandCentre(from, to);
     const independent = await service.platformOutcomes(from, to);
