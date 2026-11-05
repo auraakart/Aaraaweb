@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "d14e4f3a8f7dbe8f5f38034f6b094de55888aee0657abc5919132fcba987a5ca",
+  "sourceDigest": "83a76b8a9e2be5db7a3c09d701e7db30e3c325a89f429ae38a1a7d34fba77a6c",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 18,
     "utilitySqlSites": 70,
-    "runtimeTenantContextCalls": 407,
+    "runtimeTenantContextCalls": 411,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -1059,6 +1059,22 @@
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
       "line": 109
+    },
+    {
+      "file": "services/api/src/notifications/push-notification.service.ts",
+      "line": 241
+    },
+    {
+      "file": "services/api/src/notifications/push-notification.service.ts",
+      "line": 254
+    },
+    {
+      "file": "services/api/src/notifications/push-notification.service.ts",
+      "line": 262
+    },
+    {
+      "file": "services/api/src/notifications/push-notification.service.ts",
+      "line": 293
     },
     {
       "file": "services/api/src/parking/parking-operations.service.ts",
@@ -3424,10 +3440,10 @@
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":133,"method":"unregisterConsumer","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":206,"method":"deliverConsumerBookingEvent","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":230,"method":"deliverConsumerBookingEvent","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":241,"method":"deliverResidentEvent","operation":"findMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.societyMembership","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":251,"method":"deliverResidentEvent","operation":"findMany","kind":"ORM","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":256,"method":"deliverResidentEvent","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":285,"method":"deliverResidentEvent","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":241,"method":"callback","operation":"findMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyMembership","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":254,"method":"callback","operation":"findMany","kind":"ORM","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":262,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":293,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-recipients.service.ts","line":10,"method":"list","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":15,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":25,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},

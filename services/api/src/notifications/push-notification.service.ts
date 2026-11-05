@@ -238,7 +238,10 @@ export class PushNotificationService {
   private async deliverResidentEvent(event: ResidentMessageEvent) {
     if (!this.hasTransport()) throw new Error('FCM transport is unavailable');
     if (!event.userId) return;
-    const registrations = await this.prisma.devicePushToken.findMany({ where: { societyId: event.societyId, userId: event.userId, active: true }, select: { id: true, token: true, applicationId:true, firebaseProjectId:true } });
+    const registrations = await this.prisma.withTenantContext(event.societyId, tx => tx.devicePushToken.findMany({
+      where: { societyId: event.societyId, userId: event.userId, active: true },
+      select: { id: true, token: true, applicationId: true, firebaseProjectId: true },
+    }));
     const content = this.residentPushContent(event);
     const groups=new Map<App,typeof registrations>();
     let routingFailures=0;
@@ -248,12 +251,17 @@ export class PushNotificationService {
       if(registration.applicationId){
        try {
         const route=applicationPushProject(this.applicationRoutes,registration.applicationId,registration.firebaseProjectId);
-        const memberships=await this.prisma.societyMembership.findMany({where:{societyId:event.societyId,userId:event.userId,active:true,user:{is:{status:'ACTIVE'}}},select:{role:true}});
+        const memberships=await this.prisma.withTenantContext(event.societyId, tx => tx.societyMembership.findMany({
+          where: { societyId:event.societyId,userId:event.userId,active:true,user:{is:{status:'ACTIVE'}} },
+          select: { role:true },
+        }));
         await assertApplicationSociety(this.prisma,route.applicationId,event.societyId,memberships.map(m=>m.role as AppRole),'OPERATE');
         app=this.applicationApps.get(route.applicationId);
         if(app)brandedApps.add(app);
        }catch(error){
-        if(error instanceof UnauthorizedException)await this.prisma.devicePushToken.updateMany({where:{id:registration.id},data:{active:false}});
+        if(error instanceof UnauthorizedException)await this.prisma.withTenantContext(event.societyId, tx => tx.devicePushToken.updateMany({
+          where: { id:registration.id, societyId:event.societyId, userId:event.userId }, data: { active:false },
+        }));
         else routingFailures++;
         continue;
        }
@@ -282,7 +290,9 @@ export class PushNotificationService {
           if(code==='messaging/registration-token-not-registered'||code==='messaging/invalid-registration-token')invalidIds.push(batch[index].id);
           else transientFailures++;
         });
-        if(invalidIds.length)await this.prisma.devicePushToken.updateMany({where:{id:{in:invalidIds}},data:{active:false}});
+        if(invalidIds.length)await this.prisma.withTenantContext(event.societyId, tx => tx.devicePushToken.updateMany({
+          where: { id:{in:invalidIds}, societyId:event.societyId, userId:event.userId }, data: { active:false },
+        }));
       }
     }
     if(transientFailures+routingFailures>0)throw new Error(`FCM resident delivery had ${transientFailures} transient failure(s) and ${routingFailures} routing failure(s)`);
