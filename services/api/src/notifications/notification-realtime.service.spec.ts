@@ -16,10 +16,14 @@ function createService() {
       { userId: 'tenant-1', gateApprovalEnabled: true },
     ]),
   } as unknown as GateRecipientService;
+  const invoice = { findFirst: vi.fn().mockResolvedValue({ unitId: 'unit-1' }) };
+  const tx = { maintenanceInvoice: invoice };
   const prisma = {
-    maintenanceInvoice: {
-      findFirst: vi.fn().mockResolvedValue({ unitId: 'unit-1' }),
-    },
+    maintenanceInvoice: invoice,
+    withTenantContext: vi.fn(async (societyId: string, action: (client: typeof tx) => Promise<unknown>) => {
+      void societyId;
+      return action(tx);
+    }),
   } as unknown as PrismaService;
   return { service: new NotificationRealtimeService(push, recipients, prisma), push, recipients, prisma };
 }

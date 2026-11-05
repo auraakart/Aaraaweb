@@ -19,7 +19,16 @@ describe('GateNotificationFallbackService',()=>{
 
   it('simulates IVR without exposing the full phone number outside the provider boundary',async()=>{
     process.env.NODE_ENV='test';process.env.GATE_IVR_PROVIDER='simulator';
-    const prisma={user:{findUnique:vi.fn().mockResolvedValue({phone:'+919876543210'})},$executeRaw:vi.fn().mockResolvedValue(1)};
+    const executeRaw=vi.fn().mockResolvedValue(1);
+    const tx={$executeRaw:executeRaw};
+    const prisma={
+      user:{findUnique:vi.fn().mockResolvedValue({phone:'+919876543210'})},
+      $executeRaw:executeRaw,
+      withTenantContext:vi.fn(async (societyId:string,action:(client:typeof tx)=>Promise<unknown>)=>{
+        void societyId;
+        return action(tx);
+      }),
+    };
     const service=new GateNotificationFallbackService(prisma as never);
     await expect(service.fallback(event,'44444444-4444-4444-8444-444444444444','NO_PUSH_DEVICE')).resolves.toEqual(
       expect.objectContaining({channel:'IVR',status:'SIMULATED',phoneSuffix:'3210',provider:'simulator'}),
@@ -29,7 +38,16 @@ describe('GateNotificationFallbackService',()=>{
 
   it('requires manual guard fallback when production IVR is not configured',async()=>{
     process.env.NODE_ENV='production';delete process.env.GATE_IVR_PROVIDER;
-    const prisma={user:{findUnique:vi.fn().mockResolvedValue({phone:'+919876543210'})},$executeRaw:vi.fn().mockResolvedValue(1)};
+    const executeRaw=vi.fn().mockResolvedValue(1);
+    const tx={$executeRaw:executeRaw};
+    const prisma={
+      user:{findUnique:vi.fn().mockResolvedValue({phone:'+919876543210'})},
+      $executeRaw:executeRaw,
+      withTenantContext:vi.fn(async (societyId:string,action:(client:typeof tx)=>Promise<unknown>)=>{
+        void societyId;
+        return action(tx);
+      }),
+    };
     const service=new GateNotificationFallbackService(prisma as never);
     await expect(service.fallback(event,'44444444-4444-4444-8444-444444444444','PUSH_UNAVAILABLE')).resolves.toEqual(
       expect.objectContaining({channel:'MANUAL',status:'REQUIRED',reason:'IVR_UNCONFIGURED'}),

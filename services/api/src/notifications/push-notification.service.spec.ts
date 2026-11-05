@@ -42,7 +42,14 @@ describe('PushNotificationService', () => {
 
   it('deactivates only the authenticated user token on unregister', async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const prisma = { devicePushToken: { updateMany } } as unknown as PrismaService;
+    const tx = { devicePushToken: { updateMany } };
+    const prisma = {
+      ...tx,
+      withTenantContext: vi.fn(async (id: string, operation: (client: typeof tx) => Promise<unknown>) => {
+        void id;
+        return operation(tx);
+      }),
+    } as unknown as PrismaService;
     const service = new PushNotificationService(prisma);
 
     await service.unregister('society-1', 'user-1', 'token-1');

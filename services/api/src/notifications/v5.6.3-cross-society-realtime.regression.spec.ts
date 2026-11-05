@@ -16,7 +16,14 @@ function setup() {
   const findFirst = vi.fn().mockResolvedValue(null);
   const push = { sendResidentEvent } as unknown as PushNotificationService;
   const recipients = { notificationRecipients } as unknown as GateRecipientService;
-  const prisma = { maintenanceInvoice: { findFirst } } as unknown as PrismaService;
+  const tx = { maintenanceInvoice: { findFirst } };
+  const prisma = {
+    maintenanceInvoice: tx.maintenanceInvoice,
+    withTenantContext: vi.fn(async (societyId: string, action: (client: typeof tx) => Promise<unknown>) => {
+      void societyId;
+      return action(tx);
+    }),
+  } as unknown as PrismaService;
   const service = new NotificationRealtimeService(push, recipients, prisma);
   return { service, sendResidentEvent, notificationRecipients, findFirst };
 }

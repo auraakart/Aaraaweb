@@ -99,11 +99,16 @@ export class PushNotificationService {
   }
 
   unregister(societyId: string, userId: string, token: string) {
-    return this.prisma.devicePushToken.updateMany({ where: { societyId, userId, token: token.trim(), active: true }, data: { active: false, lastSeenAt: new Date() } });
+    return this.prisma.withTenantContext(societyId, tx => tx.devicePushToken.updateMany({
+      where: { societyId, userId, token: token.trim(), active: true },
+      data: { active: false, lastSeenAt: new Date() },
+    }));
   }
 
   async residentDeliveryReadiness(societyId:string,userId:string) {
-    const activeDeviceCount=await this.prisma.devicePushToken.count({where:{societyId,userId,active:true}});
+    const activeDeviceCount=await this.prisma.withTenantContext(societyId, tx => tx.devicePushToken.count({
+      where: { societyId, userId, active: true },
+    }));
     return {transportConfigured:Boolean(this.firebaseApp),activeDeviceCount};
   }
 
