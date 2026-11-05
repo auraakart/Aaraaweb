@@ -42,7 +42,7 @@ export class GateNotificationFallbackService {
   }
 
   private async persist(event:AccessRealtimeEvent,userId:string,evidence:GateNotificationEvidence){
-    await this.prisma.$executeRaw(Prisma.sql`
+    await this.prisma.withTenantContext(event.societyId, tx => tx.$executeRaw(Prisma.sql`
       INSERT INTO "GateNotificationAttempt"
         ("societyId","requestId","userId","channel","status","reason","evidence")
       VALUES (
@@ -53,7 +53,7 @@ export class GateNotificationFallbackService {
       ON CONFLICT ("societyId","requestId","userId","channel")
       DO UPDATE SET "status"=EXCLUDED."status","reason"=EXCLUDED."reason",
         "evidence"=EXCLUDED."evidence","updatedAt"=CURRENT_TIMESTAMP
-    `);
+    `));
     return evidence;
   }
 }

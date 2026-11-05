@@ -149,10 +149,10 @@ export class NotificationRealtimeService {
 
   private async publishMaintenanceWithUnit(event: MaintenanceDueEvent) {
     try {
-      const invoice = await this.prisma?.maintenanceInvoice.findFirst({
+      const invoice = await this.prisma?.withTenantContext(event.societyId, tx => tx.maintenanceInvoice.findFirst({
         where: { id: event.invoiceId!, societyId: event.societyId },
         select: { unitId: true },
-      });
+      }));
       if (!invoice) {
         this.logger.warn(`Maintenance notification dropped because invoice ${event.invoiceId} was not found in society ${event.societyId}`);
         return;
