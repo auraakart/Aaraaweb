@@ -15,7 +15,14 @@ function harness() {
   const findMany = vi.fn().mockResolvedValue(registrations);
   const updateMany = vi.fn().mockResolvedValue({ count: 1 });
   const query = vi.fn().mockResolvedValue(registrations), execute = vi.fn().mockResolvedValue(1);
-  const service = new PushNotificationService({ devicePushToken: { findMany, updateMany }, $queryRaw: query, $executeRaw: execute } as unknown as PrismaService);
+  const tx = { devicePushToken: { findMany, updateMany } };
+  const withTenantContext = vi.fn(async (societyId: string, callback: (client: typeof tx) => Promise<unknown>) => {
+    void societyId;
+    return callback(tx);
+  });
+  const service = new PushNotificationService({
+    devicePushToken: tx.devicePushToken, $queryRaw: query, $executeRaw: execute, withTenantContext,
+  } as unknown as PrismaService);
   Object.assign(service, { firebaseApp: {} });
   return { service, findMany, updateMany, query, execute };
 }
@@ -38,7 +45,10 @@ describe('Firebase 14 multicast transport contract', () => {
       { success: false, error: { code: 'messaging/server-unavailable' } },
     ] });
     await expect(service.sendResidentEvent(event)).rejects.toThrow('1 transient failure');
-    expect(updateMany).toHaveBeenCalledWith({ where: { id: { in: ['device-1'] } }, data: { active: false } });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['device-1'] }, societyId: event.societyId, userId: event.userId },
+      data: { active: false },
+    });
   });
   it('preserves consumer routing and clears only invalid consumer registrations', async () => {
     const { service, query, execute, findMany } = harness();

@@ -154,7 +154,14 @@ describe('Durable push routing boundary', () => {
   function harness() {
     const findMany = vi.fn().mockResolvedValue([]);
     const queryRaw = vi.fn().mockResolvedValue([]);
-    const prisma = { devicePushToken: { findMany }, $queryRaw: queryRaw } as unknown as PrismaService;
+    const tx = { devicePushToken: { findMany } };
+    const prisma = {
+      devicePushToken: tx.devicePushToken, $queryRaw: queryRaw,
+      withTenantContext: vi.fn(async (societyId: string, callback: (client: typeof tx) => Promise<unknown>) => {
+        void societyId;
+        return callback(tx);
+      }),
+    } as unknown as PrismaService;
     const service = new PushNotificationService(prisma);
     // No device registrations means no external Firebase call. Configuration
     // allows the test to prove whether recipient lookup is reached.
@@ -217,7 +224,12 @@ describe('Durable push routing boundary', () => {
 });
 
 it('never falls back to default Firebase for an unknown branded application',async()=>{
- const prisma={devicePushToken:{findMany:vi.fn().mockResolvedValue([{id:'device',token:'token',applicationId:'11111111-1111-4111-8111-111111111111',firebaseProjectId:'partner-project'}]),updateMany:vi.fn()}};
+ const findMany=vi.fn().mockResolvedValue([{id:'device',token:'token',applicationId:'11111111-1111-4111-8111-111111111111',firebaseProjectId:'partner-project'}]);
+ const tx={devicePushToken:{findMany,updateMany:vi.fn()}};
+ const prisma={...tx,withTenantContext:vi.fn(async (societyId:string,callback:(client:typeof tx)=>Promise<unknown>)=>{
+   void societyId;
+   return callback(tx);
+ })};
  const service=new PushNotificationService(prisma as never);
  Object.assign(service,{firebaseApp:{}});
  const deliver=(service as unknown as {deliverResidentEvent(event:unknown):Promise<void>}).deliverResidentEvent.bind(service);
