@@ -6,6 +6,15 @@ function sqlText(call: unknown[]) {
   return ((call[0] as readonly string[]) ?? []).join(' ');
 }
 
+
+function prismaWithTenantSql(queryRaw: unknown) {
+  const tx = { $queryRaw: queryRaw };
+  return {
+    $queryRaw: vi.fn(() => { throw new Error('Root SQL delegate must not be used for Reports'); }),
+    withTenantContext: vi.fn(async (_societyId: string, operation: (context: typeof tx) => Promise<unknown>) => operation(tx)),
+  };
+}
+
 describe('ReportsService security event feed', () => {
   it('keeps security events scoped to the current society', async () => {
     const queryRaw = vi.fn()
@@ -18,7 +27,7 @@ describe('ReportsService security event feed', () => {
         reason: 'LOGOUT',
         occurredAt: new Date('2026-09-18T00:00:00Z'),
       }]);
-    const service = new ReportsService({ $queryRaw: queryRaw } as never);
+    const service = new ReportsService(prismaWithTenantSql(queryRaw) as never);
 
     const result = await service.securityEventFeed('11111111-1111-4111-8111-111111111111', 1, 50);
 
@@ -33,7 +42,7 @@ describe('ReportsService security event feed', () => {
 
   it('applies validated date bounds to both count and page queries', async () => {
     const queryRaw = vi.fn().mockResolvedValueOnce([{ count: 0 }]).mockResolvedValueOnce([]);
-    const service = new ReportsService({ $queryRaw: queryRaw } as never);
+    const service = new ReportsService(prismaWithTenantSql(queryRaw) as never);
 
     await service.securityEventFeed(
       '11111111-1111-4111-8111-111111111111',
@@ -53,7 +62,7 @@ describe('ReportsService security event feed', () => {
 
   it('rejects malformed event filters before querying', async () => {
     const queryRaw = vi.fn();
-    const service = new ReportsService({ $queryRaw: queryRaw } as never);
+    const service = new ReportsService(prismaWithTenantSql(queryRaw) as never);
 
     await expect(service.securityEventFeed(
       '11111111-1111-4111-8111-111111111111',
@@ -74,7 +83,7 @@ describe('ReportsService security event feed', () => {
       if (sql.includes('COUNT(*)')) return [{ count: society === a ? 1 : 2 }];
       return [{ id: society === a ? 'security-a' : 'security-b' }];
     });
-    const service = new ReportsService({ $queryRaw: queryRaw } as never);
+    const service = new ReportsService(prismaWithTenantSql(queryRaw) as never);
     const first = await service.securityEventFeed(a, 1, 10, 'SESSION_REVOKED');
     const second = await service.securityEventFeed(b, 2, 10, 'SESSION_REVOKED');
     expect(first.total).toBe(1);
@@ -94,4 +103,18 @@ describe('ReportsService security event feed', () => {
     expect(queryRaw.mock.calls[1]).toContain(10);
     expect(queryRaw.mock.calls[3]).toContain(10);
   });
+
+  it('uses the tenant SQL client, never root, for both security count and paged rows', async () => {
+    const societyId = '11111111-1111-4111-8111-111111111111';
+    const queryRaw = vi.fn().mockResolvedValueOnce([{ count: 0 }]).mockResolvedValueOnce([]);
+    const prisma = prismaWithTenantSql(queryRaw);
+    const service = new ReportsService(prisma as never);
+    const result = await service.securityEventFeed(societyId);
+    expect(result.total).toBe(0);
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(1);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
 });

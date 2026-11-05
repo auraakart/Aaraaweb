@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ReportsService } from './reports.service';
 
 function prismaMock() {
-  return {
+  const tx = {
     accessRequest: {
       count: vi.fn().mockResolvedValue(0),
       findMany: vi.fn().mockResolvedValue([]),
@@ -25,6 +25,7 @@ function prismaMock() {
       findMany: vi.fn().mockResolvedValue([]),
     },
   };
+  return { ...tx, withTenantContext: vi.fn(async (_societyId: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
 }
 
 describe('ReportsService', () => {
@@ -316,4 +317,49 @@ describe('ReportsService', () => {
       expect(model.findMany.mock.calls.map(([query]) => query.take)).toEqual([10, 10]);
     }
   });
+
+  it('routes summary and all paginated Reports reads through the supplied tenant transaction, never root delegates', async () => {
+    const selected = '11111111-1111-4111-8111-111111111111';
+    const root = prismaMock();
+    const scoped = prismaMock();
+    root.withTenantContext.mockImplementation(async (_societyId, operation) => operation(scoped));
+    const service = new ReportsService(root as unknown as PrismaService);
+
+    await service.summary(selected, '2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z');
+    await service.accessFeed(selected, 'VISITOR');
+    await service.helpdeskFeed(selected);
+    await service.maintenanceFeed(selected);
+    await service.auditFeed(selected);
+    expect(root.withTenantContext).toHaveBeenCalledTimes(5);
+    for (const [societyId] of root.withTenantContext.mock.calls) expect(societyId).toBe(selected);
+
+    for (const delegate of [root.accessRequest, root.maintenanceInvoice, root.helpdeskTicket, root.auditEvent]) {
+      for (const fn of Object.values(delegate)) expect(fn).not.toHaveBeenCalled();
+    }
+    expect(scoped.accessRequest.count).toHaveBeenCalled();
+    expect(scoped.accessRequest.findMany).toHaveBeenCalled();
+    expect(scoped.maintenanceInvoice.aggregate).toHaveBeenCalled();
+    expect(scoped.maintenanceInvoice.findMany).toHaveBeenCalled();
+    expect(scoped.helpdeskTicket.findMany).toHaveBeenCalled();
+    expect(scoped.auditEvent.findMany).toHaveBeenCalled();
+    expect(scoped.maintenanceInvoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ societyId: selected, unit: { societyId: selected, building: { societyId: selected } } }),
+    }));
+  });
+
+  it('keeps both adjacent summary periods in explicit selected-society transactions', async () => {
+    const societyId = '33333333-3333-4333-8333-333333333333';
+    const prisma = prismaMock();
+    // Two comparison periods run three invoice aggregates each. A one-shot
+    // three-value mock would silently return undefined for the second period.
+    prisma.maintenanceInvoice.aggregate.mockResolvedValue({
+      _count: { _all: 1 }, _sum: { amountPaise: 5000 },
+    });
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    await service.summaryComparison(societyId, '2026-09-11T00:00:00Z', '2026-09-12T00:00:00Z');
+    expect(prisma.maintenanceInvoice.aggregate).toHaveBeenCalledTimes(6);
+    expect(prisma.withTenantContext).toHaveBeenCalledTimes(2);
+    expect(prisma.withTenantContext.mock.calls.map(([id]) => id)).toEqual([societyId, societyId]);
+  });
+
 });
