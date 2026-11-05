@@ -6,7 +6,7 @@ export class GateRecipientService {
   constructor(private readonly prisma: PrismaService) {}
 
   async notificationRecipients(societyId: string, unitId: string, now = new Date()) {
-    const occupants = await this.prisma.unitOccupancy.findMany({
+    return this.prisma.withTenantContext(societyId, tx => tx.unitOccupancy.findMany({
       where: {
         societyId,
         unitId,
@@ -17,7 +17,6 @@ export class GateRecipientService {
       },
       orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
       select: { userId: true, gateApprovalEnabled: true },
-    });
-    return occupants;
+    }));
   }
 }
