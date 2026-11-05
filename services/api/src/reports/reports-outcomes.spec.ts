@@ -2,7 +2,8 @@ import { describe,expect,it,vi } from 'vitest';
 import { ReportsAnalyticsService } from './reports-analytics.service';
 
 function setup(){
-  const prisma={$queryRaw:vi.fn()};
+  const tx={$queryRaw:vi.fn()};
+  const prisma={...tx,withTenantContext:vi.fn(async (_societyId:string,operation:(client:typeof tx)=>Promise<unknown>)=>operation(tx))};
   return {prisma,service:new ReportsAnalyticsService(prisma as never)};
 }
 
