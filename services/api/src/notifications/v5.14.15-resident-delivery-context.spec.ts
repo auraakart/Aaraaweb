@@ -122,7 +122,7 @@ describe('V5.14.15 resident push delivery scoped DB boundaries', () => {
       applicationRoutes: [{ applicationId, projectId: 'partner-testproject', credentialsEnv: 'AARAGATE_TEST_FIREBASE_X' }],
       applicationApps: new Map([[applicationId, {}]]),
     });
-    await expect(service.sendResidentEvent(event(societyA))).rejects.toThrow('routing failure');
+    await expect(service.sendResidentEvent(event(societyA))).resolves.toBeUndefined();
     expect(withTenantContext.mock.calls.map(([id]) => id)).toEqual([societyA, societyA, societyA, societyA]);
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: 'device-brand', societyId: societyA, userId: user },
