@@ -128,9 +128,12 @@ withDatabase('Journey query windows on migrated PostgreSQL', () => {
     for (const [index, query] of queries.entries()) {
       // Remove only the appended window predicate from trusted repository SQL
       // to reproduce the previous query. Retain all FILTERs and tenant clauses.
-      const cutoff = query.strings.findIndex(part => part.includes('\n          AND ('));
+      // SQL indentation is not part of the query's semantics. Scope the
+      // previous-window comparison to the appended predicate, not spaces.
+      const windowPredicate = /\n\s+AND \(/;
+      const cutoff = query.strings.findIndex(part => windowPredicate.test(part));
       expect(cutoff).toBeGreaterThan(0);
-      const strings = [...query.strings.slice(0, cutoff), query.strings[cutoff].split('\n          AND (')[0]];
+      const strings = [...query.strings.slice(0, cutoff), query.strings[cutoff].split(windowPredicate)[0]];
       const original = Prisma.sql(strings, ...query.values.slice(0, cutoff));
       await expect(prisma.$queryRaw(original)).resolves.toEqual(results[index]);
       const inputRows = async (statement: Prisma.Sql) => {
