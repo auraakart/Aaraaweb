@@ -44,7 +44,16 @@ function expireExhaustedPushSql(id?: string) {
         "updatedAt"=CURRENT_TIMESTAMP
     WHERE "status"='IN_FLIGHT' AND "attemptCount" >= ${PUSH_MAX_ATTEMPTS}
       AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}::int)
-      ${id ?  async enqueue(input: PushEnqueueInput, client?: Pick<Prisma.TransactionClient, '$queryRaw'>) {
+      ${id ? Prisma.sql`AND "id"=${id}::uuid` : Prisma.empty}
+    RETURNING "id"
+  `;
+}
+
+@Injectable()
+export class PushDeliveryOutboxService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async enqueue(input: PushEnqueueInput, client?: Pick<Prisma.TransactionClient, '$queryRaw'>) {
     if (input.targetScope === 'RESIDENT') {
       if (!input.societyId?.trim()) throw new BadRequestException('Resident push work requires a society');
     } else if (input.targetScope === 'CONSUMER') {
@@ -70,14 +79,6 @@ function expireExhaustedPushSql(id?: string) {
         ${input.eventType.trim()},
         ${input.dedupeKey.trim()},
         CAST(${JSON.stringify(input.payload)} AS jsonb)
-      )
-      ON CONFLICT ("targetScope","dedupeKey") DO UPDATE
-      SET "updatedAt"=CURRENT_TIMESTAMP
-      RETURNING "id","status"
-    `);
-    return rows[0];
-  }
-put.payload)} AS jsonb)
       )
       ON CONFLICT ("targetScope","dedupeKey") DO UPDATE
       SET "updatedAt"=CURRENT_TIMESTAMP
