@@ -131,7 +131,15 @@ withDatabase('Journey query windows on migrated PostgreSQL', () => {
   });
 
   it('exposes canonical operations metrics without removing the legacy lowercase fields', async () => {
+    // Prisma's transaction proxy can invoke instrumented root methods under
+    // the hood; a root $queryRaw spy cannot prove a query bypassed tx.
+    // Verify the real service enters the selected society transaction here;
+    // the separate unit tests enforce strict no-root-client delegation.
+    const context = vi.spyOn(prisma, 'withTenantContext');
     const result = await analytics.operationsDashboard(societies[0], from.toISOString(), to.toISOString());
+    expect(context).toHaveBeenCalledTimes(1);
+    expect(context).toHaveBeenCalledWith(societies[0], expect.any(Function));
+
     expect(result.helpdesk).toEqual({
       open: 101, responsebreached: 0, resolutionbreached: 0, resolvedinrange: 1,
       responseBreached: 0, resolutionBreached: 0, resolvedInRange: 1,
