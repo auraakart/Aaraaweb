@@ -20,8 +20,24 @@ export class GateNotificationFallbackService {
   }
 
   async fallback(event:AccessRealtimeEvent,userId:string,reason:string):Promise<GateNotificationEvidence>{
-    const user=await this.prisma.user.findUnique({where:{id:userId},select:{phone:true}});
-    const phone=user?.phone?.trim();
+    // Phone numbers are global identity data. Read them only through a currently
+    // eligible occupant of the event's society and unit, never by a bare user ID.
+    const now=new Date();
+    const occupant=event.unitId
+      ? await this.prisma.withTenantContext(event.societyId,tx=>tx.unitOccupancy.findFirst({
+          where:{
+            societyId:event.societyId,
+            unitId:event.unitId,
+            userId,
+            active:true,
+            gateNotificationEnabled:true,
+            effectiveFrom:{lte:now},
+            OR:[{effectiveTo:null},{effectiveTo:{gt:now}}],
+          },
+          select:{user:{select:{phone:true}}},
+        }))
+      : null;
+    const phone=occupant?.user.phone?.trim();
     const configured=(process.env.GATE_IVR_PROVIDER??'').trim().toLowerCase();
     const provider=configured || ((process.env.NODE_ENV??'development')==='production'?'unconfigured':'simulator');
     const simulatorAllowed=provider==='simulator'&&(process.env.NODE_ENV??'development')!=='production';
