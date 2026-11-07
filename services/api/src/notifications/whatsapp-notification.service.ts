@@ -24,9 +24,15 @@ export class WhatsAppNotificationService {
 
     const approved = APPROVED_WHATSAPP_TEMPLATES[input.template];
     if (!approved) throw new BadRequestException('WhatsApp template is not approved');
+    // TypeScript types do not validate payloads from jobs or external adapters.
+    // Reject malformed inputs before a provider can receive them.
+    if (!input.parameters || typeof input.parameters !== 'object' || Array.isArray(input.parameters)) {
+      throw new BadRequestException('WhatsApp template parameters must be an object');
+    }
 
     for (const key of approved.requiredParameters) {
-      if (!input.parameters[key]?.trim()) {
+      const value = input.parameters[key];
+      if (typeof value !== 'string' || !value.trim()) {
         throw new BadRequestException(`WhatsApp template parameter ${key} is required`);
       }
     }
