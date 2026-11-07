@@ -2,7 +2,7 @@ import { BrandingService } from '../branding/branding.service';
 import { applicationPushRoutes, applicationPushProject, ApplicationPushRoute } from './application-push-routing';
 import { assertApplicationSociety } from '../auth/partner-application-binding';
 import { AppRole } from '../auth/auth.types';
-import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { DevicePlatform, Prisma } from '@prisma/client';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -45,6 +45,12 @@ export function residentPushDedupeKey(event: ResidentMessageEvent) {
     case 'EMERGENCY_BROADCAST':
       return `emergency:${event.broadcastId}:user:${userId}`;
   }
+}
+
+function requirePushToken(token: string): string {
+  const normalized = token.trim();
+  if (!normalized) throw new BadRequestException('Push device token is required');
+  return normalized;
 }
 
 @Injectable()
@@ -90,7 +96,7 @@ export class PushNotificationService {
       if(!this.applicationApps.has(applicationId))throw new Error('Application push transport unavailable');
       routing={applicationId,firebaseProjectId:route.projectId};
     }
-    const normalized = token.trim();
+    const normalized = requirePushToken(token);
     return this.prisma.devicePushToken.upsert({
       where: { token: normalized },
       create: { societyId, userId, token: normalized, platform, deviceId: deviceId?.trim() || null, active: true, lastSeenAt: new Date(), ...(routing??{}) },
@@ -99,8 +105,9 @@ export class PushNotificationService {
   }
 
   unregister(societyId: string, userId: string, token: string) {
+    const normalized = requirePushToken(token);
     return this.prisma.withTenantContext(societyId, tx => tx.devicePushToken.updateMany({
-      where: { societyId, userId, token: token.trim(), active: true },
+      where: { societyId, userId, token: normalized, active: true },
       data: { active: false, lastSeenAt: new Date() },
     }));
   }
@@ -113,7 +120,7 @@ export class PushNotificationService {
   }
 
   async registerConsumer(userId: string, token: string, platform: DevicePlatform, deviceId?: string) {
-    const normalized = token.trim();
+    const normalized = requirePushToken(token);
 
     await this.prisma.devicePushToken.updateMany({
       where: { token: normalized, active: true },
@@ -130,9 +137,10 @@ export class PushNotificationService {
   }
 
   async unregisterConsumer(userId: string, token: string) {
+    const normalized = requirePushToken(token);
     const count = await this.prisma.$executeRaw(Prisma.sql`
       UPDATE "ConsumerPushDeviceToken" SET "active" = false, "lastSeenAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "userId" = ${userId}::uuid AND "token" = ${token.trim()} AND "active" = true
+      WHERE "userId" = ${userId}::uuid AND "token" = ${normalized} AND "active" = true
     `);
     return { count };
   }

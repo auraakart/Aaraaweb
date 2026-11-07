@@ -3,6 +3,42 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PrismaService } from '../prisma/prisma.service';
 import { consumerPushDedupeKey, PushNotificationService, residentPushDedupeKey } from './push-notification.service';
 
+describe('push token input integrity', () => {
+  it('rejects whitespace-only resident registration without changing token ownership', async () => {
+    const upsert = vi.fn();
+    const prisma = { devicePushToken: { upsert } } as unknown as PrismaService;
+    const service = new PushNotificationService(prisma);
+    await expect(service.register('society-a', 'user-a', ' \t ', DevicePlatform.ANDROID))
+      .rejects.toThrow('Push device token is required');
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects whitespace-only resident unregistration without querying a tenant', () => {
+    const withTenantContext = vi.fn();
+    const service = new PushNotificationService({ withTenantContext } as unknown as PrismaService);
+    expect(() => service.unregister('society-a', 'user-a', ' \n ')).toThrow('Push device token is required');
+    expect(withTenantContext).not.toHaveBeenCalled();
+  });
+
+  it('rejects whitespace-only consumer registration without deactivating a resident device', async () => {
+    const updateMany = vi.fn();
+    const queryRaw = vi.fn();
+    const prisma = { devicePushToken: { updateMany }, $queryRaw: queryRaw } as unknown as PrismaService;
+    const service = new PushNotificationService(prisma);
+    await expect(service.registerConsumer('user-a', ' \t ', DevicePlatform.ANDROID))
+      .rejects.toThrow('Push device token is required');
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects whitespace-only consumer unregistration before touching the token table', async () => {
+    const executeRaw = vi.fn();
+    const service = new PushNotificationService({ $executeRaw: executeRaw } as unknown as PrismaService);
+    await expect(service.unregisterConsumer('user-a', ' \t ')).rejects.toThrow('Push device token is required');
+    expect(executeRaw).not.toHaveBeenCalled();
+  });
+});
+
 describe('push delivery dedupe keys', () => {
   it('keeps consumer status events stable and distinct', () => {
     const base = { userId: 'user-1', bookingId: 'booking-1', offeringName: 'Cleaning', providerName: 'Provider', status: 'CONFIRMED' as const };
