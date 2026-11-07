@@ -45,6 +45,10 @@ export class WhatsAppNotificationService {
       throw new BadRequestException('WhatsApp template parameters must be an object');
     }
 
+    // Only approved template placeholders may reach a third-party provider.
+    // Unexpected event metadata (including private resident or tenant fields)
+    // must never be copied into an outbound WhatsApp payload.
+    const parameters: Record<string, string> = {};
     for (const key of approved.requiredParameters) {
       // Inherited values do not belong to the message payload and may vanish
       // when an adapter serializes the parameters to JSON.
@@ -54,13 +58,14 @@ export class WhatsAppNotificationService {
       if (typeof value !== 'string' || !value.trim()) {
         throw new BadRequestException(`WhatsApp template parameter ${key} is required`);
       }
+      parameters[key] = value;
     }
 
     return this.provider.sendTemplate({
       recipient,
       templateName: approved.name,
       languageCode: input.languageCode?.trim() || 'en',
-      parameters: input.parameters,
+      parameters,
       idempotencyKey,
       // WhatsApp actions only deep-link back into the authenticated app.
       // Domain mutations continue through the normal permission-checked APIs.

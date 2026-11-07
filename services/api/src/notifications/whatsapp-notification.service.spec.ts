@@ -33,6 +33,67 @@ describe('WhatsAppNotificationService', () => {
     expect(second.idempotent).toBe(true);
   });
 
+  const projectionCases: Array<{
+    template: SendApprovedWhatsAppInput['template'];
+    parameters: Record<string, string>;
+    expected: Record<string, string>;
+  }> = [
+    {
+      template: 'ACCESS_APPROVAL_REQUESTED' as const,
+      parameters: { subjectName: 'Visitor A', subjectType: 'VISITOR', internalAccessToken: 'do-not-send' },
+      expected: { subjectName: 'Visitor A', subjectType: 'VISITOR' },
+    },
+    {
+      template: 'MAINTENANCE_DUE_ISSUED' as const,
+      parameters: { amount: '1200', dueDate: '2026-11-30', societyId: 'private-society-id' },
+      expected: { amount: '1200', dueDate: '2026-11-30' },
+    },
+    {
+      template: 'SERVICE_BOOKING_STATUS' as const,
+      parameters: { offeringName: 'AC service', status: 'CONFIRMED', residentPhone: '+919111111111' },
+      expected: { offeringName: 'AC service', status: 'CONFIRMED' },
+    },
+  ];
+
+  it.each(projectionCases)('forwards only allowlisted placeholders for $template', async ({ template, parameters, expected }) => {
+    const provider = new SimulatorWhatsAppProvider();
+    const send = vi.spyOn(provider, 'sendTemplate');
+    const service = new WhatsAppNotificationService(provider);
+
+    await expect(service.sendApprovedTemplate({
+      recipient: '+919999999999',
+      template,
+      parameters,
+      idempotencyKey: `projection:${template}`,
+    })).resolves.toMatchObject({ accepted: true });
+
+    expect(send).toHaveBeenCalledOnce();
+    expect(send.mock.calls[0]?.[0].parameters).toEqual(expected);
+    // Never mutate the original event payload; the projection is provider-only.
+    expect(Object.keys(parameters)).toHaveLength(3);
+  });
+
+  it('excludes inherited metadata even when required values are owned', async () => {
+    const provider = new SimulatorWhatsAppProvider();
+    const send = vi.spyOn(provider, 'sendTemplate');
+    const service = new WhatsAppNotificationService(provider);
+    const parameters = Object.assign(Object.create({ privateResidentId: 'resident-private' }), {
+      subjectName: 'Visitor A', subjectType: 'VISITOR',
+    }) as Record<string, string>;
+
+    await expect(service.sendApprovedTemplate({
+      recipient: '+919999999999',
+      template: 'ACCESS_APPROVAL_REQUESTED',
+      parameters,
+      idempotencyKey: 'projection:inherited-extra',
+    })).resolves.toMatchObject({ accepted: true });
+
+    expect(send).toHaveBeenCalledOnce();
+    expect(send.mock.calls[0]?.[0].parameters).toEqual({
+      subjectName: 'Visitor A', subjectType: 'VISITOR',
+    });
+  });
+
   it.each([
     { name: 'all required values inherited', parameters: Object.create({ subjectName: 'Ravi', subjectType: 'VISITOR' }) },
     { name: 'one required value inherited', parameters: Object.assign(Object.create({ subjectName: 'Ravi' }), { subjectType: 'VISITOR' }) },
