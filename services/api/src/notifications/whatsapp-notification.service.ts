@@ -46,7 +46,11 @@ export class WhatsAppNotificationService {
     }
 
     for (const key of approved.requiredParameters) {
-      const value = input.parameters[key];
+      // Inherited values do not belong to the message payload and may vanish
+      // when an adapter serializes the parameters to JSON.
+      const value = Object.prototype.hasOwnProperty.call(input.parameters, key)
+        ? input.parameters[key]
+        : undefined;
       if (typeof value !== 'string' || !value.trim()) {
         throw new BadRequestException(`WhatsApp template parameter ${key} is required`);
       }

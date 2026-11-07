@@ -34,6 +34,36 @@ describe('WhatsAppNotificationService', () => {
   });
 
   it.each([
+    { name: 'all required values inherited', parameters: Object.create({ subjectName: 'Ravi', subjectType: 'VISITOR' }) },
+    { name: 'one required value inherited', parameters: Object.assign(Object.create({ subjectName: 'Ravi' }), { subjectType: 'VISITOR' }) },
+  ])('rejects $name instead of forwarding incomplete own parameters', async ({ parameters }) => {
+    const provider = new SimulatorWhatsAppProvider();
+    const send = vi.spyOn(provider, 'sendTemplate');
+    const service = new WhatsAppNotificationService(provider);
+    await expect(service.sendApprovedTemplate({
+      recipient: '+919999999999',
+      template: 'ACCESS_APPROVAL_REQUESTED',
+      parameters,
+      idempotencyKey: 'access:inherited-parameter',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('accepts own required values on a null-prototype parameter map', async () => {
+    const provider = new SimulatorWhatsAppProvider();
+    const send = vi.spyOn(provider, 'sendTemplate');
+    const service = new WhatsAppNotificationService(provider);
+    const parameters = Object.assign(Object.create(null) as Record<string, string>, {
+      subjectName: 'Visitor A', subjectType: 'VISITOR',
+    });
+    await expect(service.sendApprovedTemplate({
+      recipient: '+919999999999', template: 'ACCESS_APPROVAL_REQUESTED',
+      parameters, idempotencyKey: 'access:own-parameters',
+    })).resolves.toMatchObject({ accepted: true });
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it.each([
     { caseName: 'missing parameter map', parameters: undefined },
     { caseName: 'null parameter map', parameters: null },
     { caseName: 'array parameter map', parameters: [] },
