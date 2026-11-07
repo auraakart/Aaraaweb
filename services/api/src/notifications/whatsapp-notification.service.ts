@@ -15,12 +15,23 @@ export class WhatsAppNotificationService {
   constructor(@Inject(WHATSAPP_PROVIDER) private readonly provider: WhatsAppProvider) {}
 
   async sendApprovedTemplate(input: SendApprovedWhatsAppInput) {
+    // Runtime event payloads are not guaranteed to respect TypeScript strings.
+    // Validate before trimming so bad input stays a controlled 400 error.
+    if (typeof input.recipient !== 'string') {
+      throw new BadRequestException('WhatsApp recipient must use E.164 format');
+    }
     const recipient = input.recipient.trim();
     if (!/^\+[1-9]\d{7,14}$/.test(recipient)) {
       throw new BadRequestException('WhatsApp recipient must use E.164 format');
     }
+    if (typeof input.idempotencyKey !== 'string') {
+      throw new BadRequestException('WhatsApp idempotency key is required');
+    }
     const idempotencyKey = input.idempotencyKey.trim();
     if (!idempotencyKey) throw new BadRequestException('WhatsApp idempotency key is required');
+    if (input.languageCode != null && typeof input.languageCode !== 'string') {
+      throw new BadRequestException('WhatsApp language code must be a string');
+    }
 
     // Registry keys must be explicit own entries. Prototype names such as
     // "__proto__" and "constructor" are not approved WhatsApp templates.
