@@ -486,8 +486,8 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:validate
       - name: Generate Prisma client
         run: pnpm --filter @aaraagate/api prisma:generate
-      - name: Apply Prisma migrations to clean PostgreSQL
-        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      # Fail fast on static inventory and TypeScript checks before database
+      # migration/replay. All existing gates remain mandatory.
       - name: Verify V5 tenant-access inventory
         run: |
           node services/api/scripts/tenant-access-inventory.mjs --write
@@ -497,6 +497,12 @@ jobs:
             git diff --no-ext-diff --unified=0 -- docs/architecture/v5-tenant-access-inventory.json
             exit 1
           fi
+      - name: Lint API
+        run: pnpm --filter @aaraagate/api lint
+      - name: Typecheck API
+        run: pnpm --filter @aaraagate/api typecheck
+      - name: Apply Prisma migrations to clean PostgreSQL
+        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
       - name: V5 partner ownership historical upgrade and replay
         env:
           AARAAGATE_PARTNER_MIGRATION_CI: '1'
@@ -504,10 +510,6 @@ jobs:
           node --test scripts/partner-ownership-migration-smoke.test.mjs
           node services/api/scripts/partner-ownership-migration-smoke.mjs
           pnpm --filter @aaraagate/api exec vitest run src/societies/societies-compatibility.postgres.spec.ts
-      - name: Lint API
-        run: pnpm --filter @aaraagate/api lint
-      - name: Typecheck API
-        run: pnpm --filter @aaraagate/api typecheck
       - name: OTP concurrency and HTTP rate-limit security regressions
         env:
           AUTH_TEST_REDIS_URL: redis://localhost:6379
