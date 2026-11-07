@@ -57,7 +57,7 @@ describe('WhatsAppNotificationService', () => {
     await expect(service.sendApprovedTemplate({
       recipient: '+919999999999',
       template,
-      parameters,
+      parameters: parameters as Record<string, string>,
       idempotencyKey: `projection:${template}`,
     })).resolves.toMatchObject({ accepted: true });
 
