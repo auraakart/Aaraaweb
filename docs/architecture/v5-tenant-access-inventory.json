@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "fee3705b7692e0e067dad6a369440c6f6ab3623d42f8e036b7aff4f595bd191a",
+  "sourceDigest": "4893a00c86ccb14b0566de0b01b4e63cf13a0b1eab3e69ee010732775883f770",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -1066,19 +1066,15 @@
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 102
-    },
-    {
-      "file": "services/api/src/notifications/push-notification.service.ts",
       "line": 109
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 241
+      "line": 116
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 254
+      "line": 249
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
@@ -1086,7 +1082,11 @@
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 293
+      "line": 270
+    },
+    {
+      "file": "services/api/src/notifications/push-notification.service.ts",
+      "line": 301
     },
     {
       "file": "services/api/src/parking/parking-operations.service.ts",
@@ -3444,18 +3444,18 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":136,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":167,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":180,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":94,"method":"register","operation":"upsert","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":102,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":109,"method":"callback","operation":"count","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":118,"method":"registerConsumer","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":123,"method":"registerConsumer","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":133,"method":"unregisterConsumer","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":206,"method":"deliverConsumerBookingEvent","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":230,"method":"deliverConsumerBookingEvent","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":241,"method":"callback","operation":"findMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.societyMembership","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":254,"method":"callback","operation":"findMany","kind":"ORM","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":262,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":293,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":100,"method":"register","operation":"upsert","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":109,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":116,"method":"callback","operation":"count","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":125,"method":"registerConsumer","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":130,"method":"registerConsumer","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":141,"method":"unregisterConsumer","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":214,"method":"deliverConsumerBookingEvent","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":238,"method":"deliverConsumerBookingEvent","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":249,"method":"callback","operation":"findMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyMembership","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":262,"method":"callback","operation":"findMany","kind":"ORM","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":270,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":301,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-recipients.service.ts","line":10,"method":"list","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":15,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":25,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
