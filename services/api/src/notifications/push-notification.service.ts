@@ -89,6 +89,7 @@ export class PushNotificationService {
   }
 
   async register(societyId: string, userId: string, token: string, platform: DevicePlatform, deviceId?: string, applicationId?: string, roles: AppRole[] = []) {
+    const normalized = requirePushToken(token);
     let routing: {applicationId:string;firebaseProjectId:string} | undefined;
     if(applicationId){
       await assertApplicationSociety(this.prisma,applicationId,societyId,roles,'OPERATE');
@@ -96,7 +97,6 @@ export class PushNotificationService {
       if(!this.applicationApps.has(applicationId))throw new Error('Application push transport unavailable');
       routing={applicationId,firebaseProjectId:route.projectId};
     }
-    const normalized = requirePushToken(token);
     return this.prisma.devicePushToken.upsert({
       where: { token: normalized },
       create: { societyId, userId, token: normalized, platform, deviceId: deviceId?.trim() || null, active: true, lastSeenAt: new Date(), ...(routing??{}) },

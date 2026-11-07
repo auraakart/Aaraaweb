@@ -13,6 +13,17 @@ describe('push token input integrity', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
+  it('rejects a blank branded token before partner application lookup', async () => {
+    const rootLookup = vi.fn(() => { throw new Error('Partner scope lookup must not run'); });
+    const upsert = vi.fn();
+    const prisma = { partnerApplication: { findUnique: rootLookup }, devicePushToken: { upsert } } as unknown as PrismaService;
+    const service = new PushNotificationService(prisma);
+    await expect(service.register('society-a', 'user-a', '  ', DevicePlatform.ANDROID, undefined, 'application-a'))
+      .rejects.toThrow('Push device token is required');
+    expect(rootLookup).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it('rejects whitespace-only resident unregistration without querying a tenant', () => {
     const withTenantContext = vi.fn();
     const service = new PushNotificationService({ withTenantContext } as unknown as PrismaService);
