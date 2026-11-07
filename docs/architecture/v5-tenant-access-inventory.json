@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "4893a00c86ccb14b0566de0b01b4e63cf13a0b1eab3e69ee010732775883f770",
+  "sourceDigest": "74ac5faad9b513a2c46498b4c625d6ab059397c8604f9f410f620ec66d5db0cb",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
