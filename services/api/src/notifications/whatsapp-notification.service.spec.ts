@@ -33,7 +33,11 @@ describe('WhatsAppNotificationService', () => {
     expect(second.idempotent).toBe(true);
   });
 
-  it.each([
+  const projectionCases: Array<{
+    template: SendApprovedWhatsAppInput['template'];
+    parameters: Record<string, string>;
+    expected: Record<string, string>;
+  }> = [
     {
       template: 'ACCESS_APPROVAL_REQUESTED' as const,
       parameters: { subjectName: 'Visitor A', subjectType: 'VISITOR', internalAccessToken: 'do-not-send' },
@@ -49,7 +53,9 @@ describe('WhatsAppNotificationService', () => {
       parameters: { offeringName: 'AC service', status: 'CONFIRMED', residentPhone: '+919111111111' },
       expected: { offeringName: 'AC service', status: 'CONFIRMED' },
     },
-  ])('forwards only allowlisted placeholders for $template', async ({ template, parameters, expected }) => {
+  ];
+
+  it.each(projectionCases)('forwards only allowlisted placeholders for $template', async ({ template, parameters, expected }) => {
     const provider = new SimulatorWhatsAppProvider();
     const send = vi.spyOn(provider, 'sendTemplate');
     const service = new WhatsAppNotificationService(provider);
@@ -57,7 +63,7 @@ describe('WhatsAppNotificationService', () => {
     await expect(service.sendApprovedTemplate({
       recipient: '+919999999999',
       template,
-      parameters: parameters as Record<string, string>,
+      parameters,
       idempotencyKey: `projection:${template}`,
     })).resolves.toMatchObject({ accepted: true });
 
