@@ -22,8 +22,12 @@ export class WhatsAppNotificationService {
     const idempotencyKey = input.idempotencyKey.trim();
     if (!idempotencyKey) throw new BadRequestException('WhatsApp idempotency key is required');
 
+    // Registry keys must be explicit own entries. Prototype names such as
+    // "__proto__" and "constructor" are not approved WhatsApp templates.
+    if (typeof input.template !== 'string' || !Object.prototype.hasOwnProperty.call(APPROVED_WHATSAPP_TEMPLATES, input.template)) {
+      throw new BadRequestException('WhatsApp template is not approved');
+    }
     const approved = APPROVED_WHATSAPP_TEMPLATES[input.template];
-    if (!approved) throw new BadRequestException('WhatsApp template is not approved');
     // TypeScript types do not validate payloads from jobs or external adapters.
     // Reject malformed inputs before a provider can receive them.
     if (!input.parameters || typeof input.parameters !== 'object' || Array.isArray(input.parameters)) {

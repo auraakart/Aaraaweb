@@ -54,6 +54,24 @@ describe('WhatsAppNotificationService', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it.each(['__proto__', 'constructor', 'toString', 'unapproved', ''])(
+    'rejects unapproved runtime template key %s before provider dispatch',
+    async (template) => {
+      const provider = new SimulatorWhatsAppProvider();
+      const send = vi.spyOn(provider, 'sendTemplate');
+      const service = new WhatsAppNotificationService(provider);
+      const input = {
+        recipient: '+919999999999',
+        template,
+        parameters: { subjectName: 'Visitor A', subjectType: 'VISITOR' },
+        idempotencyKey: 'access:unapproved-template',
+      } as unknown as SendApprovedWhatsAppInput;
+
+      await expect(service.sendApprovedTemplate(input)).rejects.toBeInstanceOf(BadRequestException);
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
   it('fails closed for malformed recipients and missing approved parameters', async () => {
     const service = new WhatsAppNotificationService(new SimulatorWhatsAppProvider());
 
