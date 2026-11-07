@@ -72,6 +72,27 @@ describe('WhatsAppNotificationService', () => {
     },
   );
 
+  it.each([
+    { caseName: 'missing recipient', override: { recipient: undefined } },
+    { caseName: 'non-string recipient', override: { recipient: 919999999999 } },
+    { caseName: 'missing delivery key', override: { idempotencyKey: undefined } },
+    { caseName: 'non-string delivery key', override: { idempotencyKey: 123 } },
+    { caseName: 'non-string language code', override: { languageCode: { value: 'en' } } },
+  ])('rejects $caseName at runtime before provider dispatch', async ({ override }) => {
+    const provider = new SimulatorWhatsAppProvider();
+    const send = vi.spyOn(provider, 'sendTemplate');
+    const service = new WhatsAppNotificationService(provider);
+    const input = {
+      recipient: '+919999999999',
+      template: 'ACCESS_APPROVAL_REQUESTED',
+      parameters: { subjectName: 'Visitor A', subjectType: 'VISITOR' },
+      idempotencyKey: 'access:runtime-invalid',
+      ...override,
+    } as unknown as SendApprovedWhatsAppInput;
+    await expect(service.sendApprovedTemplate(input)).rejects.toBeInstanceOf(BadRequestException);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('fails closed for malformed recipients and missing approved parameters', async () => {
     const service = new WhatsAppNotificationService(new SimulatorWhatsAppProvider());
 
