@@ -256,6 +256,15 @@ class _VehicleRegistrationDialogState extends State<_VehicleRegistrationDialog> 
       setState(() => _error = 'Enter a registration number.');
       return;
     }
+    // Match backend whitespace/hyphen normalization, without changing the
+    // submitted draft. Invalid punctuation must not enter the approval queue.
+    final canonical = plate.toUpperCase().replaceAll(RegExp(r'[\s-]+'), '');
+    if (!RegExp(r'^[A-Z0-9]{4,16}$').hasMatch(canonical) ||
+        !RegExp(r'[A-Z]').hasMatch(canonical) ||
+        !RegExp(r'[0-9]').hasMatch(canonical)) {
+      setState(() => _error = 'Use 4–16 registration letters and digits.');
+      return;
+    }
     Navigator.pop(context, <String, dynamic>{
       'plateNumber': plate,
       'vehicleType': _type,

@@ -129,4 +129,35 @@ void main() {
     expect(DemoHouseholdState.contactsFor(id).single['phone'], '+91 98765 43210');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('vehicle plate validation keeps invalid drafts out of approval and accepts BH format', (tester) async {
+    const id = 'demo-v51427-vehicle-plate-validation';
+    final data = controller(id);
+    addTearDown(data.dispose);
+    await tester.pumpWidget(MaterialApp(home: VehiclesScreen(controller: data, householdId: id)));
+    await tester.tap(find.text('Add vehicle'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Registration number'), 'TN 01 ? ABC');
+    await tester.tap(find.text('Submit for approval'));
+    await tester.pumpAndSettle();
+    expect(find.text('Use 4–16 registration letters and digits.'), findsOneWidget);
+    expect(DemoHouseholdState.pendingFor(id), isEmpty);
+    expect(find.byType(AlertDialog), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Registration number'), '12345678');
+    await tester.tap(find.text('Submit for approval'));
+    await tester.pumpAndSettle();
+    expect(find.text('Use 4–16 registration letters and digits.'), findsOneWidget);
+    expect(DemoHouseholdState.pendingFor(id), isEmpty);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Registration number'), '22 BH 1234 AA');
+    await tester.tap(find.text('Submit for approval'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(DemoHouseholdState.pendingFor(id), hasLength(1));
+    expect(DemoHouseholdState.pendingFor(id).single['payload'], containsPair('plateNumber', '22BH1234AA'));
+    expect(DemoHouseholdState.vehiclesFor(id), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
 }
