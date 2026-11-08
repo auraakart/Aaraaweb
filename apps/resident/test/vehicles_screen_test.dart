@@ -7,6 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('vehicle registry shows society-managed parking as read-only', (tester) async {
+    // All pending and registered vehicle rows must be in the widget viewport:
+    // the default 600px test surface lazily omits lower list children.
+    tester.view.physicalSize = const Size(900, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final controller = ResidentDataController(
       ResidentRepository(ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test-token')),
     );
