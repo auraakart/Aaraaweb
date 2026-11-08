@@ -3,6 +3,7 @@ import { Prisma, UnitRelation, VehicleType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { HouseholdService } from './household.service';
+import { normalizeAndValidateVehiclePlate } from './vehicle-plate.validation';
 
 type ChangeType = 'FAMILY_MEMBER_ADD' | 'FAMILY_MEMBER_REMOVE' | 'VEHICLE_ADD' | 'VEHICLE_REMOVE';
 type ChangeStatus = 'PENDING' | 'PROCESSING' | 'APPROVED' | 'REJECTED';
@@ -79,8 +80,7 @@ export class HouseholdChangeRequestService {
   }) {
     return this.prisma.withTenantContext(societyId, async (tx) => {
       await this.assertOwnerOrResidentHousehold(societyId, userId, householdId, tx);
-      const plateNumber = this.normalizePlate(input.plateNumber);
-      if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
+      const plateNumber = normalizeAndValidateVehiclePlate(input.plateNumber);
       const active = await tx.householdVehicle.findFirst({ where: { societyId, plateNumber, active: true }, select: { id: true } });
       if (active) throw new BadRequestException('This vehicle is already registered in the society');
       return this.appendRequest(tx, societyId, householdId, {
@@ -315,7 +315,6 @@ export class HouseholdChangeRequestService {
     return household;
   }
 
-  private normalizePlate(value: string) { return value.trim().toUpperCase().replace(/[\s-]+/g, ''); }
   private optionalText(value: unknown) { const text = typeof value === 'string' ? value.trim() : ''; return text || undefined; }
   private fromIndexed(value: IndexedChangeRequest): StoredChangeRequest {
     return {
