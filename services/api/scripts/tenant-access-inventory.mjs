@@ -160,4 +160,4 @@ const arrays = [['tables', tableRows], ['accesses', accessRows], ['routes', rout
 const rendered = JSON.stringify(header, null, 2).slice(0, -2) + ',\n' + arrays.map(([key, rows]) => `  "${key}": [\n${rows.map(row => '    ' + JSON.stringify(row)).join(',\n')}\n  ]`).join(',\n') + '\n}\n';
 if (process.argv.includes('--write')) fs.writeFileSync(output, rendered);
 else if (!fs.existsSync(output) || fs.readFileSync(output, 'utf8') !== rendered) throw new Error('Tenant-access inventory is stale. Regenerate with --write and review scope changes.');
-console.log(JSON.stringify(report.summary));
+console.log(JSON.stringify({ ...report.summary, sourceDigest: report.sourceDigest }));
