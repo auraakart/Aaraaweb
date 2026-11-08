@@ -98,4 +98,35 @@ void main() {
     expect(DemoHouseholdState.pendingFor(id).single['payload'], containsPair('plateNumber', 'TN01AB1234'));
     expect(DemoHouseholdState.vehiclesFor(id), isEmpty);
   });
+
+  testWidgets('emergency phone validation rejects letters and malformed numbers before saving', (tester) async {
+    const id = 'demo-v51426-emergency-phone-validation';
+    final data = controller(id);
+    addTearDown(data.dispose);
+    await tester.pumpWidget(MaterialApp(home: EmergencyContactsScreen(controller: data, householdId: id)));
+    await tester.tap(find.text('Add contact'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Anita Rao');
+    await tester.enterText(find.widgetWithText(TextField, 'Mobile number'), '+91ABCDEF123');
+    await tester.tap(find.text('Save contact'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a name and a phone number with 8–15 digits.'), findsOneWidget);
+    expect(DemoHouseholdState.contactsFor(id), isEmpty);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Mobile number'), '++91 98765 43210');
+    await tester.tap(find.text('Save contact'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(DemoHouseholdState.contactsFor(id), isEmpty);
+
+    // Preserve formatted +91 numbers without altering the stored value.
+    await tester.enterText(find.widgetWithText(TextField, 'Mobile number'), '+91 98765 43210');
+    await tester.tap(find.text('Save contact'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(DemoHouseholdState.contactsFor(id), hasLength(1));
+    expect(DemoHouseholdState.contactsFor(id).single['phone'], '+91 98765 43210');
+    expect(tester.takeException(), isNull);
+  });
 }

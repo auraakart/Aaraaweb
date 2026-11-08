@@ -200,8 +200,12 @@ class _EmergencyContactDialogState extends State<_EmergencyContactDialog> {
   void _submit() {
     final name = _name.text.trim();
     final phone = _phone.text.trim();
-    if (name.isEmpty || phone.length < 8) {
-      setState(() => _error = 'Enter a name and a valid mobile number.');
+    // Accept ordinary national/international dialling formats, but never
+    // allow alphabetic or malformed phone values into emergency contacts.
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final hasValidFormat = RegExp(r'^\+?[0-9 ()-]+$').hasMatch(phone);
+    if (name.isEmpty || !hasValidFormat || digits.length < 8 || digits.length > 15) {
+      setState(() => _error = 'Enter a name and a phone number with 8–15 digits.');
       return;
     }
     Navigator.pop(context, {
