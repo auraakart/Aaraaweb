@@ -11,7 +11,11 @@ describe('normalizeAndValidateVehiclePlate', () => {
     expect(normalizeAndValidateVehiclePlate(input)).toBe(expected);
   });
 
-  it.each(['', '12345678', 'ABCDEFGH', 'TN01?ABC', '++91ABC123', 'A'.repeat(17)])(
+  it('preserves the required-registration message for blank input', () => {
+    expect(() => normalizeAndValidateVehiclePlate(' - ')).toThrow('Vehicle registration number is required');
+  });
+
+  it.each(['12345678', 'ABCDEFGH', 'TN01?ABC', '++91ABC123', 'A'.repeat(17)])(
     'rejects invalid registration %s',
     (input) => {
       expect(() => normalizeAndValidateVehiclePlate(input)).toThrow(BadRequestException);
