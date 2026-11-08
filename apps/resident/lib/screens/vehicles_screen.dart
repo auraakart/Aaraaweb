@@ -27,11 +27,22 @@ class VehiclesScreen extends StatelessWidget {
     return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false);
   }
 
-  List<Map<String, dynamic>> get _pending => _demo
-      ? DemoHouseholdState.pendingFor(householdId)
-          .where((item) => item['status'] == 'PENDING' && item['type']?.toString().startsWith('VEHICLE_') == true)
-          .toList(growable: false)
-      : const [];
+  List<Map<String, dynamic>> get _pending {
+    // Live household reads include the existing server-managed change-request
+    // mirror. Never read pending requests from another household's preferences.
+    final preferences = _household?['accessPreferences'];
+    final raw = _demo
+        ? DemoHouseholdState.pendingFor(householdId)
+        : preferences is Map ? preferences['householdChangeRequests'] : null;
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .where((item) =>
+            item['status'] == 'PENDING' &&
+            (item['type'] == 'VEHICLE_ADD' || item['type'] == 'VEHICLE_REMOVE'))
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
 
   Map<String, String> get _parkingSlots {
     final preferences = _household?['accessPreferences'];
