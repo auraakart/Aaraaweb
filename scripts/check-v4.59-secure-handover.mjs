@@ -7,7 +7,12 @@ must('Parcel verified desk route',controller,["desk/:parcelId/collect-with-code"
 forbid('Parcel resident routes',controller,["mine/:parcelId/collect",'confirmCollection(']);
 const service=read('services/api/src/parcels/parcels.service.ts');
 must('Parcel verified handover',service,['collectWithPickupCode(','PICKUP_CODE_VERIFIED',"'COLLECTED'",'pickupCodeExpiresAt','pickupCodeLockedAt']);
-must('Parcel pickup-code issuance integrity',service,['issuePickupCode(','pg_advisory_xact_lock','PICKUP_CODE_ISSUED','$transaction(async (tx)']);
+must('Parcel pickup-code issuance integrity',service,['issuePickupCode(','withTenantContext(societyId','pg_advisory_xact_lock','PICKUP_CODE_ISSUED']);
+for (const [label,path] of [['Parcel tenant context', 'services/api/src/parcels/parcels.service.ts'], ['Parcel recipient tenant context', 'services/api/src/parcels/parcel-recipients.service.ts'], ['Parcel reminder tenant context', 'services/api/src/parcels/parcel-reminder.service.ts']]) {
+  const source = read(path);
+  must(label, source, ['withTenantContext(societyId']);
+  forbid(label, source, ['this.prisma.$queryRaw', 'this.prisma.$transaction']);
+}
 forbid('Parcel legacy service',service,['async confirmCollection(']);
 const actions=read('apps/resident/lib/data/parcel_actions.dart');
 must('Resident parcel action',actions,['issueParcelPickupCode','/pickup-code']);

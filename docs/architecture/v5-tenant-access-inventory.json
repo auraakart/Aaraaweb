@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "6da08786c55a5992f762e268c2d2c3078c6fc24731a36e9970dc3b4ee71fe129",
+  "sourceDigest": "61d0cc1b5f1ab28bd93c93c95416938eb0321d830e3987782650115eb924f894",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 18,
     "utilitySqlSites": 70,
-    "runtimeTenantContextCalls": 414,
+    "runtimeTenantContextCalls": 423,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -1087,6 +1087,42 @@
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
       "line": 301
+    },
+    {
+      "file": "services/api/src/parcels/parcel-recipients.service.ts",
+      "line": 10
+    },
+    {
+      "file": "services/api/src/parcels/parcel-reminder.service.ts",
+      "line": 14
+    },
+    {
+      "file": "services/api/src/parcels/parcels.service.ts",
+      "line": 32
+    },
+    {
+      "file": "services/api/src/parcels/parcels.service.ts",
+      "line": 42
+    },
+    {
+      "file": "services/api/src/parcels/parcels.service.ts",
+      "line": 62
+    },
+    {
+      "file": "services/api/src/parcels/parcels.service.ts",
+      "line": 109
+    },
+    {
+      "file": "services/api/src/parcels/parcels.service.ts",
+      "line": 138
+    },
+    {
+      "file": "services/api/src/parcels/parcels.service.ts",
+      "line": 192
+    },
+    {
+      "file": "services/api/src/parcels/parcels.service.ts",
+      "line": 212
     },
     {
       "file": "services/api/src/parking/parking-operations.service.ts",
@@ -3456,12 +3492,12 @@
     {"receiver":"tx.societyMembership","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":262,"method":"callback","operation":"findMany","kind":"ORM","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":270,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":301,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-recipients.service.ts","line":10,"method":"list","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-recipients.service.ts","line":10,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":15,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":25,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":38,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":32,"method":"listOwn","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":42,"method":"listDesk","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel","Unit","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":32,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":42,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel","Unit","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":63,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Unit","UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":78,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":87,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -3475,7 +3511,7 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":177,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":193,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":203,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":212,"method":"history","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParcelEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcels.service.ts","line":212,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParcelEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-operations.service.ts","line":14,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingPolicy"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-operations.service.ts","line":24,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParkingPolicy"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parking/parking-operations.service.ts","line":39,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Household","HouseholdVehicle","ParkingCredential","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
