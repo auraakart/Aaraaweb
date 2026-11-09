@@ -29,17 +29,17 @@ export class ParcelsService {
   constructor(private readonly prisma: PrismaService, private readonly realtime?: NotificationRealtimeService) {}
 
   listOwn(societyId: string, userId: string) {
-    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT p.*,
         (p."status"='RECEIVED' AND p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS}::int)) AS "overdue"
       FROM "Parcel" p
       WHERE p."societyId"=${societyId}::uuid AND p."recipientUserId"=${userId}::uuid
       ORDER BY CASE p."status" WHEN 'RECEIVED' THEN 0 ELSE 1 END, p."receivedAt" DESC
-    `).then(redactPickupSecrets);
+    `)).then(redactPickupSecrets);
   }
 
   listDesk(societyId: string) {
-    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT p.*, u."number" AS "unitNumber",
         recipient."name" AS "recipientName",
         (p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS}::int)) AS "overdue"
@@ -48,7 +48,7 @@ export class ParcelsService {
       JOIN "User" recipient ON recipient."id"=p."recipientUserId"
       WHERE p."societyId"=${societyId}::uuid AND p."status"='RECEIVED'
       ORDER BY "overdue" DESC, p."receivedAt" ASC
-    `).then(redactPickupSecrets);
+    `)).then(redactPickupSecrets);
   }
 
   async intake(societyId: string, actorUserId: string, input: IntakeInput) {
@@ -59,7 +59,7 @@ export class ParcelsService {
     if (trackingReference && trackingReference.length > 160) throw new BadRequestException('Tracking reference is too long');
     if (notes && notes.length > 500) throw new BadRequestException('Parcel notes are too long');
 
-    const parcel = await this.prisma.$transaction(async (tx) => {
+    const parcel = await this.prisma.withTenantContext(societyId, async (tx) => {
       const occupancy = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT uo."id"
         FROM "UnitOccupancy" uo
@@ -106,7 +106,7 @@ export class ParcelsService {
   }
 
   async issuePickupCode(societyId: string, userId: string, parcelId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${parcelId}`}))::text`;
       const code = randomInt(100000, 1000000).toString();
       const salt = randomBytes(16).toString('hex');
@@ -135,7 +135,7 @@ export class ParcelsService {
     const normalized = code.trim();
     if (!/^\d{6}$/.test(normalized)) throw new BadRequestException('Pickup code must be 6 digits');
 
-    const outcome = await this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.withTenantContext(societyId, async (tx) => {
       const [parcel] = await tx.$queryRaw<Array<{
         id: string; recipientUserId: string; status: string; pickupCodeSalt: string | null; pickupCodeHash: string | null;
         pickupCodeExpiresAt: Date | null; pickupCodeAttempts: number; pickupCodeLockedAt: Date | null;
@@ -189,7 +189,7 @@ export class ParcelsService {
   async returnToSender(societyId: string, actorUserId: string, parcelId: string, reason: string) {
     const cleanReason = reason.trim();
     if (cleanReason.length < 3 || cleanReason.length > 500) throw new BadRequestException('Return reason must be between 3 and 500 characters');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; status: string; returnedAt: Date }>>(Prisma.sql`
         UPDATE "Parcel"
         SET "status"='RETURNED', "returnedByUserId"=${actorUserId}::uuid, "returnedAt"=CURRENT_TIMESTAMP,
@@ -209,12 +209,12 @@ export class ParcelsService {
   }
 
   history(societyId: string, parcelId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT pe.*, actor."name" AS "actorName"
       FROM "ParcelEvent" pe
       JOIN "User" actor ON actor."id"=pe."actorUserId"
       WHERE pe."societyId"=${societyId}::uuid AND pe."parcelId"=${parcelId}::uuid
       ORDER BY pe."occurredAt" ASC
-    `);
+    `));
   }
 }
