@@ -13,7 +13,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Coverage | Count |
 | --- | ---: |
 | Tables, including SQL-only tables | 287 |
-| API runtime/script source files | 469 |
+| API runtime/script source files | 470 |
 | Migration SQL files | 226 |
 | Database access sites | 2481 |
 | Raw SQL / ORM sites | 1732 / 749 |
@@ -22,7 +22,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Unsafe disposable performance-seed calls | 11 |
 | Recognized SQL utility sites | 70 |
 | Indirect SQL expressions requiring manual resolution | 18 |
-| Runtime calls to `withTenantContext` | 414 |
+| Runtime calls to `withTenantContext` | 423 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.
@@ -58,7 +58,7 @@ Every table has a boundary and maintainer responsibility in the JSON register; n
 | ISO-06 | P0 | all scoped table batches; runtime DB role/RLS policies | Explicit table-by-table policy matrix, applicable bypass-role audit, USING/WITH CHECK and missing-context negatives; no blanket RLS activation before conversion |
 | ISO-07 | P1 | disposable performance-seed.mjs (11 Unsafe calls), SQL utility/advisory locks | Fixture-only execution safeguards, no runtime promotion, controlled identifier construction and trigger restoration; lock keys appropriate to society/user/provider scope |
 
-The `withTenantContext` helper sets a transaction-local database value. Fifty-four runtime calls now cover branding configuration, society details, gate assignments, community-poll participation, community events, the resident directory, community circles core committee/meeting workflows and governance document/poll artifacts. No migrated RLS policies exist yet, so current service/guard predicates remain the protection mechanism. Preserve them throughout conversion. Global scheduler and platform operations require narrowly authorized exceptions rather than forcing every table to carry partnerId. Never copy partnerId onto all operational rows; derive current ownership through Society.
+The `withTenantContext` helper sets a transaction-local database value. Fifty-four runtime calls now cover branding configuration, society details, gate assignments, community-poll participation, community events, the resident directory, community circles core committee/meeting workflows and governance document/poll artifacts, parcel reads and writes, parcel recipient lookup and reminder delivery. No migrated RLS policies exist yet, so current service/guard predicates remain the protection mechanism. Preserve them throughout conversion. Global scheduler and platform operations require narrowly authorized exceptions rather than forcing every table to carry partnerId. Never copy partnerId onto all operational rows; derive current ownership through Society.
 
 Definition of Done for this inventory: exhaustive static register for the supported repository source forms; table/route/query evidence and authority classes; explicit exceptions/limitations; maintainer responsibilities; prioritized V5.2 conversion queue; deterministic stale check in canonical CI. Definition of Done for isolation is separate: runtime-role, pooled-connection, nested-write, worker, storage/cache and cross-audience tests tied to each converted batch. Changes to source or DDL forms require extractor review as well as regeneration.
 
