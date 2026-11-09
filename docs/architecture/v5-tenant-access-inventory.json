@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 18,
     "utilitySqlSites": 70,
-    "runtimeTenantContextCalls": 414,
+    "runtimeTenantContextCalls": 423,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
