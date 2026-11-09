@@ -28,16 +28,17 @@ describe('ParcelReminderService', () => {
   });
 
   it('rejects reminder during cooldown', async () => {
-    const { tx, realtime, service } = setup();
+    const { tx, prisma, realtime, service } = setup();
     tx.$queryRaw
       .mockResolvedValueOnce([{ id: parcelId, unitId, recipientUserId: recipientId, courierName: null, receivedAt: new Date(), status: 'RECEIVED' }])
       .mockResolvedValueOnce([{ overdue: true, cooldownActive: true }]);
     await expect(service.remind(societyId, actorId, parcelId)).rejects.toThrow('cooldown');
     expect(realtime.publishResident).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
   });
 
   it('records evidence transactionally before notifying the recipient', async () => {
-    const { tx, realtime, service } = setup();
+    const { tx, prisma, realtime, service } = setup();
     const occurredAt = new Date();
     tx.$queryRaw
       .mockResolvedValueOnce([{ id: parcelId, unitId, recipientUserId: recipientId, courierName: 'BlueDart', receivedAt: new Date(), status: 'RECEIVED' }])
