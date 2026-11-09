@@ -1,6 +1,6 @@
 # V5.0.2 tenant-access inventory and V5.2 work queue
 
-Version: 1.7, 2026-10-11. Current review baseline: develop `12d861fe02d6b056ceab415ed86822d0e8ac7ec9`, with the V5.2.7 community-circle transaction changes included in the generated register. Original ownership inventory baseline: `8e87dbf8f809215db92e14dfd727c42ac7f76553`. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
+Version: 1.8, 2026-11-09. Current review baseline: develop `b572185196069099c91b0abdff155d81a6a2ebf3`, with the V5.2.7 community-circle transaction changes included in the generated register. Original ownership inventory baseline: `8e87dbf8f809215db92e14dfd727c42ac7f76553`. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
 
 ## Coverage and reproduction
 
@@ -13,7 +13,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Coverage | Count |
 | --- | ---: |
 | Tables, including SQL-only tables | 287 |
-| API runtime/script source files | 469 |
+| API runtime/script source files | 470 |
 | Migration SQL files | 226 |
 | Database access sites | 2481 |
 | Raw SQL / ORM sites | 1732 / 749 |
