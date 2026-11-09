@@ -802,7 +802,7 @@ database('Billing transactions under a non-owner RLS role', () => {
   const parkingAdmin = new ParkingAdminController(runtime, householdParking);
 
   const changeRequests = new HouseholdChangeRequestService(runtime, householdParking);
-  const changeInput = () => ({ plateNumber: randomUUID(), vehicleType: 'CAR' as const });
+  const changeInput = () => ({ plateNumber: `TN${randomUUID().replaceAll('-', '').slice(0, 8)}`, vehicleType: 'CAR' as const });
 
   it('isolates household request queues, history, approvals and rejection in both societies', async () => {
     for (const scope of [societyA, societyB]) {

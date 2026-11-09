@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { MembershipRole, Prisma, UnitRelation, VehicleType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeAndValidateVehiclePlate } from './vehicle-plate.validation';
 
 @Injectable()
 export class HouseholdService {
@@ -207,8 +208,7 @@ export class HouseholdService {
   async addVehicle(societyId: string, userId: string, householdId: string, input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string }) {
     return this.prisma.withTenantContext(societyId, async tx => {
       await this.assertOwnHousehold(societyId, userId, householdId, tx);
-      const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
-      if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
+      const plateNumber = normalizeAndValidateVehiclePlate(input.plateNumber);
       // Serialize direct writes and approval-driven writes for the society-wide
       // plate invariant. This also prevents two inactive-row reactivations from
       // racing after both callers observe the same stale state.
