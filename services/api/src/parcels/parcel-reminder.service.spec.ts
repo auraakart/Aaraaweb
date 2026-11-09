@@ -12,18 +12,19 @@ const recipientId = '55555555-5555-4555-8555-555555555555';
 describe('ParcelReminderService', () => {
   function setup() {
     const tx = { $queryRaw: vi.fn() };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const realtime = { publishResident: vi.fn() };
-    return { tx, realtime, service: new ParcelReminderService(prisma as never, realtime as unknown as NotificationRealtimeService) };
+    return { tx, prisma, realtime, service: new ParcelReminderService(prisma as never, realtime as unknown as NotificationRealtimeService) };
   }
 
   it('rejects reminder before parcel is overdue', async () => {
-    const { tx, realtime, service } = setup();
+    const { tx, prisma, realtime, service } = setup();
     tx.$queryRaw
       .mockResolvedValueOnce([{ id: parcelId, unitId, recipientUserId: recipientId, courierName: null, receivedAt: new Date(), status: 'RECEIVED' }])
       .mockResolvedValueOnce([{ overdue: false, cooldownActive: false }]);
     await expect(service.remind(societyId, actorId, parcelId)).rejects.toBeInstanceOf(BadRequestException);
     expect(realtime.publishResident).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
   });
 
   it('rejects reminder during cooldown', async () => {
@@ -45,6 +46,7 @@ describe('ParcelReminderService', () => {
     await expect(service.remind(societyId, actorId, parcelId)).resolves.toMatchObject({ parcelId, cooldownHours: 6 });
     const eventSql = (tx.$queryRaw.mock.calls[2][0] as { strings: readonly string[] }).strings.join(' ');
     expect(eventSql).toContain('REMINDER_SENT');
+    expect(prisma.withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
     expect(realtime.publishResident).toHaveBeenCalledWith(expect.objectContaining({
       type: 'PARCEL_RECEIVED', societyId, userId: recipientId, parcelId,
     }));
