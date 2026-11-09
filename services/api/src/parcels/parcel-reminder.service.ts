@@ -11,7 +11,7 @@ export class ParcelReminderService {
   constructor(private readonly prisma: PrismaService, private readonly realtime?: NotificationRealtimeService) {}
 
   async remind(societyId: string, actorUserId: string, parcelId: string) {
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.withTenantContext(societyId, async (tx) => {
       const [parcel] = await tx.$queryRaw<Array<{
         id: string; unitId: string; recipientUserId: string; courierName: string | null; receivedAt: Date; status: string;
       }>>(Prisma.sql`
