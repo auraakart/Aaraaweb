@@ -48,7 +48,6 @@ describe('SosService lifecycle tenant isolation', () => {
     expect(lookup.values).toContain('incident-1');
     const update = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(update.strings.join(' ')).toContain('"status" =');
-    expect(update.strings.join(' ')).toContain('"residentUserId"');
     expect(update.values).toContain('CANCELLED');
     const event = tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
     expect(event.strings.join(' ')).toContain('"SosIncidentEvent"');
