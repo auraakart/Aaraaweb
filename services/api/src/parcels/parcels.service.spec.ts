@@ -14,7 +14,7 @@ const parcelId = '55555555-5555-4555-8555-555555555555';
 describe('ParcelsService', () => {
   it('rejects intake when recipient is not a current occupant', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn() };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     await expect(service.intake(societyId, actorId, { unitId, recipientUserId: recipientId })).rejects.toThrow('current occupant');
     expect(tx.$executeRaw).not.toHaveBeenCalled();
@@ -25,7 +25,7 @@ describe('ParcelsService', () => {
       $queryRaw: vi.fn().mockResolvedValueOnce([{ id: 'occupancy-1' }]).mockResolvedValueOnce([{ id: parcelId, status: 'RECEIVED' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const realtime = { publishResident: vi.fn() };
     const service = new ParcelsService(prisma as unknown as PrismaService, realtime as unknown as NotificationRealtimeService);
     await expect(service.intake(societyId, actorId, { unitId, recipientUserId: recipientId, courierName: 'BlueDart' })).resolves.toMatchObject({ id: parcelId, status: 'RECEIVED' });
@@ -54,7 +54,7 @@ describe('ParcelsService', () => {
         .mockResolvedValueOnce([{ id: parcelId, status: 'COLLECTED', collectedAt: new Date() }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     await expect(service.collectWithPickupCode(societyId, actorId, parcelId, code)).resolves.toMatchObject({ status: 'COLLECTED' });
     const updateSql = (tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
@@ -73,7 +73,7 @@ describe('ParcelsService', () => {
         .mockResolvedValueOnce([{ id: parcelId, pickupCodeExpiresAt: expiresAt }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     const result = await service.issuePickupCode(societyId, recipientId, parcelId);
     expect(result.code).toMatch(/^\d{6}$/);
@@ -105,7 +105,7 @@ describe('ParcelsService', () => {
       }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn(async (cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     await expect(service.collectWithPickupCode(societyId, actorId, parcelId, '123456')).rejects.toBeInstanceOf(BadRequestException);
     expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
@@ -114,10 +114,11 @@ describe('ParcelsService', () => {
   });
 
   it('surfaces uncollected parcels as an overdue-aware desk queue with the canonical unit number field', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     await service.listDesk(societyId);
-    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
     const sql = query.strings.join(' ');
     expect(sql).toContain("p.\"status\"='RECEIVED'");
     expect(sql).toContain('u."number" AS "unitNumber"');
@@ -129,7 +130,8 @@ describe('ParcelsService', () => {
     const row = { id: parcelId, status: 'RECEIVED', courierName: 'Fixture', overdue: true,
       pickupCodeHash: 'fixture-verifier', pickupCodeSalt: 'fixture-salt', pickupCodeAttempts: 0,
       pickupCodeExpiresAt: new Date('2026-10-07T12:00:00Z') };
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([row]) };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([row]) };
+    const prisma = { withTenantContext: vi.fn((_society: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     const rows = await (audience === 'resident' ? service.listOwn(societyId, recipientId) : service.listDesk(societyId));
     expect(rows).toEqual([{ ...row, pickupCodeHash: null, pickupCodeSalt: null }]);
