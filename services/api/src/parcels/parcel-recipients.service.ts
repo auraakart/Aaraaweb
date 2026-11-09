@@ -7,7 +7,7 @@ export class ParcelRecipientsService {
   constructor(private readonly prisma: PrismaService) {}
 
   list(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT DISTINCT
         uo."userId",
         resident."name",
@@ -24,6 +24,6 @@ export class ParcelRecipientsService {
         AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
         AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
       ORDER BY b."name" ASC, u."number" ASC, resident."name" ASC
-    `);
+    `));
   }
 }
