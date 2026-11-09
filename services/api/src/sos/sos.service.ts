@@ -174,19 +174,23 @@ export class SosService {
   }
 
   async cancel(societyId: string, residentUserId: string, incidentId: string, note?: string) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current || current.residentUserId !== residentUserId) throw new NotFoundException('SOS incident not found');
-    if (current.status === 'CANCELLED') return current;
-    if (current.status === 'RESOLVED') throw new BadRequestException('Resolved SOS incident cannot be cancelled');
-    return this.transition(societyId, residentUserId, current, 'CANCELLED', 'CANCELLED', note);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current || current.residentUserId !== residentUserId) throw new NotFoundException('SOS incident not found');
+      if (current.status === 'CANCELLED') return current;
+      if (current.status === 'RESOLVED') throw new BadRequestException('Resolved SOS incident cannot be cancelled');
+      return this.transition(tx, societyId, residentUserId, current, 'CANCELLED', 'CANCELLED', note);
+    });
   }
 
   async acknowledge(societyId: string, actorUserId: string, incidentId: string, note?: string) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    if (current.status === 'ACKNOWLEDGED') return current;
-    if (current.status !== 'ACTIVE') throw new BadRequestException('Only active SOS incidents can be acknowledged');
-    return this.transition(societyId, actorUserId, current, 'ACKNOWLEDGED', 'ACKNOWLEDGED', note);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      if (current.status === 'ACKNOWLEDGED') return current;
+      if (current.status !== 'ACTIVE') throw new BadRequestException('Only active SOS incidents can be acknowledged');
+      return this.transition(tx, societyId, actorUserId, current, 'ACKNOWLEDGED', 'ACKNOWLEDGED', note);
+    });
   }
 
   async escalate(societyId: string, actorUserId: string, incidentId: string, note?: string) {
@@ -331,13 +335,15 @@ export class SosService {
   }
 
   async resolve(societyId: string, actorUserId: string, incidentId: string, note?: string) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    if (current.status === 'RESOLVED') return current;
-    if (current.status !== 'ACTIVE' && current.status !== 'ACKNOWLEDGED') {
-      throw new BadRequestException('Only active or acknowledged SOS incidents can be resolved');
-    }
-    return this.transition(societyId, actorUserId, current, 'RESOLVED', 'RESOLVED', note);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      if (current.status === 'RESOLVED') return current;
+      if (current.status !== 'ACTIVE' && current.status !== 'ACKNOWLEDGED') {
+        throw new BadRequestException('Only active or acknowledged SOS incidents can be resolved');
+      }
+      return this.transition(tx, societyId, actorUserId, current, 'RESOLVED', 'RESOLVED', note);
+    });
   }
 
   async history(societyId: string, incidentId: string) {
@@ -353,6 +359,7 @@ export class SosService {
   }
 
   private async transition(
+    tx: Prisma.TransactionClient,
     societyId: string,
     actorUserId: string,
     current: SosIncidentRow,
@@ -361,28 +368,26 @@ export class SosService {
     note?: string,
   ) {
     const cleanNote = note?.trim() || null;
-    return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
-        UPDATE "SosIncident"
-        SET
-          "status" = ${toStatus}::"SosStatus",
-          "acknowledgedById" = CASE WHEN ${toStatus} = 'ACKNOWLEDGED' THEN ${actorUserId}::uuid ELSE "acknowledgedById" END,
-          "acknowledgedAt" = CASE WHEN ${toStatus} = 'ACKNOWLEDGED' THEN CURRENT_TIMESTAMP ELSE "acknowledgedAt" END,
-          "resolvedById" = CASE WHEN ${toStatus} = 'RESOLVED' THEN ${actorUserId}::uuid ELSE "resolvedById" END,
-          "resolvedAt" = CASE WHEN ${toStatus} = 'RESOLVED' THEN CURRENT_TIMESTAMP ELSE "resolvedAt" END,
-          "cancelledAt" = CASE WHEN ${toStatus} = 'CANCELLED' THEN CURRENT_TIMESTAMP ELSE "cancelledAt" END,
-          "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${current.id}::uuid AND "societyId" = ${societyId}::uuid AND "status" = ${current.status}::"SosStatus"
-        RETURNING *
-      `);
-      const updated = rows[0];
-      if (!updated) throw new BadRequestException('SOS incident changed; refresh and retry');
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "SosIncidentEvent" ("societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note")
-        VALUES (${societyId}::uuid, ${current.id}::uuid, ${actorUserId}::uuid, ${action}, ${current.status}::"SosStatus", ${toStatus}::"SosStatus", ${cleanNote})
-      `);
-      return updated;
-    });
+    const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
+      UPDATE "SosIncident"
+      SET
+        "status" = ${toStatus}::"SosStatus",
+        "acknowledgedById" = CASE WHEN ${toStatus} = 'ACKNOWLEDGED' THEN ${actorUserId}::uuid ELSE "acknowledgedById" END,
+        "acknowledgedAt" = CASE WHEN ${toStatus} = 'ACKNOWLEDGED' THEN CURRENT_TIMESTAMP ELSE "acknowledgedAt" END,
+        "resolvedById" = CASE WHEN ${toStatus} = 'RESOLVED' THEN ${actorUserId}::uuid ELSE "resolvedById" END,
+        "resolvedAt" = CASE WHEN ${toStatus} = 'RESOLVED' THEN CURRENT_TIMESTAMP ELSE "resolvedAt" END,
+        "cancelledAt" = CASE WHEN ${toStatus} = 'CANCELLED' THEN CURRENT_TIMESTAMP ELSE "cancelledAt" END,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${current.id}::uuid AND "societyId" = ${societyId}::uuid AND "status" = ${current.status}::"SosStatus"
+      RETURNING *
+    `);
+    const updated = rows[0];
+    if (!updated) throw new BadRequestException('SOS incident changed; refresh and retry');
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "SosIncidentEvent" ("societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note")
+      VALUES (${societyId}::uuid, ${current.id}::uuid, ${actorUserId}::uuid, ${action}, ${current.status}::"SosStatus", ${toStatus}::"SosStatus", ${cleanNote})
+    `);
+    return updated;
   }
 
   private async assertResidentUnit(societyId: string, userId: string, unitId: string, tx: Prisma.TransactionClient) {
@@ -420,12 +425,16 @@ export class SosService {
     }
   }
 
-  private async findIncident(societyId: string, incidentId: string) {
-    const rows = await this.prisma.$queryRaw<SosIncidentRow[]>(Prisma.sql`
+  private async findIncident(societyId: string, incidentId: string, tx?: Prisma.TransactionClient) {
+    const query = Prisma.sql`
       SELECT * FROM "SosIncident"
       WHERE "id" = ${incidentId}::uuid AND "societyId" = ${societyId}::uuid
       LIMIT 1
-    `);
+      ${tx ? Prisma.raw('FOR UPDATE') : Prisma.empty}
+    `;
+    const rows = tx
+      ? await tx.$queryRaw<SosIncidentRow[]>(query)
+      : await this.prisma.$queryRaw<SosIncidentRow[]>(query);
     return rows[0] ?? null;
   }
 }
