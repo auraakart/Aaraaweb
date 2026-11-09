@@ -50,7 +50,6 @@ export class SosService {
       longitude?: number;
     },
   ) {
-    await this.assertResidentUnit(societyId, residentUserId, input.unitId);
     if (input.latitude !== undefined && (input.latitude < -90 || input.latitude > 90)) {
       throw new BadRequestException('Latitude must be between -90 and 90');
     }
@@ -61,7 +60,8 @@ export class SosService {
     const severity = input.severity ?? 'HIGH';
     const message = input.message?.trim() || null;
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.assertResidentUnit(societyId, residentUserId, input.unitId, tx);
       const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;
       await tx.$executeRaw(Prisma.sql`
         SELECT pg_advisory_xact_lock(hashtext(${activeScopeKey}))
@@ -111,17 +111,17 @@ export class SosService {
   }
 
   listMine(societyId: string, residentUserId: string) {
-    return this.prisma.$queryRaw<SosIncidentRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
       SELECT si.*
       FROM "SosIncident" si
       WHERE si."societyId" = ${societyId}::uuid AND si."residentUserId" = ${residentUserId}::uuid
       ORDER BY si."createdAt" DESC
       LIMIT 100
-    `);
+    `));
   }
 
   listManage(societyId: string) {
-    return this.prisma.$queryRaw<SosIncidentRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
       SELECT
         si.*,
         u."number" AS "unitNumber",
@@ -170,7 +170,7 @@ export class SosService {
         CASE si."severity" WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END,
         si."createdAt" DESC
       LIMIT 250
-    `);
+    `));
   }
 
   async cancel(societyId: string, residentUserId: string, incidentId: string, note?: string) {
@@ -385,8 +385,8 @@ export class SosService {
     });
   }
 
-  private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+  private async assertResidentUnit(societyId: string, userId: string, unitId: string, tx: Prisma.TransactionClient) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT uo."id"
       FROM "UnitOccupancy" uo
       WHERE uo."societyId" = ${societyId}::uuid
