@@ -140,12 +140,16 @@ describe('SosService incident assignment and evidence', () => {
   });
 
   it('derives current assignment and evidence count in the responder queue without mutable side tables', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const prisma = {
+      withTenantContext: vi.fn(async (_societyId: string, operation: (client: typeof tx) => unknown) => operation(tx)),
+    };
     const service = new SosService(prisma as unknown as PrismaService);
 
     await service.listManage('society-1');
 
-    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
+    const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
     const sql = query.strings.join(' ');
     expect(sql).toContain("se.\"action\" = 'ASSIGNED'");
     expect(sql).toContain("se.\"action\" = 'EVIDENCE_ADDED'");
