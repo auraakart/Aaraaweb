@@ -9,7 +9,12 @@ const admin=JSON.parse(read('apps/admin/package.json'));
 if(!releaseAtLeast(root.version,4,63,0)||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned at V4.63.0 or later.');process.exit(1)}
 for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']) must(file,read(file),[`version: ${root.version}+`]);
 
-must('V4.63 SOS server recovery',read('services/api/src/sos/sos.service.ts'),['pg_advisory_xact_lock','const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;',"\"status\" IN ('ACTIVE', 'ACKNOWLEDGED')",'if (existing[0]) return existing[0];']);
+const sosSource=read('services/api/src/sos/sos.service.ts');
+must('V4.63 SOS server recovery',sosSource,['pg_advisory_xact_lock','const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;',"\"status\" IN ('ACTIVE', 'ACKNOWLEDGED')"]);
+if(!/if\s*\(\s*existing\[0\]\s*\)\s*return\s+(?:existing\[0\]|\{\s*incident:\s*existing\[0\]\s*,\s*created:\s*false\s*\})\s*;/.test(sosSource)){
+ console.error('V4.63 SOS server recovery missing: active incident reuse must return the existing incident without creating a duplicate.');
+ process.exit(1);
+}
 must('V4.63 Resident SOS status parity',read('apps/resident/lib/data/models/resident_sos_incident.dart'),["status == 'ACTIVE' || status == 'TRIGGERED' || status == 'ACKNOWLEDGED'"]);
 must('V4.63 Resident SOS recovery',read('apps/resident/lib/screens/sos_screen.dart'),['SOS is active. Security has been notified.','SOS state refreshed. This incident is no longer active.','_incidentById(incident.id)']);
 must('V4.63 API regression',read('services/api/src/sos/sos.service.spec.ts'),['serializes the resident/unit trigger scope and reuses an existing active incident','pg_advisory_xact_lock','sos:society-1:unit-1:user-1']);
