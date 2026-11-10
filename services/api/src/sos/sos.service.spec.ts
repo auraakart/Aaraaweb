@@ -77,33 +77,34 @@ describe('SosService relationship authorization', () => {
   });
   it('records escalation as an append-only incident event without changing incident status', async () => {
     const escalatedAt = new Date('2026-09-13T17:45:00Z');
-    const prisma = {
+    const tx = {
       $queryRaw: vi
         .fn()
         .mockResolvedValueOnce([{ id: 'incident-1', status: 'ACKNOWLEDGED', societyId: 'society-1' }])
         .mockResolvedValueOnce([{ occurredAt: escalatedAt }]),
     };
+    const prisma = { withTenantContext: vi.fn(async (_society: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
     const service = new SosService(prisma as unknown as PrismaService);
 
     const result = await service.escalate('society-1', 'responder-1', 'incident-1', 'Escalate to control room');
 
-    const insert = prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
+    const insert = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(insert.strings.join(' ')).toContain("'ESCALATED'");
     expect(insert.values).toContain('ACKNOWLEDGED');
     expect(insert.values).toContain('Escalate to control room');
     expect(result).toMatchObject({ id: 'incident-1', status: 'ACKNOWLEDGED', escalatedAt });
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
   });
 
   it('does not allow a resolved incident to be escalated', async () => {
-    const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([{ id: 'incident-1', status: 'RESOLVED', societyId: 'society-1' }]),
-    };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 'incident-1', status: 'RESOLVED', societyId: 'society-1' }]) };
+    const prisma = { withTenantContext: vi.fn(async (_society: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
     const service = new SosService(prisma as unknown as PrismaService);
 
     await expect(service.escalate('society-1', 'responder-1', 'incident-1')).rejects.toThrow(
       'Only active or acknowledged SOS incidents can be escalated',
     );
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('prioritizes escalated active incidents in the responder queue through tenant context', async () => {
@@ -118,7 +119,7 @@ describe('SosService relationship authorization', () => {
     expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
   });
   it('derives active emergency contacts from the incident household within the same society', async () => {
-    const prisma = {
+    const tx = {
       $queryRaw: vi
         .fn()
         .mockResolvedValueOnce([{ id: 'incident-1', unitId: 'unit-1', societyId: 'society-1', status: 'ACTIVE' }])
@@ -126,12 +127,13 @@ describe('SosService relationship authorization', () => {
           { contactId: 'contact-1', name: 'Parent', phone: '9000000000', relation: 'Father', priority: 1 },
         ]),
     };
+    const prisma = { withTenantContext: vi.fn(async (_society: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
     const service = new SosService(prisma as unknown as PrismaService);
 
     const result = await service.escalationTargets('society-1', 'incident-1');
 
     expect(result).toHaveLength(1);
-    const query = prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
+    const query = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     const sql = query.strings.join(' ');
     expect(sql).toContain('"Household"');
     expect(sql).toContain('"EmergencyContact"');
@@ -139,14 +141,17 @@ describe('SosService relationship authorization', () => {
     expect(sql).toContain('ORDER BY ec."priority" ASC');
     expect(query.values).toContain('society-1');
     expect(query.values).toContain('unit-1');
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
   });
 
   it('does not expose emergency contacts for an incident outside the current society', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const prisma = { withTenantContext: vi.fn(async (_society: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
     const service = new SosService(prisma as unknown as PrismaService);
 
     await expect(service.escalationTargets('society-1', 'incident-elsewhere')).rejects.toThrow('SOS incident not found');
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
   });
   it('lists resident SOS incidents only through the selected society transaction', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
