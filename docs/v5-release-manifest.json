@@ -2948,7 +2948,7 @@
     {
       "id": "V5.14.33",
       "name": "SOS routing-policy selected tenant transactions",
-      "status": "MERGED_TO_DEVELOP_CI_REVALIDATION_IN_PROGRESS",
+      "status": "MERGED_TO_DEVELOP_VALIDATED",
       "currentSlice": "V5.14.33",
       "branch": "mastermind/v5.14.33-sos-routing-policy-tenant-context",
       "pullRequest": 1617,
@@ -2958,16 +2958,17 @@
         "services/api/src/sos/sos-routing.service.spec.ts"
       ],
       "limitations": [
-        "Merged to develop as ae465aeb1386eac420df5167b9548dcb944195c; initial API validation was blocked by stale generated inventory, so the combined SOS tenant-context tree remains under protected CI revalidation.",
-        "The canonical tenant-access inventory has since been regenerated from the combined develop/PR source tree and reports 439 runtime withTenantContext calls; final required checks remain pending.",
         "Explicit society predicates remain mandatory; this change does not enable PostgreSQL RLS or hosted roles/grants.",
         "No API/schema/permission changes, live provider/device acceptance, productionization or staging/main promotion."
-      ]
+      ],
+      "validatedInRun": 4303,
+      "validatedHeadSha": "ff6a2d902c5653cf88652c09bf47108ef978e6ae",
+      "validatedCombinedMergeSha": "3d899845c0afe3df8be7ad979313bbcde495535f"
     },
     {
       "id": "V5.14.32",
       "name": "SOS incident, assignment and evidence tenant-context isolation",
-      "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_IN_PROGRESS",
+      "status": "MERGED_TO_DEVELOP_VALIDATED",
       "currentSlice": "V5.14.32",
       "branch": "mastermind/v5.14.32-sos-evidence-routing-context",
       "pullRequest": 1616,
@@ -2980,11 +2981,36 @@
         ".github/workflows/ci.yml"
       ],
       "limitations": [
-        "Combined protected CI is validating the current develop merge tree; this slice is not accepted until all required gates pass on the current PR head.",
-        "The generated tenant-access inventory and Markdown summary are synchronized at 439 runtime withTenantContext calls.",
-        "CI changes retain generated inventory evidence, avoid a secondary missing-coverage artifact failure, and fetch the Admin comparison base without weakening required validation gates.",
+        "The combined V5.14.32/V5.14.33 source tree passed the required repository, API, Admin, Flutter, dependency-security and merge-gate checks in CI run #4303.",
+        "The canonical tenant-access inventory is synchronized at 439 runtime withTenantContext calls.",
         "No schema/API/permission changes, PostgreSQL RLS activation, hosted role/grant changes, live provider/device behavior, productionization or staging/main promotion."
-      ]
+      ],
+      "mergeCommitSha": "3d899845c0afe3df8be7ad979313bbcde495535f",
+      "validatedInRun": 4303,
+      "validatedHeadSha": "ff6a2d902c5653cf88652c09bf47108ef978e6ae"
+    },
+    {
+      "id": "V5.14.34",
+      "name": "SOS emergency broadcasts and responder tenant-context isolation",
+      "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_PENDING",
+      "currentSlice": "V5.14.34",
+      "branch": "mastermind/v5.14.34-sos-broadcast-tenant-context",
+      "evidence": [
+        "services/api/src/sos/emergency-broadcast.service.ts",
+        "services/api/src/sos/emergency-broadcast.service.spec.ts",
+        "services/api/src/sos/sos-responders.controller.ts",
+        "services/api/src/sos/sos-responders.controller.spec.ts",
+        "docs/V5.14.34-SOS-EMERGENCY-BROADCAST-TENANT-CONTEXT.md"
+      ],
+      "limitations": [
+        "Protected CI and PR acceptance are pending.",
+        "The global fallback occupancy lookup remains a deliberate pre-tenant resolver: it is constrained by authenticated user, selected unit, active occupancy and active society; the downstream SOS trigger establishes tenant context after society resolution.",
+        "No API/schema/permission changes, PostgreSQL RLS activation, hosted role/grant changes, live provider/device behavior, productionization or staging/main promotion."
+      ],
+      "pullRequest": 1618,
+      "inventoryRuntimeTenantContextCalls": 444,
+      "inventorySourceDigest": "9f45802a1006b1bf823c864cfb930697e626ade7816e9ee04afc6a2edfed5d11",
+      "inventoryGeneratedCommitSha": "e80f0e7d76c2a7f3c80918fbe8f476e9f4975bbd"
     }
   ]
 }
