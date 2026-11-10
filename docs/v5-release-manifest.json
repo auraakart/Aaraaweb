@@ -2391,7 +2391,7 @@
           "ciRun": 38708353856,
           "verifiedScope": [
             "Read-only bounded Linux target proc executable file-descriptor SHA-256 and raw argv hash bound to separately pinned executable/identity/namespace policy",
-            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42\u201343 cgroup and rootfs checks",
+            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42–43 cgroup and rootfs checks",
             "Negative executable replacement, PID reuse, namespaces, process exit, malformed bounds and permission-injection tests passed",
             "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security and develop auto-merge"
           ]
@@ -2534,7 +2534,7 @@
         "lastVerifiedMergeSha": "899d064927fe2b139028b26ce622e2a680895689",
         "pendingIndependentTestIssue": 1380,
         "status": "ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE",
-        "note": "V5.6.16\u201320 verified merged with protected CI; repo-only historical finance recovery issue #1387 is completed. Independent TEST worker and Partner A/B signed build acceptance #1380 remain pending. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no build execution, distribution, release or branch promotion authorization.",
+        "note": "V5.6.16–20 verified merged with protected CI; repo-only historical finance recovery issue #1387 is completed. Independent TEST worker and Partner A/B signed build acceptance #1380 remain pending. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no build execution, distribution, release or branch promotion authorization.",
         "verifiedSlices": [
           {
             "id": "V5.6.16",
@@ -2948,7 +2948,7 @@
     {
       "id": "V5.14.33",
       "name": "SOS routing-policy selected tenant transactions",
-      "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_PENDING",
+      "status": "MERGED_TO_DEVELOP_CI_REVALIDATION_IN_PROGRESS",
       "currentSlice": "V5.14.33",
       "branch": "mastermind/v5.14.33-sos-routing-policy-tenant-context",
       "pullRequest": 1617,
@@ -2958,10 +2958,32 @@
         "services/api/src/sos/sos-routing.service.spec.ts"
       ],
       "limitations": [
-        "Protected develop CI has not yet run; this is not an accepted or merged source slice.",
-        "Regenerate and review the canonical tenant-access inventory and summary for the new transaction-context call sites before merge.",
+        "Merged to develop as ae465aeb1386eac420df5167b9548dcb944195c; initial API validation was blocked by stale generated inventory, so the combined SOS tenant-context tree remains under protected CI revalidation.",
+        "The canonical tenant-access inventory has since been regenerated from the combined develop/PR source tree and reports 439 runtime withTenantContext calls; final required checks remain pending.",
         "Explicit society predicates remain mandatory; this change does not enable PostgreSQL RLS or hosted roles/grants.",
         "No API/schema/permission changes, live provider/device acceptance, productionization or staging/main promotion."
+      ]
+    },
+    {
+      "id": "V5.14.32",
+      "name": "SOS incident, assignment and evidence tenant-context isolation",
+      "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_IN_PROGRESS",
+      "currentSlice": "V5.14.32",
+      "branch": "mastermind/v5.14.32-sos-evidence-routing-context",
+      "pullRequest": 1616,
+      "evidence": [
+        "services/api/src/sos/sos.service.ts",
+        "services/api/src/sos/sos.service.spec.ts",
+        "services/api/src/sos/sos.assignment-evidence.spec.ts",
+        "docs/architecture/v5-tenant-access-inventory.json",
+        "docs/architecture/V5-TENANT-ACCESS-INVENTORY.md",
+        ".github/workflows/ci.yml"
+      ],
+      "limitations": [
+        "Combined protected CI is validating the current develop merge tree; this slice is not accepted until all required gates pass on the current PR head.",
+        "The generated tenant-access inventory and Markdown summary are synchronized at 439 runtime withTenantContext calls.",
+        "CI changes retain generated inventory evidence, avoid a secondary missing-coverage artifact failure, and fetch the Admin comparison base without weakening required validation gates.",
+        "No schema/API/permission changes, PostgreSQL RLS activation, hosted role/grant changes, live provider/device behavior, productionization or staging/main promotion."
       ]
     }
   ]
