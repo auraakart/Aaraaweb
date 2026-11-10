@@ -58,6 +58,9 @@ Society Branding and Partner White Label development uses this shared repository
 
 ## Current development cycle
 
+**V5.14.33 validation remediation:** The initial PR preflight identified trailing whitespace in the implementation note; that formatting defect was removed in commit `f177285c`. API and focused tests remain unverified until a fresh protected CI run completes.
+
+
 **Snapshot correction — 10 November 2026:** The current `develop` baseline is **V5.14.31** at `36e17520d06d4e5ad215ab6d0e4d82f4eb11a37c` (PR #1615). **V5.14.32** is in open PR [#1616](https://github.com/auraakart/Aaraaweb/pull/1616); its review evidence is not yet recorded. **V5.14.33** is in open PR [#1617](https://github.com/auraakart/Aaraaweb/pull/1617), with protected CI pending. The V5.14.22 notes below are an earlier snapshot and should be read as historical, not as the current develop head.
 
 
