@@ -142,8 +142,6 @@ model Society {
   sosIncidents         SosIncident[]
   sosEvents            SosIncidentEvent[]
   sosRoutingPolicies   SosRoutingPolicy[]
-  sosRoutingPoliciesUpdated SosRoutingPolicy[] @relation("SosRoutingPolicyUpdater")
-  sosAssignedIncidents SosIncident[] @relation("SosAssignedResponder")
   maintenanceInvoices  MaintenanceInvoice[]
   payments             Payment[]
   paymentEvents        PaymentEvent[]
