@@ -91,7 +91,8 @@ export class EmergencyBroadcastService {
     return this.prisma.withTenantContext(societyId, (tx) => tx.$queryRaw(Prisma.sql`
       SELECT eb.*, ebr."acknowledgedAt"
       FROM "EmergencyBroadcastRecipient" ebr
-      JOIN "EmergencyBroadcast" eb ON eb."id" = ebr."broadcastId"
+      JOIN "EmergencyBroadcast" eb
+        ON eb."id" = ebr."broadcastId" AND eb."societyId" = ebr."societyId"
       WHERE ebr."societyId" = ${societyId}::uuid
         AND ebr."userId" = ${userId}::uuid
         AND eb."status" = 'PUBLISHED'
