@@ -3006,7 +3006,8 @@
         "Protected CI and PR acceptance are pending.",
         "The global fallback occupancy lookup remains a deliberate pre-tenant resolver: it is constrained by authenticated user, selected unit, active occupancy and active society; the downstream SOS trigger establishes tenant context after society resolution.",
         "No API/schema/permission changes, PostgreSQL RLS activation, hosted role/grant changes, live provider/device behavior, productionization or staging/main promotion."
-      ]
+      ],
+      "pullRequest": 1618
     }
   ]
 }
