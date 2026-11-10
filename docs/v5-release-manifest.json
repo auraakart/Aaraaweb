@@ -2951,6 +2951,7 @@
       "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_PENDING",
       "currentSlice": "V5.14.33",
       "branch": "mastermind/v5.14.33-sos-routing-policy-tenant-context",
+      "pullRequest": 1617,
       "evidence": [
         "docs/V5.14.33-SOS-ROUTING-POLICY-TENANT-CONTEXT.md",
         "services/api/src/sos/sos-routing.service.ts",
@@ -2958,6 +2959,7 @@
       ],
       "limitations": [
         "Protected develop CI has not yet run; this is not an accepted or merged source slice.",
+        "Regenerate and review the canonical tenant-access inventory and summary for the new transaction-context call sites before merge.",
         "Explicit society predicates remain mandatory; this change does not enable PostgreSQL RLS or hosted roles/grants.",
         "No API/schema/permission changes, live provider/device acceptance, productionization or staging/main promotion."
       ]
