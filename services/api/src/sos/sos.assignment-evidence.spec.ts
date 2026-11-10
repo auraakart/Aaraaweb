@@ -14,9 +14,12 @@ function setup(results: unknown[]) {
 describe('SosService incident assignment and evidence', () => {
   it('assigns only after validating active responder membership in the same tenant transaction', async () => {
     const assignedAt = new Date('2026-09-16T09:00:00Z');
+    const acknowledgeDueAt = new Date('2026-09-16T09:15:00Z');
     const { service, prisma, tx } = setup([
-      [{ id: 'incident-1', status: 'ACKNOWLEDGED', societyId: 'society-1' }],
+      [{ id: 'incident-1', status: 'ACTIVE', societyId: 'society-1', severity: 'HIGH' }],
       [{ id: 'membership-1' }],
+      [{ acknowledgeWithinMinutes: 15 }],
+      [{ id: 'incident-1', status: 'ACTIVE', assignedResponderUserId: 'guard-1', assignedAt, acknowledgeDueAt }],
       [{ occurredAt: assignedAt }],
     ]);
     const result = await service.assign('society-1', 'supervisor-1', 'incident-1', 'guard-1', 'Take east gate response');
@@ -25,15 +28,26 @@ describe('SosService incident assignment and evidence', () => {
     expect(incident.strings.join(' ')).toContain('FOR UPDATE');
     const membership = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(membership.strings.join(' ')).toContain('"SocietyMembership"');
+    expect(membership.strings.join(' ')).toContain('JOIN "User"');
+    expect(membership.strings.join(' ')).toContain("u."status" = 'ACTIVE'");
     expect(membership.strings.join(' ')).toContain('sm."active" = true');
     expect(membership.values).toContain('society-1');
     expect(membership.values).toContain('guard-1');
     expect(membership.values).toContain('SECURITY_GUARD');
     expect(membership.values).toContain('SECURITY_SUPERVISOR');
-    const assignment = tx.$queryRaw.mock.calls[2][0] as { strings: readonly string[]; values: unknown[] };
-    expect(assignment.strings.join(' ')).toContain("'ASSIGNED'");
-    expect(assignment.values.some(value => typeof value === 'string' && value.includes('guard-1'))).toBe(true);
-    expect(result).toMatchObject({ assignedToUserId: 'guard-1', assignedAt });
+    const policy = tx.$queryRaw.mock.calls[2][0] as { strings: readonly string[]; values: unknown[] };
+    expect(policy.strings.join(' ')).toContain('"SosRoutingPolicy"');
+    expect(policy.values).toContain('HIGH');
+    const assignment = tx.$queryRaw.mock.calls[3][0] as { strings: readonly string[]; values: unknown[] };
+    expect(assignment.strings.join(' ')).toContain('"assignedResponderUserId"');
+    expect(assignment.strings.join(' ')).toContain('"acknowledgeDueAt"');
+    expect(assignment.strings.join(' ')).toContain('"autoEscalatedAt"=NULL');
+    expect(assignment.values).toContain('guard-1');
+    expect(assignment.values).toContain(15);
+    const event = tx.$queryRaw.mock.calls[4][0] as { strings: readonly string[]; values: unknown[] };
+    expect(event.strings.join(' ')).toContain("'ASSIGNED'");
+    expect(event.values.some(value => typeof value === 'string' && value.includes('guard-1'))).toBe(true);
+    expect(result).toMatchObject({ assignedToUserId: 'guard-1', assignedAt, acknowledgeDueAt });
     expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
   });
 
