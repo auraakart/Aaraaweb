@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
+import { SosRoutingService } from './sos-routing.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -36,7 +38,13 @@ const SOS_RESPONDER_ROLES = [
 
 @Injectable()
 export class SosService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SosService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications?: NotificationRealtimeService,
+    @Optional() private readonly routing?: SosRoutingService,
+  ) {}
 
   async trigger(
     societyId: string,
@@ -60,7 +68,7 @@ export class SosService {
     const severity = input.severity ?? 'HIGH';
     const message = input.message?.trim() || null;
 
-    return this.prisma.withTenantContext(societyId, async (tx) => {
+    const outcome = await this.prisma.withTenantContext(societyId, async (tx) => {
       await this.assertResidentUnit(societyId, residentUserId, input.unitId, tx);
       const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;
       await tx.$executeRaw(Prisma.sql`
@@ -76,7 +84,7 @@ export class SosService {
         ORDER BY "createdAt" DESC
         LIMIT 1
       `);
-      if (existing[0]) return existing[0];
+      if (existing[0]) return { incident: existing[0], created: false };
 
       const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
         INSERT INTO "SosIncident" (
@@ -106,8 +114,40 @@ export class SosService {
           ${`category=${category};severity=${severity}`}
         )
       `);
-      return incident;
+      return { incident, created: true };
     });
+
+    if (outcome.created) await this.notifyResponders(outcome.incident);
+    return outcome.incident;
+  }
+
+  private async notifyResponders(incident: SosIncidentRow) {
+    if (!this.notifications || !this.routing) return;
+    try {
+      const [policies, candidates] = await Promise.all([
+        this.routing.listPolicies(incident.societyId) as Promise<Array<{ severity: SosSeverity; responderUserId: string; active: boolean }>>,
+        this.routing.listCandidates(incident.societyId),
+      ]);
+      const policy = policies.find(item => item.severity === incident.severity && item.active);
+      const configuredResponder = policy && candidates.find(item => item.userId === policy.responderUserId);
+      const recipients = configuredResponder ? [configuredResponder] : candidates;
+      for (const recipient of recipients) {
+        this.notifications.publishResident({
+          type: 'SOS_INCIDENT_ALERT',
+          societyId: incident.societyId,
+          userId: recipient.userId,
+          title: `SOS alert · ${incident.severity}`,
+          body: `A ${incident.category.toLowerCase()} emergency requires a response. Open SOS to view details.`,
+          createdAt: new Date().toISOString(),
+          incidentId: incident.id,
+          unitId: incident.unitId,
+          category: incident.category,
+          severity: incident.severity,
+        });
+      }
+    } catch (error) {
+      this.logger.warn(`SOS responder alert fan-out deferred: ${error instanceof Error ? error.message.slice(0, 240) : 'unknown error'}`);
+    }
   }
 
   listMine(societyId: string, residentUserId: string) {
