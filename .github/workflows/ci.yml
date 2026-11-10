@@ -684,8 +684,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Changed-admin selection can reference the merge-base SHA, not only the two merge parents.
-          fetch-depth: 0
+          # Fetch the PR merge commit and its parents; the comparison base is fetched explicitly below.
+          fetch-depth: 2
+      - name: Fetch Admin comparison base commit
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags origin "$BASE_SHA"
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
