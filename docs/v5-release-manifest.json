@@ -2391,7 +2391,7 @@
           "ciRun": 38708353856,
           "verifiedScope": [
             "Read-only bounded Linux target proc executable file-descriptor SHA-256 and raw argv hash bound to separately pinned executable/identity/namespace policy",
-            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42–43 cgroup and rootfs checks",
+            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42\u201343 cgroup and rootfs checks",
             "Negative executable replacement, PID reuse, namespaces, process exit, malformed bounds and permission-injection tests passed",
             "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security and develop auto-merge"
           ]
@@ -2534,7 +2534,7 @@
         "lastVerifiedMergeSha": "899d064927fe2b139028b26ce622e2a680895689",
         "pendingIndependentTestIssue": 1380,
         "status": "ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE",
-        "note": "V5.6.16–20 verified merged with protected CI; repo-only historical finance recovery issue #1387 is completed. Independent TEST worker and Partner A/B signed build acceptance #1380 remain pending. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no build execution, distribution, release or branch promotion authorization.",
+        "note": "V5.6.16\u201320 verified merged with protected CI; repo-only historical finance recovery issue #1387 is completed. Independent TEST worker and Partner A/B signed build acceptance #1380 remain pending. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no build execution, distribution, release or branch promotion authorization.",
         "verifiedSlices": [
           {
             "id": "V5.6.16",
