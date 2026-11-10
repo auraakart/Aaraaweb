@@ -494,8 +494,6 @@ jobs:
       # migration/replay. All existing gates remain mandatory.
       - name: Verify V5 tenant-access inventory and summary
         run: |
-          # CI is validation-only: never mutate the PR head during its own run.
-          # Regenerate and commit inventory locally before opening/updating the PR.
           node services/api/scripts/tenant-access-inventory.mjs --check
           node scripts/sync-tenant-access-summary.mjs
           git diff --exit-code -- docs/architecture/v5-tenant-access-inventory.json docs/architecture/V5-TENANT-ACCESS-INVENTORY.md

@@ -3019,7 +3019,7 @@
     {
       "id": "V5.14.35",
       "name": "SOS responder alert fan-out through resident notification delivery",
-      "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_PENDING",
+      "status": "MERGED_PROTECTED_CI_PASSED",
       "currentSlice": "V5.14.35",
       "branch": "mastermind/v5.14.35-sos-responder-alert-fanout",
       "evidence": [
@@ -3031,9 +3031,31 @@
       ],
       "limitations": [
         "Notifications are emitted only for newly created incidents; idempotent trigger reuse does not fan out duplicate alerts.",
-        "An active severity-specific routing policy selects its configured responder only when that responder remains in the current SOS_RESPOND candidate set; otherwise current eligible responders are notified.",
+        "An active severity-specific routing policy selects its configured responder only when that responder remains in the current active SOS_RESPOND candidate set; otherwise current eligible responders are notified.",
         "Delivery uses existing resident realtime/push outbox paths; no new external SMS/WhatsApp provider, schema or API contract is introduced.",
-        "Protected CI and exact-head API regression remain pending; no RLS activation, productionization or staging/main promotion."
+        "The exact-head protected CI run passed full API, Admin, Flutter, dependency-security and required merge-gate validation."
+      ],
+      "pullRequest": 1619,
+      "mergeSha": "992e2df4259e45c33a7c7147c11ae6305ca7cb41",
+      "ciRun": 42836482921,
+      "validatedHeadSha": "926110441f3bcb2936f7712951ceff148789c90f"
+    },
+    {
+      "id": "V5.14.36",
+      "name": "SOS acknowledgement deadline persistence and Prisma migration alignment",
+      "status": "IMPLEMENTATION_IN_PROGRESS",
+      "currentSlice": "V5.14.36",
+      "branch": "mastermind/v5.14.36-sos-acknowledgement-reliability",
+      "evidence": [
+        "docs/V5.14.36-SOS-ACKNOWLEDGEMENT-RELIABILITY.md",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/sos/sos.service.ts",
+        "services/api/src/sos/sos.assignment-evidence.spec.ts"
+      ],
+      "limitations": [
+        "Reuses existing SOS migrations and scheduled acknowledgement-deadline sweep; no duplicate migration is introduced.",
+        "No endpoint, permission or role change; no PostgreSQL RLS activation, live providers, hardware, productionization or staging/main promotion.",
+        "Protected CI and exact-head regression remain pending."
       ]
     }
   ]

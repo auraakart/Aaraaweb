@@ -25,6 +25,10 @@ type SosIncidentRow = {
   resolvedById: string | null;
   resolvedAt: Date | null;
   cancelledAt: Date | null;
+  assignedResponderUserId?: string | null;
+  assignedAt?: Date | null;
+  acknowledgeDueAt?: Date | null;
+  autoEscalatedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -273,8 +277,34 @@ export class SosService {
       if (!current) throw new NotFoundException('SOS incident not found');
       this.assertOpenForResponse(current);
       await this.assertResponderMembership(societyId, assigneeUserId, tx);
+      const [policy] = await tx.$queryRaw<Array<{ acknowledgeWithinMinutes: number }>>(Prisma.sql`
+        SELECT "acknowledgeWithinMinutes"
+        FROM "SosRoutingPolicy"
+        WHERE "societyId"=${societyId}::uuid
+          AND "severity"=${current.severity}
+          AND "active"=true
+        LIMIT 1
+      `);
+      const acknowledgeWithinMinutes = current.status === 'ACTIVE' ? policy?.acknowledgeWithinMinutes ?? null : null;
+      const updatedRows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
+        UPDATE "SosIncident"
+        SET "assignedResponderUserId"=${assigneeUserId}::uuid,
+            "assignedAt"=CURRENT_TIMESTAMP,
+            "acknowledgeDueAt"=CASE
+              WHEN ${acknowledgeWithinMinutes}::int IS NULL THEN NULL
+              ELSE CURRENT_TIMESTAMP + make_interval(mins => ${acknowledgeWithinMinutes}::int)
+            END,
+            "autoEscalatedAt"=NULL,
+            "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${incidentId}::uuid
+          AND "societyId"=${societyId}::uuid
+          AND "status"=${current.status}::"SosStatus"
+        RETURNING *
+      `);
+      const updated = updatedRows[0];
+      if (!updated) throw new BadRequestException('SOS incident changed; refresh and retry');
       const eventNote = JSON.stringify({ assigneeUserId, note: note?.trim() || null });
-      const events = await tx.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
+      await tx.$queryRaw(Prisma.sql`
         INSERT INTO "SosIncidentEvent" (
           "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
         )
@@ -289,7 +319,7 @@ export class SosService {
         )
         RETURNING "occurredAt"
       `);
-      return { ...current, assignedToUserId: assigneeUserId, assignedAt: events[0]?.occurredAt ?? null };
+      return { ...updated, assignedToUserId: assigneeUserId };
     });
   }
 
@@ -463,6 +493,7 @@ export class SosService {
     const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT sm."id"
       FROM "SocietyMembership" sm
+      JOIN "User" u ON u."id" = sm."userId" AND u."status" = 'ACTIVE'
       WHERE sm."societyId" = ${societyId}::uuid
         AND sm."userId" = ${userId}::uuid
         AND sm."active" = true
