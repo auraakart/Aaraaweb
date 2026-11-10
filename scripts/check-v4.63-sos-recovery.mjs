@@ -11,7 +11,7 @@ for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']) must
 
 const sosSource=read('services/api/src/sos/sos.service.ts');
 must('V4.63 SOS server recovery',sosSource,['pg_advisory_xact_lock','const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;',"\"status\" IN ('ACTIVE', 'ACKNOWLEDGED')"]);
-if(!/if\\s*\\(\\s*existing\\[0\\]\\s*\\)\\s*return\\s+(?:existing\\[0\\]|\\{\\s*incident:\\s*existing\\[0\\]\\s*,\\s*created:\\s*false\\s*\\})\\s*;/.test(sosSource)){
+if(!/if\s*\(\s*existing\[0\]\s*\)\s*return\s+(?:existing\[0\]|\{\s*incident:\s*existing\[0\]\s*,\s*created:\s*false\s*\})\s*;/.test(sosSource)){
  console.error('V4.63 SOS server recovery missing: active incident reuse must return the existing incident without creating a duplicate.');
  process.exit(1);
 }
