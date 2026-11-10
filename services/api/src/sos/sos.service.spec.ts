@@ -78,7 +78,7 @@ describe('SosService relationship authorization', () => {
   it('notifies only the configured active SOS responder after a new incident commits', async () => {
     const incident = {
       id: 'incident-new', societyId: 'society-1', unitId: 'unit-1', residentUserId: 'resident-1',
-      status: 'ACTIVE', category: 'MEDICAL', severity: 'CRITICAL', message: null,
+      status: 'ACTIVE', category: 'MEDICAL', severity: 'CRITICAL', message: null, createdAt: new Date('2026-11-10T10:00:00.000Z'),
     };
     const tx = {
       $queryRaw: vi.fn()
