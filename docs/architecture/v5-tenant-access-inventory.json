@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "7cd37fc1f966a6d11a046f9422cea5b305bfaeff961111340a5bd03af4bf9f02",
+  "sourceDigest": "731ebfb2cec273a9b83afe2beeb5c780e77377a26274edd8c5f219d03d2a275a",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -1058,7 +1058,7 @@
     },
     {
       "file": "services/api/src/notifications/notification-realtime.service.ts",
-      "line": 152
+      "line": 165
     },
     {
       "file": "services/api/src/notifications/push-delivery-outbox.service.ts",
@@ -1066,27 +1066,27 @@
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 109
+      "line": 111
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 116
+      "line": 118
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 249
+      "line": 251
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 262
+      "line": 264
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 270
+      "line": 272
     },
     {
       "file": "services/api/src/notifications/push-notification.service.ts",
-      "line": 301
+      "line": 303
     },
     {
       "file": "services/api/src/parcels/parcel-recipients.service.ts",
@@ -1462,51 +1462,51 @@
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 63
+      "line": 72
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 114
+      "line": 155
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 124
+      "line": 165
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 177
+      "line": 218
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 187
+      "line": 228
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 197
+      "line": 238
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 230
+      "line": 271
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 261
+      "line": 302
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 297
+      "line": 338
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 322
+      "line": 363
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 348
+      "line": 389
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
-      "line": 360
+      "line": 401
     },
     {
       "file": "services/api/src/utilities/utilities.service.ts",
@@ -3558,24 +3558,24 @@
     {"receiver":"tx.unitOccupancy","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/gate-notification-fallback.service.ts","line":27,"method":"callback","operation":"findFirst","kind":"ORM","tables":["UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/gate-notification-fallback.service.ts","line":61,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["GateNotificationAttempt"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.unitOccupancy","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/gate-recipient.service.ts","line":9,"method":"callback","operation":"findMany","kind":"ORM","tables":["UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.maintenanceInvoice","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/notification-realtime.service.ts","line":152,"method":"callback","operation":"findFirst","kind":"ORM","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.maintenanceInvoice","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/notification-realtime.service.ts","line":165,"method":"callback","operation":"findFirst","kind":"ORM","tables":["MaintenanceInvoice"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"client","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":72,"method":"enqueueOnClient","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":116,"method":"claimOne","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":136,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":167,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-delivery-outbox.service.ts","line":180,"method":"deliver","operation":"$executeRaw","kind":"RAW_SQL","tables":["PushDeliveryOutbox"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":100,"method":"register","operation":"upsert","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":109,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":116,"method":"callback","operation":"count","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":125,"method":"registerConsumer","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":130,"method":"registerConsumer","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":141,"method":"unregisterConsumer","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":214,"method":"deliverConsumerBookingEvent","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":238,"method":"deliverConsumerBookingEvent","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":249,"method":"callback","operation":"findMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.societyMembership","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":262,"method":"callback","operation":"findMany","kind":"ORM","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":270,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":301,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":102,"method":"register","operation":"upsert","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":111,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":118,"method":"callback","operation":"count","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":127,"method":"registerConsumer","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":132,"method":"registerConsumer","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":143,"method":"unregisterConsumer","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":216,"method":"deliverConsumerBookingEvent","operation":"$queryRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":240,"method":"deliverConsumerBookingEvent","operation":"$executeRaw","kind":"RAW_SQL","tables":["ConsumerPushDeviceToken"],"queryScopeSignals":[],"enclosingScopeSignals":["userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":251,"method":"callback","operation":"findMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyMembership","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":264,"method":"callback","operation":"findMany","kind":"ORM","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":272,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.devicePushToken","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/notifications/push-notification.service.ts","line":303,"method":"callback","operation":"updateMany","kind":"ORM","tables":["DevicePushToken"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-recipients.service.ts","line":10,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":15,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Parcel"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/parcels/parcel-reminder.service.ts","line":25,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ParcelEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -4331,23 +4331,23 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos-routing.service.ts","line":61,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosRoutingPolicy"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos-routing.service.ts","line":82,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos-routing.service.ts","line":88,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"DATABASE_UTILITY","file":"services/api/src/sos/sos.service.ts","line":66,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SQL_UTILITY_SCOPE_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":69,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":81,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":98,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":114,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":124,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","SosIncident","SosIncidentEvent","Unit","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":204,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":236,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"DATABASE_UTILITY","file":"services/api/src/sos/sos.service.ts","line":75,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SQL_UTILITY_SCOPE_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":78,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":90,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":107,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":155,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":165,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","SosIncident","SosIncidentEvent","Unit","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":245,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":277,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":300,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":325,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["EmergencyContact","Household"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":363,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":383,"method":"transition","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":398,"method":"transition","operation":"$executeRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":406,"method":"assertResidentUnit","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":422,"method":"assertResponderMembership","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":441,"method":"findIncident","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":318,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":341,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":366,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["EmergencyContact","Household"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":404,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncidentEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":424,"method":"transition","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":439,"method":"transition","operation":"$executeRaw","kind":"RAW_SQL","tables":["SosIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":447,"method":"assertResidentUnit","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":463,"method":"assertResponderMembership","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/sos/sos.service.ts","line":482,"method":"findIncident","operation":"$queryRaw","kind":"RAW_SQL","tables":["SosIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/universal-search/universal-search.service.ts","line":63,"method":"search","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/universal-search/universal-search.service.ts","line":77,"method":"search","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccessRequest"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/universal-search/universal-search.service.ts","line":95,"method":"search","operation":"$queryRaw","kind":"RAW_SQL","tables":["MaintenanceInvoice","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
