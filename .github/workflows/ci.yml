@@ -497,6 +497,16 @@ jobs:
             git diff --no-ext-diff --unified=0 -- docs/architecture/v5-tenant-access-inventory.json
             exit 1
           fi
+      - name: Upload generated tenant-access inventory for review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tenant-access-inventory-${{ github.sha }}
+          path: |
+            docs/architecture/v5-tenant-access-inventory.json
+            docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
+          if-no-files-found: error
+          retention-days: 30
       - name: Lint API
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
@@ -546,7 +556,7 @@ jobs:
         # Coverage now uses the frozen installation; refuse manifest/lock drift.
         run: git diff --exit-code -- services/api/package.json pnpm-lock.yaml
       - name: Upload API risk coverage evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v7
         with:
           name: api-risk-coverage-${{ github.sha }}
