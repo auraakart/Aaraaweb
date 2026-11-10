@@ -9,13 +9,17 @@ describe('SosRespondersController', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, SosRespondersController)).toEqual([AppPermission.SOS_RESPOND]);
   });
 
-  it('lists only active users and memberships inside the current society', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+  it('lists only active responders inside the selected society transaction', async () => {
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const prisma = {
+      withTenantContext: vi.fn(async (_societyId: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    };
     const controller = new SosRespondersController(prisma as unknown as PrismaService);
 
     await controller.list('society-1');
 
-    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
+    const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
     const sql = query.strings.join(' ');
     expect(sql).toContain('sm."societyId"');
     expect(sql).toContain('sm."active" = true');
