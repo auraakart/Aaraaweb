@@ -89,6 +89,7 @@ describe('EmergencyBroadcastService', () => {
     expect(prisma.withTenantContext).toHaveBeenCalledWith('society-1', expect.any(Function));
     const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
     expect(query.strings.join(' ')).toContain('ebr."userId"');
+    expect(query.strings.join(' ')).toContain('eb."societyId" = ebr."societyId"');
     expect(query.values).toContain('resident-1');
     expect(query.values).toContain('society-1');
   });
