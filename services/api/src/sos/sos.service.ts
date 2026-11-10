@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
-import { SosRoutingService } from './sos-routing.service';
 import { Prisma } from '@prisma/client';
+import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 import { PrismaService } from '../prisma/prisma.service';
+import { SosRoutingService } from './sos-routing.service';
 
 type SosStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELLED';
 type SosCategory = 'MEDICAL' | 'FIRE' | 'SECURITY' | 'LIFT' | 'OTHER';
@@ -138,7 +139,7 @@ export class SosService {
           userId: recipient.userId,
           title: `SOS alert · ${incident.severity}`,
           body: `A ${incident.category.toLowerCase()} emergency requires a response. Open SOS to view details.`,
-          createdAt: new Date().toISOString(),
+          createdAt: incident.createdAt.toISOString(),
           incidentId: incident.id,
           unitId: incident.unitId,
           category: incident.category,
@@ -146,7 +147,7 @@ export class SosService {
         });
       }
     } catch (error) {
-      this.logger.warn(`SOS responder alert fan-out deferred: ${error instanceof Error ? error.message.slice(0, 240) : 'unknown error'}`);
+      this.logger.warn(`SOS responder alert fan-out deferred: ${safeOperationalError(error)}`);
     }
   }
 
