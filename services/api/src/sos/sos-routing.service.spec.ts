@@ -44,6 +44,7 @@ describe('SosRoutingService tenant context', () => {
     expect(withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
     const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
     expect(query.strings.join(' ')).toContain('"SocietyMembership"');
+    expect(query.strings.join(' ')).toContain(`u."status"='ACTIVE'`);
     expect(query.values).toContain(societyId);
   });
 
@@ -62,7 +63,29 @@ describe('SosRoutingService tenant context', () => {
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
     expect(tx.societyMembership.findMany).toHaveBeenCalledWith({
-      where: { societyId, userId: responderUserId, active: true },
+      where: { societyId, userId: responderUserId, active: true, user: { is: { status: 'ACTIVE' } } },
+      select: { role: true },
+    });
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+  });
+
+
+  it('rejects inactive user accounts when configuring an SOS responder policy', async () => {
+    const tx = {
+      societyMembership: { findMany: vi.fn().mockResolvedValue([]) },
+      $queryRaw: vi.fn(),
+    };
+    const { prisma, withTenantContext } = createTenantPrisma(tx);
+    const service = new SosRoutingService(prisma as unknown as PrismaService);
+
+    await expect(service.upsertPolicy(societyId, actorUserId, {
+      severity: 'CRITICAL',
+      acknowledgeWithinMinutes: 5,
+      responderUserId,
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
+    expect(tx.societyMembership.findMany).toHaveBeenCalledWith({
+      where: { societyId, userId: responderUserId, active: true, user: { is: { status: 'ACTIVE' } } },
       select: { role: true },
     });
     expect(tx.$queryRaw).not.toHaveBeenCalled();
