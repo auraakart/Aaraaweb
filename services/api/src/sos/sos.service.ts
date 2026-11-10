@@ -194,28 +194,30 @@ export class SosService {
   }
 
   async escalate(societyId: string, actorUserId: string, incidentId: string, note?: string) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    if (current.status !== 'ACTIVE' && current.status !== 'ACKNOWLEDGED') {
-      throw new BadRequestException('Only active or acknowledged SOS incidents can be escalated');
-    }
-    const cleanNote = note?.trim() || null;
-    const events = await this.prisma.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
-      INSERT INTO "SosIncidentEvent" (
-        "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
-      )
-      VALUES (
-        ${societyId}::uuid,
-        ${incidentId}::uuid,
-        ${actorUserId}::uuid,
-        'ESCALATED',
-        ${current.status}::"SosStatus",
-        ${current.status}::"SosStatus",
-        ${cleanNote}
-      )
-      RETURNING "occurredAt"
-    `);
-    return { ...current, escalatedAt: events[0]?.occurredAt ?? null };
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      if (current.status !== 'ACTIVE' && current.status !== 'ACKNOWLEDGED') {
+        throw new BadRequestException('Only active or acknowledged SOS incidents can be escalated');
+      }
+      const cleanNote = note?.trim() || null;
+      const events = await tx.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
+        INSERT INTO "SosIncidentEvent" (
+          "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
+        )
+        VALUES (
+          ${societyId}::uuid,
+          ${incidentId}::uuid,
+          ${actorUserId}::uuid,
+          'ESCALATED',
+          ${current.status}::"SosStatus",
+          ${current.status}::"SosStatus",
+          ${cleanNote}
+        )
+        RETURNING "occurredAt"
+      `);
+      return { ...current, escalatedAt: events[0]?.occurredAt ?? null };
+    });
   }
 
   async assign(
@@ -225,27 +227,29 @@ export class SosService {
     assigneeUserId: string,
     note?: string,
   ) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    this.assertOpenForResponse(current);
-    await this.assertResponderMembership(societyId, assigneeUserId);
-    const eventNote = JSON.stringify({ assigneeUserId, note: note?.trim() || null });
-    const events = await this.prisma.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
-      INSERT INTO "SosIncidentEvent" (
-        "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
-      )
-      VALUES (
-        ${societyId}::uuid,
-        ${incidentId}::uuid,
-        ${actorUserId}::uuid,
-        'ASSIGNED',
-        ${current.status}::"SosStatus",
-        ${current.status}::"SosStatus",
-        ${eventNote}
-      )
-      RETURNING "occurredAt"
-    `);
-    return { ...current, assignedToUserId: assigneeUserId, assignedAt: events[0]?.occurredAt ?? null };
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      this.assertOpenForResponse(current);
+      await this.assertResponderMembership(societyId, assigneeUserId, tx);
+      const eventNote = JSON.stringify({ assigneeUserId, note: note?.trim() || null });
+      const events = await tx.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
+        INSERT INTO "SosIncidentEvent" (
+          "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
+        )
+        VALUES (
+          ${societyId}::uuid,
+          ${incidentId}::uuid,
+          ${actorUserId}::uuid,
+          'ASSIGNED',
+          ${current.status}::"SosStatus",
+          ${current.status}::"SosStatus",
+          ${eventNote}
+        )
+        RETURNING "occurredAt"
+      `);
+      return { ...current, assignedToUserId: assigneeUserId, assignedAt: events[0]?.occurredAt ?? null };
+    });
   }
 
   async addEvidence(
@@ -254,84 +258,90 @@ export class SosService {
     incidentId: string,
     input: { objectKey: string; fileName: string; contentType?: string; note?: string },
   ) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    this.assertOpenForResponse(current);
-    const objectKey = input.objectKey.trim();
-    if (!objectKey || objectKey.includes('://')) {
-      throw new BadRequestException('Evidence must use a private object key, not a public URL');
-    }
-    const fileName = input.fileName.trim();
-    if (!fileName) throw new BadRequestException('Evidence file name is required');
-    const eventNote = JSON.stringify({
-      objectKey,
-      fileName,
-      contentType: input.contentType?.trim() || null,
-      note: input.note?.trim() || null,
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      this.assertOpenForResponse(current);
+      const objectKey = input.objectKey.trim();
+      if (!objectKey || objectKey.includes('://')) {
+        throw new BadRequestException('Evidence must use a private object key, not a public URL');
+      }
+      const fileName = input.fileName.trim();
+      if (!fileName) throw new BadRequestException('Evidence file name is required');
+      const eventNote = JSON.stringify({
+        objectKey,
+        fileName,
+        contentType: input.contentType?.trim() || null,
+        note: input.note?.trim() || null,
+      });
+      const events = await tx.$queryRaw<Array<{ id: string; occurredAt: Date }>>(Prisma.sql`
+        INSERT INTO "SosIncidentEvent" (
+          "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
+        )
+        VALUES (
+          ${societyId}::uuid,
+          ${incidentId}::uuid,
+          ${actorUserId}::uuid,
+          'EVIDENCE_ADDED',
+          ${current.status}::"SosStatus",
+          ${current.status}::"SosStatus",
+          ${eventNote}
+        )
+        RETURNING "id", "occurredAt"
+      `);
+      return { ...events[0], incidentId, objectKey, fileName, contentType: input.contentType?.trim() || null };
     });
-    const events = await this.prisma.$queryRaw<Array<{ id: string; occurredAt: Date }>>(Prisma.sql`
-      INSERT INTO "SosIncidentEvent" (
-        "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
-      )
-      VALUES (
-        ${societyId}::uuid,
-        ${incidentId}::uuid,
-        ${actorUserId}::uuid,
-        'EVIDENCE_ADDED',
-        ${current.status}::"SosStatus",
-        ${current.status}::"SosStatus",
-        ${eventNote}
-      )
-      RETURNING "id", "occurredAt"
-    `);
-    return { ...events[0], incidentId, objectKey, fileName, contentType: input.contentType?.trim() || null };
   }
 
   async evidence(societyId: string, incidentId: string) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT
-        se."id",
-        se."incidentId",
-        se."actorUserId",
-        actor."name" AS "actorName",
-        se."occurredAt",
-        se."note"::jsonb ->> 'objectKey' AS "objectKey",
-        se."note"::jsonb ->> 'fileName' AS "fileName",
-        se."note"::jsonb ->> 'contentType' AS "contentType",
-        se."note"::jsonb ->> 'note' AS "note"
-      FROM "SosIncidentEvent" se
-      JOIN "User" actor ON actor."id" = se."actorUserId"
-      WHERE se."societyId" = ${societyId}::uuid
-        AND se."incidentId" = ${incidentId}::uuid
-        AND se."action" = 'EVIDENCE_ADDED'
-      ORDER BY se."occurredAt" ASC
-    `);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      return tx.$queryRaw(Prisma.sql`
+        SELECT
+          se."id",
+          se."incidentId",
+          se."actorUserId",
+          actor."name" AS "actorName",
+          se."occurredAt",
+          se."note"::jsonb ->> 'objectKey' AS "objectKey",
+          se."note"::jsonb ->> 'fileName' AS "fileName",
+          se."note"::jsonb ->> 'contentType' AS "contentType",
+          se."note"::jsonb ->> 'note' AS "note"
+        FROM "SosIncidentEvent" se
+        JOIN "User" actor ON actor."id" = se."actorUserId"
+        WHERE se."societyId" = ${societyId}::uuid
+          AND se."incidentId" = ${incidentId}::uuid
+          AND se."action" = 'EVIDENCE_ADDED'
+        ORDER BY se."occurredAt" ASC
+      `);
+    });
   }
 
   async escalationTargets(societyId: string, incidentId: string) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    return this.prisma.$queryRaw<
-      Array<{ contactId: string; name: string; phone: string; relation: string | null; priority: number }>
-    >(Prisma.sql`
-      SELECT
-        ec."id" AS "contactId",
-        ec."name",
-        ec."phone",
-        ec."relation",
-        ec."priority"
-      FROM "Household" h
-      JOIN "EmergencyContact" ec
-        ON ec."householdId" = h."id"
-       AND ec."societyId" = h."societyId"
-      WHERE h."societyId" = ${societyId}::uuid
-        AND h."unitId" = ${current.unitId}::uuid
-        AND ec."active" = true
-      ORDER BY ec."priority" ASC, ec."createdAt" ASC
-      LIMIT 10
-    `);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      return tx.$queryRaw<
+        Array<{ contactId: string; name: string; phone: string; relation: string | null; priority: number }>
+      >(Prisma.sql`
+        SELECT
+          ec."id" AS "contactId",
+          ec."name",
+          ec."phone",
+          ec."relation",
+          ec."priority"
+        FROM "Household" h
+        JOIN "EmergencyContact" ec
+          ON ec."householdId" = h."id"
+         AND ec."societyId" = h."societyId"
+        WHERE h."societyId" = ${societyId}::uuid
+          AND h."unitId" = ${current.unitId}::uuid
+          AND ec."active" = true
+        ORDER BY ec."priority" ASC, ec."createdAt" ASC
+        LIMIT 10
+      `);
+    });
   }
 
   async resolve(societyId: string, actorUserId: string, incidentId: string, note?: string) {
@@ -347,15 +357,17 @@ export class SosService {
   }
 
   async history(societyId: string, incidentId: string) {
-    const current = await this.findIncident(societyId, incidentId);
-    if (!current) throw new NotFoundException('SOS incident not found');
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT se.*, actor."name" AS "actorName"
-      FROM "SosIncidentEvent" se
-      JOIN "User" actor ON actor."id" = se."actorUserId"
-      WHERE se."societyId" = ${societyId}::uuid AND se."incidentId" = ${incidentId}::uuid
-      ORDER BY se."occurredAt" ASC
-    `);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      const current = await this.findIncident(societyId, incidentId, tx);
+      if (!current) throw new NotFoundException('SOS incident not found');
+      return tx.$queryRaw(Prisma.sql`
+        SELECT se.*, actor."name" AS "actorName"
+        FROM "SosIncidentEvent" se
+        JOIN "User" actor ON actor."id" = se."actorUserId"
+        WHERE se."societyId" = ${societyId}::uuid AND se."incidentId" = ${incidentId}::uuid
+        ORDER BY se."occurredAt" ASC
+      `);
+    });
   }
 
   private async transition(
@@ -405,9 +417,9 @@ export class SosService {
     if (!rows[0]) throw new BadRequestException('Unit is not assigned to the authenticated resident');
   }
 
-  private async assertResponderMembership(societyId: string, userId: string) {
+  private async assertResponderMembership(societyId: string, userId: string, tx: Prisma.TransactionClient) {
     const roles = Prisma.join(SOS_RESPONDER_ROLES.map((role) => Prisma.sql`${role}::"MembershipRole"`));
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT sm."id"
       FROM "SocietyMembership" sm
       WHERE sm."societyId" = ${societyId}::uuid
@@ -425,16 +437,13 @@ export class SosService {
     }
   }
 
-  private async findIncident(societyId: string, incidentId: string, tx?: Prisma.TransactionClient) {
-    const query = Prisma.sql`
+  private async findIncident(societyId: string, incidentId: string, tx: Prisma.TransactionClient) {
+    const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
       SELECT * FROM "SosIncident"
       WHERE "id" = ${incidentId}::uuid AND "societyId" = ${societyId}::uuid
       LIMIT 1
-      ${tx ? Prisma.raw('FOR UPDATE') : Prisma.empty}
-    `;
-    const rows = tx
-      ? await tx.$queryRaw<SosIncidentRow[]>(query)
-      : await this.prisma.$queryRaw<SosIncidentRow[]>(query);
+      FOR UPDATE
+    `);
     return rows[0] ?? null;
   }
 }

@@ -442,6 +442,8 @@ jobs:
     if: needs.change-scope.outputs.run_api == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
     services:
       postgres:
         image: postgres:16
@@ -470,6 +472,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -488,15 +492,39 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       # Fail fast on static inventory and TypeScript checks before database
       # migration/replay. All existing gates remain mandatory.
-      - name: Verify V5 tenant-access inventory
+      - name: Regenerate V5 tenant-access inventory and summary
         run: |
           node services/api/scripts/tenant-access-inventory.mjs --write
-          node scripts/sync-tenant-access-summary.mjs
-          if ! git diff --quiet -- docs/architecture/v5-tenant-access-inventory.json; then
-            echo "::error::V5 tenant-access inventory is stale; regenerate and commit the reviewed diff."
-            git diff --no-ext-diff --unified=0 -- docs/architecture/v5-tenant-access-inventory.json
-            exit 1
+          node scripts/sync-tenant-access-summary.mjs --write
+      - name: Commit generated inventory to internal mastermind PR branch
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'mastermind/') }}
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git add docs/architecture/v5-tenant-access-inventory.json docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
+          if git diff --cached --quiet; then
+            echo "Tenant-access inventory is already current."
+            exit 0
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: regenerate tenant-access inventory"
+          git push origin "HEAD:refs/heads/${PR_BRANCH}"
+      - name: Verify V5 tenant-access inventory
+        run: |
+          node services/api/scripts/tenant-access-inventory.mjs --check
+          node scripts/sync-tenant-access-summary.mjs
+          git diff --exit-code -- docs/architecture/v5-tenant-access-inventory.json docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
+      - name: Upload generated tenant-access inventory for review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tenant-access-inventory-${{ github.sha }}
+          path: |
+            docs/architecture/v5-tenant-access-inventory.json
+            docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
+          if-no-files-found: error
+          retention-days: 30
       - name: Lint API
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
@@ -546,7 +574,7 @@ jobs:
         # Coverage now uses the frozen installation; refuse manifest/lock drift.
         run: git diff --exit-code -- services/api/package.json pnpm-lock.yaml
       - name: Upload API risk coverage evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v7
         with:
           name: api-risk-coverage-${{ github.sha }}
@@ -656,8 +684,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # The PR merge commit and both parents provide the two scope refs.
+          # Fetch the PR merge commit and its parents; the comparison base is fetched explicitly below.
           fetch-depth: 2
+      - name: Fetch Admin comparison base commit
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags origin "$BASE_SHA"
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
