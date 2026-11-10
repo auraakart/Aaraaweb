@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "1ae2bf1d68a6fe38f3e7f59d5904dc27bc31e6989fd251492cf297f975e4288a",
+  "sourceDigest": "2178ebbb9dae4d5fc2a9ff12a87cdfeeedcbe03c99819a253b8812c88f397eef",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 18,
     "utilitySqlSites": 70,
-    "runtimeTenantContextCalls": 429,
+    "runtimeTenantContextCalls": 433,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -1423,6 +1423,22 @@
     {
       "file": "services/api/src/society-workforce/society-workforce.service.ts",
       "line": 537
+    },
+    {
+      "file": "services/api/src/sos/sos-routing.service.ts",
+      "line": 14
+    },
+    {
+      "file": "services/api/src/sos/sos-routing.service.ts",
+      "line": 24
+    },
+    {
+      "file": "services/api/src/sos/sos-routing.service.ts",
+      "line": 52
+    },
+    {
+      "file": "services/api/src/sos/sos-routing.service.ts",
+      "line": 81
     },
     {
       "file": "services/api/src/sos/sos.service.ts",
