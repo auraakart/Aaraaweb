@@ -437,16 +437,13 @@ export class SosService {
     }
   }
 
-  private async findIncident(societyId: string, incidentId: string, tx?: Prisma.TransactionClient) {
-    const query = Prisma.sql`
+  private async findIncident(societyId: string, incidentId: string, tx: Prisma.TransactionClient) {
+    const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
       SELECT * FROM "SosIncident"
       WHERE "id" = ${incidentId}::uuid AND "societyId" = ${societyId}::uuid
       LIMIT 1
-      ${tx ? Prisma.raw('FOR UPDATE') : Prisma.empty}
-    `;
-    const rows = tx
-      ? await tx.$queryRaw<SosIncidentRow[]>(query)
-      : await this.prisma.$queryRaw<SosIncidentRow[]>(query);
+      FOR UPDATE
+    `);
     return rows[0] ?? null;
   }
 }
