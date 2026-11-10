@@ -75,6 +75,65 @@ describe('SosService relationship authorization', () => {
     expect(lock.strings.join(' ')).toContain('pg_advisory_xact_lock');
     expect(lock.values).toContain('sos:society-1:unit-1:user-1');
   });
+  it('notifies only the configured active SOS responder after a new incident commits', async () => {
+    const incident = {
+      id: 'incident-new', societyId: 'society-1', unitId: 'unit-1', residentUserId: 'resident-1',
+      status: 'ACTIVE', category: 'MEDICAL', severity: 'CRITICAL', message: null,
+    };
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: 'occupancy-1' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([incident]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = { withTenantContext: vi.fn(async (_society: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
+    const notifications = { publishResident: vi.fn() };
+    const routing = {
+      listPolicies: vi.fn().mockResolvedValue([{ severity: 'CRITICAL', responderUserId: 'responder-1', active: true }]),
+      listCandidates: vi.fn().mockResolvedValue([
+        { userId: 'responder-1', name: 'Responder One', roles: ['SECURITY_SUPERVISOR'] },
+        { userId: 'responder-2', name: 'Responder Two', roles: ['SOCIETY_ADMIN'] },
+      ]),
+    };
+    const service = new SosService(prisma as unknown as PrismaService, notifications as never, routing as never);
+
+    await expect(service.trigger('society-1', 'resident-1', { unitId: 'unit-1', category: 'MEDICAL', severity: 'CRITICAL' }))
+      .resolves.toEqual(incident);
+
+    expect(routing.listPolicies).toHaveBeenCalledWith('society-1');
+    expect(routing.listCandidates).toHaveBeenCalledWith('society-1');
+    expect(notifications.publishResident).toHaveBeenCalledTimes(1);
+    expect(notifications.publishResident).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SOS_INCIDENT_ALERT',
+      societyId: 'society-1',
+      userId: 'responder-1',
+      incidentId: 'incident-new',
+      severity: 'CRITICAL',
+      category: 'MEDICAL',
+    }));
+  });
+
+  it('does not notify responders when a trigger reuses an existing active incident', async () => {
+    const existing = { id: 'incident-existing', unitId: 'unit-1', residentUserId: 'resident-1', status: 'ACTIVE', societyId: 'society-1' };
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: 'occupancy-1' }])
+        .mockResolvedValueOnce([existing]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = { withTenantContext: vi.fn(async (_society: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) };
+    const notifications = { publishResident: vi.fn() };
+    const routing = { listPolicies: vi.fn(), listCandidates: vi.fn() };
+    const service = new SosService(prisma as unknown as PrismaService, notifications as never, routing as never);
+
+    await service.trigger('society-1', 'resident-1', { unitId: 'unit-1' });
+
+    expect(notifications.publishResident).not.toHaveBeenCalled();
+    expect(routing.listPolicies).not.toHaveBeenCalled();
+    expect(routing.listCandidates).not.toHaveBeenCalled();
+  });
+
   it('records escalation as an append-only incident event without changing incident status', async () => {
     const escalatedAt = new Date('2026-09-13T17:45:00Z');
     const tx = {
