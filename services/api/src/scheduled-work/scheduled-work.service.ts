@@ -173,10 +173,6 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
           WITH candidates AS (
             SELECT si."id", si."societyId", si."status"
             FROM "SosIncident" si
-            JOIN "SocietyMembership" sm
-              ON sm."societyId"=si."societyId"
-             AND sm."userId"=si."assignedResponderUserId"
-             AND sm."active"=true
             WHERE si."status"='ACTIVE'
               AND si."assignedResponderUserId" IS NOT NULL
               AND si."acknowledgeDueAt" IS NOT NULL
