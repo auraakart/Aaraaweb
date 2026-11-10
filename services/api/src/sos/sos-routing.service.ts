@@ -26,7 +26,7 @@ export class SosRoutingService {
         SELECT sm."userId", u."name", sm."role"::text AS role
         FROM "SocietyMembership" sm
         JOIN "User" u ON u."id"=sm."userId"
-        WHERE sm."societyId"=${societyId}::uuid AND sm."active"=true
+        WHERE sm."societyId"=${societyId}::uuid AND sm."active"=true AND u."status"='ACTIVE'
         ORDER BY u."name" NULLS LAST, sm."userId"
       `);
       const grouped = new Map<string, { userId: string; name: string | null; roles: AppRole[] }>();
@@ -51,7 +51,7 @@ export class SosRoutingService {
     }
     return this.prisma.withTenantContext(societyId, async tx => {
       const memberships = await tx.societyMembership.findMany({
-        where: { societyId, userId: input.responderUserId, active: true },
+        where: { societyId, userId: input.responderUserId, active: true, user: { is: { status: 'ACTIVE' } } },
         select: { role: true },
       });
       const roles = memberships.map(membership => membership.role as unknown as AppRole);

@@ -52,6 +52,19 @@ type ParcelReceivedEvent = {
   createdAt: string;
 };
 
+type SosIncidentAlertEvent = {
+  type: 'SOS_INCIDENT_ALERT';
+  societyId: string;
+  userId: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  incidentId: string;
+  unitId: string;
+  category: 'MEDICAL' | 'FIRE' | 'SECURITY' | 'LIFT' | 'OTHER';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+};
+
 type EmergencyBroadcastEvent = {
   type: 'EMERGENCY_BROADCAST';
   societyId: string;
@@ -64,7 +77,7 @@ type EmergencyBroadcastEvent = {
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
 };
 
-export type ResidentMessageEvent = AccessRealtimeEvent | MaintenanceDueEvent | GeneralNoticeEvent | ParcelReceivedEvent | EmergencyBroadcastEvent;
+export type ResidentMessageEvent = AccessRealtimeEvent | MaintenanceDueEvent | GeneralNoticeEvent | ParcelReceivedEvent | EmergencyBroadcastEvent | SosIncidentAlertEvent;
 
 @Injectable()
 export class NotificationRealtimeService {
