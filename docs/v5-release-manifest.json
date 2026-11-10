@@ -2992,7 +2992,7 @@
     {
       "id": "V5.14.34",
       "name": "SOS emergency broadcasts and responder tenant-context isolation",
-      "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_PENDING",
+      "status": "MERGED_TO_DEVELOP_VALIDATED",
       "currentSlice": "V5.14.34",
       "branch": "mastermind/v5.14.34-sos-broadcast-tenant-context",
       "evidence": [
@@ -3003,14 +3003,38 @@
         "docs/V5.14.34-SOS-EMERGENCY-BROADCAST-TENANT-CONTEXT.md"
       ],
       "limitations": [
-        "Protected CI and PR acceptance are pending.",
-        "The global fallback occupancy lookup remains a deliberate pre-tenant resolver: it is constrained by authenticated user, selected unit, active occupancy and active society; the downstream SOS trigger establishes tenant context after society resolution.",
+        "Protected CI run #4312 passed on PR head 9ddf61b452265c0c7fbfbd2650d475fba0e054e8; full API validation, repository structure, Admin, Flutter, dependency security and required merge gates passed.",
+        "The canonical tenant-access inventory is synchronized at 444 runtime withTenantContext calls (source digest 7cd37fc1f966a6d11a046f9422cea5b305bfaeff961111340a5bd03af4bf9f02).",
+        "The global fallback occupancy lookup remains a deliberate pre-tenant resolver constrained by authenticated user, selected unit, active occupancy and active society; downstream SOS trigger establishes tenant context.",
         "No API/schema/permission changes, PostgreSQL RLS activation, hosted role/grant changes, live provider/device behavior, productionization or staging/main promotion."
       ],
       "pullRequest": 1618,
       "inventoryRuntimeTenantContextCalls": 444,
       "inventorySourceDigest": "9f45802a1006b1bf823c864cfb930697e626ade7816e9ee04afc6a2edfed5d11",
-      "inventoryGeneratedCommitSha": "e80f0e7d76c2a7f3c80918fbe8f476e9f4975bbd"
+      "inventoryGeneratedCommitSha": "e80f0e7d76c2a7f3c80918fbe8f476e9f4975bbd",
+      "mergeCommitSha": "f028b7b5325d130267479ba0c1ca0cf76c703251",
+      "validatedInRun": 4312,
+      "validatedHeadSha": "9ddf61b452265c0c7fbfbd2650d475fba0e054e8"
+    },
+    {
+      "id": "V5.14.35",
+      "name": "SOS responder alert fan-out through resident notification delivery",
+      "status": "IMPLEMENTATION_BRANCH_CREATED_PROTECTED_CI_PENDING",
+      "currentSlice": "V5.14.35",
+      "branch": "mastermind/v5.14.35-sos-responder-alert-fanout",
+      "evidence": [
+        "services/api/src/sos/sos.service.ts",
+        "services/api/src/sos/sos.service.spec.ts",
+        "services/api/src/notifications/notification-realtime.service.ts",
+        "services/api/src/notifications/push-notification.service.ts",
+        "docs/V5.14.35-SOS-RESPONDER-ALERT-FANOUT.md"
+      ],
+      "limitations": [
+        "Notifications are emitted only for newly created incidents; idempotent trigger reuse does not fan out duplicate alerts.",
+        "An active severity-specific routing policy selects its configured responder only when that responder remains in the current SOS_RESPOND candidate set; otherwise current eligible responders are notified.",
+        "Delivery uses existing resident realtime/push outbox paths; no new external SMS/WhatsApp provider, schema or API contract is introduced.",
+        "Protected CI and exact-head API regression remain pending; no RLS activation, productionization or staging/main promotion."
+      ]
     }
   ]
 }
