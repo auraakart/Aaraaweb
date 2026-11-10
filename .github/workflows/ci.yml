@@ -492,24 +492,6 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       # Fail fast on static inventory and TypeScript checks before database
       # migration/replay. All existing gates remain mandatory.
-      - name: Synchronize tenant-access inventory before exact-head validation
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'mastermind/') }}
-        env:
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          node services/api/scripts/tenant-access-inventory.mjs --write
-          node scripts/sync-tenant-access-summary.mjs --write
-          git add docs/architecture/v5-tenant-access-inventory.json docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
-          if git diff --cached --quiet; then
-            echo "Tenant-access inventory is already current."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: regenerate tenant-access inventory"
-          git push origin "HEAD:refs/heads/${PR_BRANCH}"
-          echo "::error::Tenant-access inventory was synchronized. This run intentionally stops; the new exact PR head will receive a fresh validation run."
-          exit 1
       - name: Verify V5 tenant-access inventory and summary
         run: |
           node services/api/scripts/tenant-access-inventory.mjs --check
