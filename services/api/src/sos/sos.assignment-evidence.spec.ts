@@ -29,7 +29,7 @@ describe('SosService incident assignment and evidence', () => {
     const membership = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(membership.strings.join(' ')).toContain('"SocietyMembership"');
     expect(membership.strings.join(' ')).toContain('JOIN "User"');
-    expect(membership.strings.join(' ')).toContain("u."status" = 'ACTIVE'");
+    expect(membership.strings.join(' ')).toContain(`u."status" = 'ACTIVE'`);
     expect(membership.strings.join(' ')).toContain('sm."active" = true');
     expect(membership.values).toContain('society-1');
     expect(membership.values).toContain('guard-1');
