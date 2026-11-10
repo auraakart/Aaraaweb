@@ -3043,19 +3043,41 @@
     {
       "id": "V5.14.36",
       "name": "SOS acknowledgement deadline persistence and Prisma migration alignment",
-      "status": "IMPLEMENTATION_IN_PROGRESS",
+      "status": "MERGED_PROTECTED_CI_PASSED",
       "currentSlice": "V5.14.36",
       "branch": "mastermind/v5.14.36-sos-acknowledgement-reliability",
       "evidence": [
         "docs/V5.14.36-SOS-ACKNOWLEDGEMENT-RELIABILITY.md",
         "services/api/prisma/schema.prisma",
         "services/api/src/sos/sos.service.ts",
-        "services/api/src/sos/sos.assignment-evidence.spec.ts"
+        "services/api/src/sos/sos.assignment-evidence.spec.ts",
+        ".github/workflows/ci.yml"
       ],
       "limitations": [
         "Reuses existing SOS migrations and scheduled acknowledgement-deadline sweep; no duplicate migration is introduced.",
         "No endpoint, permission or role change; no PostgreSQL RLS activation, live providers, hardware, productionization or staging/main promotion.",
-        "Protected CI and exact-head regression remain pending."
+        "Exact-head protected CI run #4328 passed API, Admin, Flutter, dependency-security and required merge-gate validation."
+      ],
+      "pullRequest": 1620,
+      "mergeSha": "78aaabd554c4e83ec0a1b8fe142d2647a9613511",
+      "ciRun": 42864732020,
+      "validatedHeadSha": "97987e3de91c7599dc53c03f584fd654a4025251"
+    },
+    {
+      "id": "V5.14.37",
+      "name": "SOS escalation after responder deactivation",
+      "status": "IMPLEMENTATION_IN_PROGRESS",
+      "currentSlice": "V5.14.37",
+      "branch": "mastermind/v5.14.37-sos-escalation-responder-deactivation",
+      "evidence": [
+        "docs/V5.14.37-SOS-ESCALATION-RESPONDER-DEACTIVATION.md",
+        "services/api/src/scheduled-work/scheduled-work.service.ts",
+        "services/api/src/scheduled-work/scheduled-work.service.spec.ts"
+      ],
+      "limitations": [
+        "Escalates overdue active incidents independently of the assignee's current membership state; does not automatically reassign or dispatch a new alert.",
+        "No API, schema, permission, role or migration change.",
+        "Protected exact-head CI remains pending; no productionization or staging/main promotion."
       ]
     }
   ]

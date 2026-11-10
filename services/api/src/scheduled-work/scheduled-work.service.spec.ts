@@ -96,6 +96,9 @@ describe('ScheduledWorkService', () => {
     const sosSql = (tx.$queryRaw.mock.calls[3][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sosSql).toContain('"acknowledgeDueAt" <= CURRENT_TIMESTAMP');
     expect(sosSql).toContain("'AUTOMATION','ESCALATED'");
+    // Escalation belongs to the incident deadline, not the current state of the assignee's membership.
+    // A deactivated/removed responder must not strand an overdue active emergency.
+    expect(sosSql).not.toContain('JOIN "SocietyMembership"');
     const noticeSql = (tx.$queryRaw.mock.calls[4][0] as { strings: readonly string[] }).strings.join(' ');
     expect(noticeSql).toContain('"NoticeDispatch"');
     expect(noticeSql).toContain('FOR UPDATE OF nd SKIP LOCKED');
