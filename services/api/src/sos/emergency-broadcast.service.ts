@@ -33,10 +33,10 @@ export class EmergencyBroadcastService {
     const body = input.body.trim();
     if (title.length < 3 || title.length > 160) throw new BadRequestException('Broadcast title must be between 3 and 160 characters');
     if (body.length < 5 || body.length > 2000) throw new BadRequestException('Broadcast body must be between 5 and 2000 characters');
-    if (input.incidentId) await this.assertOpenIncident(societyId, input.incidentId);
     const severity = input.severity ?? 'HIGH';
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.withTenantContext(societyId, async (tx) => {
+      if (input.incidentId) await this.assertOpenIncident(societyId, input.incidentId, tx);
       const rows = await tx.$queryRaw<BroadcastRow[]>(Prisma.sql`
         INSERT INTO "EmergencyBroadcast" (
           "societyId", "incidentId", "title", "body", "severity", "createdByUserId"
@@ -88,7 +88,7 @@ export class EmergencyBroadcastService {
   }
 
   listMine(societyId: string, userId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, (tx) => tx.$queryRaw(Prisma.sql`
       SELECT eb.*, ebr."acknowledgedAt"
       FROM "EmergencyBroadcastRecipient" ebr
       JOIN "EmergencyBroadcast" eb ON eb."id" = ebr."broadcastId"
@@ -97,11 +97,11 @@ export class EmergencyBroadcastService {
         AND eb."status" = 'PUBLISHED'
       ORDER BY eb."publishedAt" DESC
       LIMIT 100
-    `);
+    `));
   }
 
   listManage(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, (tx) => tx.$queryRaw(Prisma.sql`
       SELECT eb.*,
              COUNT(ebr."id")::int AS "recipientCount",
              COUNT(ebr."acknowledgedAt")::int AS "acknowledgedCount"
@@ -112,11 +112,11 @@ export class EmergencyBroadcastService {
       GROUP BY eb."id"
       ORDER BY eb."publishedAt" DESC
       LIMIT 100
-    `);
+    `));
   }
 
   async acknowledge(societyId: string, userId: string, broadcastId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; acknowledgedAt: Date }>>(Prisma.sql`
+    const rows = await this.prisma.withTenantContext(societyId, (tx) => tx.$queryRaw<Array<{ id: string; acknowledgedAt: Date }>>(Prisma.sql`
       UPDATE "EmergencyBroadcastRecipient" ebr
       SET "acknowledgedAt" = COALESCE(ebr."acknowledgedAt", CURRENT_TIMESTAMP)
       FROM "EmergencyBroadcast" eb
@@ -127,13 +127,13 @@ export class EmergencyBroadcastService {
         AND eb."societyId" = ${societyId}::uuid
         AND eb."status" = 'PUBLISHED'
       RETURNING ebr."id", ebr."acknowledgedAt"
-    `);
+    `));
     if (!rows[0]) throw new NotFoundException('Emergency broadcast not found for the authenticated recipient');
     return rows[0];
   }
 
-  private async assertOpenIncident(societyId: string, incidentId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+  private async assertOpenIncident(societyId: string, incidentId: string, tx: Prisma.TransactionClient) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id"
       FROM "SosIncident"
       WHERE "id" = ${incidentId}::uuid
