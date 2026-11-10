@@ -8,8 +8,8 @@ const societyId = '11111111-1111-4111-8111-111111111111';
 const actorUserId = '22222222-2222-4222-8222-222222222222';
 const responderUserId = '33333333-3333-4333-8333-333333333333';
 
-function createTenantPrisma(tx: Record<string, any>) {
-  const withTenantContext = vi.fn(async (_societyId: string, operation: (client: any) => Promise<unknown>) =>
+function createTenantPrisma<T extends object>(tx: T) {
+  const withTenantContext = vi.fn(async (_societyId: string, operation: (client: T) => Promise<unknown>) =>
     operation(tx),
   );
   return { prisma: { withTenantContext }, withTenantContext };
@@ -24,7 +24,9 @@ describe('SosRoutingService tenant context', () => {
     await expect(service.listPolicies(societyId)).resolves.toEqual([{ id: 'policy-1' }]);
     expect(withTenantContext).toHaveBeenCalledWith(societyId, expect.any(Function));
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(prisma).not.toHaveProperty('$queryRaw');
+    const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(query.strings.join(' ')).toContain('WHERE p."societyId"=');
+    expect(query.values).toContain(societyId);
   });
 
   it('lists only SOS responders using tenant-scoped membership reads', async () => {
