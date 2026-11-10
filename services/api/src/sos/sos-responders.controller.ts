@@ -33,10 +33,9 @@ type SosResponder = {
 export class SosRespondersController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Get()
-  list(@CurrentTenant() societyId: string) {
+  list(societyId: string) {
     const roles = Prisma.join(RESPONDER_ROLES.map((role) => Prisma.sql`${role}::"MembershipRole"`));
-    return this.prisma.$queryRaw<SosResponder[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, (tx) => tx.$queryRaw<SosResponder[]>(Prisma.sql`
       SELECT
         sm."userId",
         u."name",
@@ -57,6 +56,6 @@ export class SosRespondersController {
           ELSE 4
         END,
         COALESCE(u."name", u."phone") ASC
-    `);
+    `));
   }
 }
