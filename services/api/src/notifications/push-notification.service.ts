@@ -44,6 +44,8 @@ export function residentPushDedupeKey(event: ResidentMessageEvent) {
       return `parcel:${event.parcelId}:user:${userId}`;
     case 'EMERGENCY_BROADCAST':
       return `emergency:${event.broadcastId}:user:${userId}`;
+    case 'SOS_INCIDENT_ALERT':
+      return `sos:${event.incidentId}:alert:user:${userId}`;
   }
 }
 
@@ -343,6 +345,12 @@ export class PushNotificationService {
             severity: event.severity,
             ...(event.incidentId ? { incidentId: event.incidentId } : {}),
           },
+        };
+      case 'SOS_INCIDENT_ALERT':
+        return {
+          title: event.title,
+          body: event.body,
+          data: { incidentId: event.incidentId, unitId: event.unitId, category: event.category, severity: event.severity },
         };
     }
   }

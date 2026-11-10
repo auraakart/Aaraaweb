@@ -492,26 +492,10 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       # Fail fast on static inventory and TypeScript checks before database
       # migration/replay. All existing gates remain mandatory.
-      - name: Regenerate V5 tenant-access inventory and summary
+      - name: Verify V5 tenant-access inventory and summary
         run: |
-          node services/api/scripts/tenant-access-inventory.mjs --write
-          node scripts/sync-tenant-access-summary.mjs --write
-      - name: Commit generated inventory to internal mastermind PR branch
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'mastermind/') }}
-        env:
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          git add docs/architecture/v5-tenant-access-inventory.json docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
-          if git diff --cached --quiet; then
-            echo "Tenant-access inventory is already current."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: regenerate tenant-access inventory"
-          git push origin "HEAD:refs/heads/${PR_BRANCH}"
-      - name: Verify V5 tenant-access inventory
-        run: |
+          # CI is validation-only: never mutate the PR head during its own run.
+          # Regenerate and commit inventory locally before opening/updating the PR.
           node services/api/scripts/tenant-access-inventory.mjs --check
           node scripts/sync-tenant-access-summary.mjs
           git diff --exit-code -- docs/architecture/v5-tenant-access-inventory.json docs/architecture/V5-TENANT-ACCESS-INVENTORY.md
