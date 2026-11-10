@@ -684,8 +684,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # The PR merge commit and both parents provide the two scope refs.
-          fetch-depth: 2
+          # Changed-admin selection can reference the merge-base SHA, not only the two merge parents.
+          fetch-depth: 0
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
